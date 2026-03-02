@@ -339,13 +339,25 @@ if sys.platform == "win32":
 
 **Rule**: When init creates content conditionally based on project type, update must check for directory existence before including files in its template map. The two paths must agree.
 
-### iFlow getAllCommands() reads wrong directory level (known gap)
+### iFlow getAllCommands() reads wrong directory level (FIXED)
 
-**Symptom**: `trellis update` tracks zero iFlow commands — commands are correctly copied during `init` but not tracked for update diffs.
+**Symptom**: `trellis update` tracked zero iFlow commands — commands were correctly copied during `init` but not tracked for update diffs.
 
-**Cause**: iFlow `getAllCommands()` calls `listFiles("commands")` which returns `["trellis"]` (a directory, not `.md` files). Claude's version correctly reads `listFiles("commands/trellis")`.
+**Cause**: iFlow `getAllCommands()` called `listFiles("commands")` which returned `["trellis"]` (a directory, not `.md` files). Fixed to read `listFiles("commands/trellis")`.
 
-**Impact**: Low — iFlow commands are still correctly installed during `init` (recursive directory copy). They just won't be updated by `trellis update` if templates change.
+**Status**: Fixed — `getAllCommands()` now reads from correct subdirectory.
+
+### collectTemplates path drift after directory migration (0.3.1)
+
+**Symptom**: `trellis update` creates iFlow commands at `.iflow/commands/{name}.md` (flat) instead of `.iflow/commands/trellis/{name}.md` (correct).
+
+**Cause**: When commands migrated from flat to `trellis/` subdirectory, `configure()` uses recursive directory copy (automatically correct), but `collectTemplates()` manually constructs paths with `files.set()` (requires manual update). The iFlow `collectTemplates` was not updated — it produced `.iflow/commands/${cmd.name}.md` instead of `.iflow/commands/trellis/${cmd.name}.md`.
+
+**Fix**: Add `trellis/` to the path in iFlow's `collectTemplates` (line 111 of `configurators/index.ts`).
+
+**Design insight**: `configure()` and `collectTemplates()` use asymmetric mechanisms to produce the same file set — one recursive copies a directory tree, the other manually lists `files.set()` calls. This asymmetry makes path drift likely during structural migrations. When migrating directory structures, always check both paths.
+
+**Regression test**: `regression.test.ts` now verifies all platforms with commands use `/commands/trellis/` in their `collectTemplates` paths.
 
 ---
 
