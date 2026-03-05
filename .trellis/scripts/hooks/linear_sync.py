@@ -8,6 +8,9 @@ Usage (called automatically by task.py hooks):
     python3 .trellis/scripts/hooks/linear_sync.py start
     python3 .trellis/scripts/hooks/linear_sync.py archive
 
+Manual usage:
+    TASK_JSON_PATH=.trellis/tasks/<name>/task.json python3 .trellis/scripts/hooks/linear_sync.py sync
+
 Environment:
     TASK_JSON_PATH  - Absolute path to task.json (set by task.py)
 
@@ -173,6 +176,26 @@ def cmd_archive() -> None:
     print(f"Updated {issue} -> {STATUS_DONE}")
 
 
+def cmd_sync() -> None:
+    """Sync prd.md content to Linear issue description."""
+    task, _ = _read_task()
+    issue = _get_linear_issue(task)
+    if not issue:
+        print("No linear_issue in meta, run create first", file=sys.stderr)
+        sys.exit(1)
+
+    # Find prd.md next to task.json
+    task_json_path = os.environ.get("TASK_JSON_PATH", "")
+    prd_path = Path(task_json_path).parent / "prd.md"
+    if not prd_path.is_file():
+        print(f"No prd.md found at {prd_path}", file=sys.stderr)
+        sys.exit(1)
+
+    description = prd_path.read_text(encoding="utf-8").strip()
+    _linearis("issues", "update", issue, "-d", description)
+    print(f"Synced prd.md to {issue} description")
+
+
 # ─── Parent Issue Resolution ─────────────────────────────────────────────────
 
 
@@ -208,6 +231,7 @@ if __name__ == "__main__":
         "create": cmd_create,
         "start": cmd_start,
         "archive": cmd_archive,
+        "sync": cmd_sync,
     }
     fn = actions.get(action)
     if fn:
