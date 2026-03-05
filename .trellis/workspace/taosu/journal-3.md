@@ -120,3 +120,35 @@ From `/trellis:break-loop` analysis — root cause was implicit assumption that 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 71: Record-session prompt fix: archive before PR
+
+**Date**: 2026-03-05
+**Task**: Record-session prompt fix: archive before PR
+
+### Summary
+
+Fixed record-session archive guidance across 12 platform templates — archive when code committed, don't wait for PR
+
+### Main Changes
+
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `44f14af` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
