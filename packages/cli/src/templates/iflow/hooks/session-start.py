@@ -149,6 +149,8 @@ Read and follow all instructions below carefully.
     output.write("\n</workflow>\n\n")
 
     output.write("<guidelines>\n")
+    output.write("**Note**: The guidelines below are index files — they list available guideline documents and their locations.\n")
+    output.write("During actual development, you MUST read the specific guideline files listed in each index's Pre-Development Checklist.\n\n")
 
     spec_dir = trellis_dir / "spec"
     if spec_dir.is_dir():

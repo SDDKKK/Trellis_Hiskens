@@ -58,6 +58,10 @@ cat .trellis/spec/guides/index.md
 cat .trellis/spec/guides/cross-layer-thinking-guide.md
 ```
 
+> **Important**: The index files are navigation — they list the actual guideline files (e.g., `error-handling.md`, `conventions.md`, `mock-strategies.md`).
+> At this step, just read the indexes to understand what's available.
+> When you start actual development, you MUST go back and read the specific guideline files relevant to your task, as listed in the index's Pre-Development Checklist.
+
 ### Step 4: Check Active Tasks `[AI]`
 
 ```bash

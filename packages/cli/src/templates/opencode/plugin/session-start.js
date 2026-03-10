@@ -139,6 +139,8 @@ Read and follow all instructions below carefully.
 
   // 4. Guidelines Index (dynamic discovery, matching Claude's session-start.py)
   parts.push("<guidelines>")
+  parts.push("**Note**: The guidelines below are index files — they list available guideline documents and their locations.")
+  parts.push("During actual development, you MUST read the specific guideline files listed in each index's Pre-Development Checklist.\n")
 
   const specDir = join(directory, ".trellis", "spec")
   if (existsSync(specDir)) {
