@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .config import get_default_package, get_packages, get_spec_scope
+from .config import _is_true_config_value, get_default_package, get_packages, get_spec_scope
 from .paths import (
     DIR_SPEC,
     DIR_WORKFLOW,
@@ -116,7 +116,7 @@ def get_packages_info(repo_root: Path) -> list[dict]:
             "default": pkg_name == default_pkg,
             "specLayers": layers,
             "isSubmodule": pkg_type == "submodule",
-            "isGitRepo": pkg_git in (True, "true"),
+            "isGitRepo": _is_true_config_value(pkg_git),
         })
 
     return result
