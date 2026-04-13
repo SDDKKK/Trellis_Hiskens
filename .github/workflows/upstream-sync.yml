@@ -1,0 +1,258 @@
+name: Upstream Sync
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      target_tag:
+        description: "Optional upstream tag to sync instead of the latest one"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  upstream-sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/mindfold-ai/Trellis.git 2>/dev/null || true
+          git remote set-url upstream https://github.com/mindfold-ai/Trellis.git
+          git fetch upstream main --tags --force
+
+      - name: Resolve target version
+        id: versions
+        env:
+          INPUT_TARGET_TAG: ${{ inputs.target_tag }}
+        run: |
+          set -euo pipefail
+
+          current_tag="$(tr -d '[:space:]' < .upstream-version)"
+          if [[ -n "${INPUT_TARGET_TAG:-}" ]]; then
+            latest_tag="$INPUT_TARGET_TAG"
+          else
+            latest_tag="$(
+              git ls-remote --tags --refs upstream 'v*' \
+                | awk -F/ '{print $3}' \
+                | sort -V \
+                | tail -n 1
+            )"
+          fi
+
+          if [[ -z "$latest_tag" ]]; then
+            echo "Unable to determine upstream tag" >&2
+            exit 1
+          fi
+
+          if ! git rev-parse --verify --quiet "refs/tags/$latest_tag^{commit}" >/dev/null; then
+            echo "Tag not available locally after fetch: $latest_tag" >&2
+            exit 1
+          fi
+
+          sync_branch="upstream-sync/${latest_tag}"
+
+          {
+            echo "current_tag=$current_tag"
+            echo "latest_tag=$latest_tag"
+            echo "sync_branch=$sync_branch"
+          } >> "$GITHUB_OUTPUT"
+
+          if [[ "$current_tag" == "$latest_tag" ]]; then
+            echo "has_update=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_update=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Stop when already up to date
+        if: steps.versions.outputs.has_update != 'true'
+        run: echo "Fork already tracks upstream tag ${{ steps.versions.outputs.latest_tag }}"
+
+      - name: Prepare sync branch
+        if: steps.versions.outputs.has_update == 'true'
+        run: git checkout -B "${{ steps.versions.outputs.sync_branch }}" origin/main
+
+      - name: Dry-run merge check
+        if: steps.versions.outputs.has_update == 'true'
+        id: merge_check
+        env:
+          TARGET_TAG: ${{ steps.versions.outputs.latest_tag }}
+        run: |
+          set +e
+          git merge --no-commit --no-ff "$TARGET_TAG" > merge-test.log 2>&1
+          merge_status=$?
+          set -e
+
+          conflict_files="$(git diff --name-only --diff-filter=U || true)"
+          overlay_conflicts="$(printf '%s\n' "$conflict_files" | grep '^overlays/' || true)"
+
+          {
+            echo "merge_status=$merge_status"
+            echo "conflict_files<<EOF"
+            printf '%s\n' "$conflict_files"
+            echo "EOF"
+            echo "overlay_conflicts<<EOF"
+            printf '%s\n' "$overlay_conflicts"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          git merge --abort >/dev/null 2>&1 || git reset --merge >/dev/null 2>&1 || true
+
+      - name: Create conflict issue
+        if: steps.versions.outputs.has_update == 'true' && steps.merge_check.outputs.merge_status != '0'
+        uses: actions/github-script@v7
+        env:
+          TARGET_TAG: ${{ steps.versions.outputs.latest_tag }}
+          CONFLICT_FILES: ${{ steps.merge_check.outputs.conflict_files }}
+          OVERLAY_CONFLICTS: ${{ steps.merge_check.outputs.overlay_conflicts }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const title = `Upstream sync conflict: ${process.env.TARGET_TAG}`;
+            const conflictFiles = (process.env.CONFLICT_FILES || '').trim() || '(none)';
+            const overlayConflicts = (process.env.OVERLAY_CONFLICTS || '').trim() || '(none)';
+            const body = [
+              `Upstream sync to \`${process.env.TARGET_TAG}\` hit merge conflicts.`,
+              '',
+              '## Conflicting files',
+              '```text',
+              conflictFiles,
+              '```',
+              '',
+              '## Overlay conflicts',
+              '```text',
+              overlayConflicts,
+              '```',
+              '',
+              'Manual intervention is required before a sync PR can be created.',
+            ].join('\n');
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: 'open',
+            });
+
+            const existing = issues.find((issue) => issue.title === title);
+            if (existing) {
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: existing.number,
+                body,
+              });
+              core.info(`Updated issue #${existing.number}`);
+            } else {
+              const created = await github.rest.issues.create({
+                owner,
+                repo,
+                title,
+                body,
+              });
+              core.info(`Created issue #${created.data.number}`);
+            }
+
+      - name: Fail on merge conflict
+        if: steps.versions.outputs.has_update == 'true' && steps.merge_check.outputs.merge_status != '0'
+        run: |
+          cat merge-test.log
+          exit 1
+
+      - name: Merge upstream tag
+        if: steps.versions.outputs.has_update == 'true'
+        env:
+          TARGET_TAG: ${{ steps.versions.outputs.latest_tag }}
+        run: |
+          git merge --no-ff --no-edit "$TARGET_TAG"
+          printf '%s\n' "$TARGET_TAG" > .upstream-version
+
+      - name: Generate upstream diff report
+        if: steps.versions.outputs.has_update == 'true'
+        env:
+          BASE_TAG: ${{ steps.versions.outputs.current_tag }}
+          TARGET_TAG: ${{ steps.versions.outputs.latest_tag }}
+        run: |
+          scripts/upstream-diff.sh "$BASE_TAG" "$TARGET_TAG" > upstream-sync-report.md
+
+      - name: Commit sync branch
+        if: steps.versions.outputs.has_update == 'true'
+        env:
+          TARGET_TAG: ${{ steps.versions.outputs.latest_tag }}
+        run: |
+          git add .upstream-version
+          git commit -m "chore: track upstream ${TARGET_TAG}"
+          git push --force-with-lease origin "${{ steps.versions.outputs.sync_branch }}"
+
+      - name: Create or update sync pull request
+        if: steps.versions.outputs.has_update == 'true'
+        uses: actions/github-script@v7
+        env:
+          TARGET_TAG: ${{ steps.versions.outputs.latest_tag }}
+          SYNC_BRANCH: ${{ steps.versions.outputs.sync_branch }}
+        with:
+          script: |
+            const fs = require('fs');
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const title = `Upstream sync: ${process.env.TARGET_TAG}`;
+            const report = fs.readFileSync('upstream-sync-report.md', 'utf8');
+            const body = [
+              `Automated upstream sync candidate for \`${process.env.TARGET_TAG}\`.`,
+              '',
+              '## Checklist',
+              '',
+              '- [ ] Review upstream CLI/configurator changes for overlay-loader compatibility',
+              '- [ ] Review any upstream hook changes against overlay OVERRIDE files',
+              '- [ ] Confirm sandbox validation plan before merging',
+              '',
+              report,
+            ].join('\n');
+
+            const { data: pulls } = await github.rest.pulls.list({
+              owner,
+              repo,
+              state: 'open',
+              head: `${owner}:${process.env.SYNC_BRANCH}`,
+            });
+
+            if (pulls.length > 0) {
+              await github.rest.pulls.update({
+                owner,
+                repo,
+                pull_number: pulls[0].number,
+                title,
+                body,
+              });
+              core.info(`Updated PR #${pulls[0].number}`);
+            } else {
+              const created = await github.rest.pulls.create({
+                owner,
+                repo,
+                title,
+                head: process.env.SYNC_BRANCH,
+                base: 'main',
+                body,
+                draft: true,
+              });
+              core.info(`Created PR #${created.data.number}`);
+            }
