@@ -585,6 +585,9 @@ describe("init() integration", () => {
   it("overlay #13 init applies OVERRIDE files on top of base templates", async () => {
     const overlayPath = resolveOverlayPath("hiskens");
     expect(overlayPath).not.toBeNull();
+    if (!overlayPath) {
+      throw new Error("Expected hiskens overlay to exist");
+    }
 
     await init({ yes: true, claude: true, overlay: "hiskens" });
 
@@ -596,7 +599,7 @@ describe("init() integration", () => {
       "brainstorm.md",
     );
     const overlayFile = path.join(
-      overlayPath!,
+      overlayPath,
       "templates",
       "claude",
       "commands",
@@ -663,5 +666,27 @@ describe("init() integration", () => {
         path.join(tmpDir, ".agents", "skills", "before-dev", "SKILL.md"),
       ),
     ).toBe(false);
+  });
+
+  it("overlay #17 init resolves PYTHON_CMD placeholders in merged claude settings", async () => {
+    await init({ yes: true, claude: true, overlay: "hiskens" });
+
+    const settingsPath = path.join(tmpDir, ".claude", "settings.json");
+    const settingsContent = fs.readFileSync(settingsPath, "utf-8");
+    const settings = JSON.parse(settingsContent) as {
+      hooks: Record<
+        string,
+        { matcher: string; hooks: { command: string }[] }[]
+      >;
+    };
+    const expectedPython = process.platform === "win32" ? "python" : "python3";
+
+    expect(settingsContent).not.toContain("{{PYTHON_CMD}}");
+    expect(settings.hooks.UserPromptSubmit[0].hooks[0].command).toContain(
+      `${expectedPython} "$CLAUDE_PROJECT_DIR/.claude/hooks/intent-gate.py"`,
+    );
+    expect(settings.hooks.PostToolUse[0].hooks[0].command).toContain(
+      `${expectedPython} "$CLAUDE_PROJECT_DIR/.claude/hooks/todo-enforcer.py"`,
+    );
   });
 });

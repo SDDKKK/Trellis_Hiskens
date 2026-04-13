@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolvePlaceholders } from "../configurators/shared.js";
 
 export interface OverlayConfig {
   name: string;
@@ -224,7 +225,7 @@ export function mergeSettings(
 ): string {
   const parsedBase = JSON.parse(baseContent) as unknown;
   const parsedOverlay = JSON.parse(
-    fs.readFileSync(overlaySettingsPath, "utf-8"),
+    resolvePlaceholders(fs.readFileSync(overlaySettingsPath, "utf-8")),
   ) as unknown;
 
   const base = isJsonObject(parsedBase) ? parsedBase : {};
