@@ -1,0 +1,33 @@
+% publication-plot.m
+% Publication-quality plot with Chinese label support.
+%
+% Demonstrates: figure sizing, font config, export at 300 DPI.
+
+% Data
+years = 2019:2024;
+saidi = [4.2, 3.8, 3.5, 3.1, 2.9, 2.6];
+saifi = [2.1, 1.9, 1.7, 1.5, 1.4, 1.2];
+
+% Create figure with specific size (cm → normalized)
+fig = figure('Units', 'centimeters', 'Position', [0 0 12 8]);
+
+% Left axis: SAIDI
+yyaxis left;
+plot(years, saidi, 'o-', 'LineWidth', 1.5, 'MarkerSize', 5);
+ylabel('SAIDI (h/户)');
+
+% Right axis: SAIFI
+yyaxis right;
+plot(years, saifi, 's--', 'LineWidth', 1.5, 'MarkerSize', 5);
+ylabel('SAIFI (次/户)');
+
+% Labels and formatting
+xlabel('年份');
+title('可靠性指标趋势');
+legend('SAIDI', 'SAIFI', 'Location', 'northeast');
+grid on;
+set(gca, 'FontName', 'SimHei', 'FontSize', 9);
+
+% Export
+print('-dpdf', 'figures/reliability_trend.pdf');
+print('-dpng', '-r300', 'figures/reliability_trend.png');

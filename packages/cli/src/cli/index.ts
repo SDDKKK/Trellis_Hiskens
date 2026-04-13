@@ -95,6 +95,7 @@ program
     "-r, --registry <source>",
     "Use a custom template registry (e.g., gh:myorg/myrepo/specs)",
   )
+  .option("--overlay <name>", "Apply overlay on top of base templates")
   .action(async (options: Record<string, unknown>) => {
     try {
       await init(options);
@@ -116,6 +117,7 @@ program
   .option("-n, --create-new", "Create .new copies for all changed files")
   .option("--allow-downgrade", "Allow downgrading to an older version")
   .option("--migrate", "Apply pending file migrations (renames/deletions)")
+  .option("--overlay <name>", "Apply overlay on top of base templates")
   .action(async (options: Record<string, unknown>) => {
     try {
       await update({
@@ -125,6 +127,7 @@ program
         createNew: options.createNew as boolean,
         allowDowngrade: options.allowDowngrade as boolean,
         migrate: options.migrate as boolean,
+        overlay: options.overlay as string | undefined,
       });
     } catch (error) {
       console.error(

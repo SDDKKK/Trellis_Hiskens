@@ -42,6 +42,7 @@ import {
 import {
   ALL_MANAGED_DIRS,
   getConfiguredPlatforms,
+  collectWorkflowOverlayTemplates,
   collectPlatformTemplates,
   isManagedPath,
   isManagedRootDir,
@@ -54,6 +55,7 @@ export interface UpdateOptions {
   createNew?: boolean;
   allowDowngrade?: boolean;
   migrate?: boolean;
+  overlay?: string;
 }
 
 interface FileChange {
@@ -345,6 +347,7 @@ function needsCodexUpgrade(cwd: string): boolean {
 function collectTemplateFiles(
   cwd: string,
   extraPlatforms?: Set<AITool>,
+  overlayName?: string,
 ): Map<string, string> {
   const files = new Map<string, string>();
   const platforms = getConfiguredPlatforms(cwd);
@@ -365,12 +368,22 @@ function collectTemplateFiles(
   files.set(`${DIR_NAMES.WORKFLOW}/.gitignore`, gitignoreTemplate);
   // workflow.md and workspace/index.md are user-customizable; only created during init
 
+  for (const [filePath, content] of collectWorkflowOverlayTemplates(
+    overlayName,
+  )) {
+    if (!isProtectedPath(filePath)) {
+      files.set(filePath, content);
+    }
+  }
+
   // Platform-specific templates (only for configured platforms)
   for (const platformId of platforms) {
-    const platformFiles = collectPlatformTemplates(platformId);
+    const platformFiles = collectPlatformTemplates(platformId, overlayName);
     if (platformFiles) {
       for (const [filePath, content] of platformFiles) {
-        files.set(filePath, content);
+        if (!isProtectedPath(filePath)) {
+          files.set(filePath, content);
+        }
       }
     }
   }
@@ -1367,6 +1380,7 @@ export async function update(options: UpdateOptions): Promise<void> {
   const templates = collectTemplateFiles(
     cwd,
     codexUpgradeNeeded ? new Set<AITool>(["codex"]) : undefined,
+    options.overlay,
   );
 
   // Load update.skip paths (used for both safe-file-delete and template collection)

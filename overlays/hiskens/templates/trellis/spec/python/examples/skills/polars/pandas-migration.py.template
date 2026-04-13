@@ -1,0 +1,40 @@
+"""Pandas → Polars migration side-by-side.
+
+Shows equivalent operations for common patterns in this project.
+"""
+
+import polars as pl
+
+# ── Read data ──────────────────────────────────────────
+# pandas:  df = pd.read_csv("data/outages.csv")
+df = pl.read_csv("data/outages.csv")
+
+# ── Filter rows ───────────────────────────────────────
+# pandas:  df[df["voltage_level"] == 10]
+filtered = df.filter(pl.col("voltage_level") == 10)
+
+# ── Add columns ───────────────────────────────────────
+# pandas:  df.assign(duration_min=df["duration_hours"] * 60)
+enriched = df.with_columns(
+    duration_min=pl.col("duration_hours") * 60,
+)
+
+# ── Group by + aggregate ──────────────────────────────
+# pandas:  df.groupby("feeder").agg({"duration_hours": "sum"})
+summary = df.group_by("feeder").agg(
+    pl.col("duration_hours").sum().alias("total_hours"),
+)
+
+# ── Window function (group transform) ────────────────
+# pandas:  df["avg_by_feeder"] = df.groupby("feeder")["duration"].transform("mean")
+with_avg = df.with_columns(
+    avg_by_feeder=pl.col("duration_hours").mean().over("feeder"),
+)
+
+# ── Join ──────────────────────────────────────────────
+# pandas:  pd.merge(df1, df2, on="device_id", how="left")
+joined = df.join(df, on="device_id", how="left")
+
+# ── Concat ────────────────────────────────────────────
+# pandas:  pd.concat([df1, df2])
+combined = pl.concat([df, df], how="vertical")

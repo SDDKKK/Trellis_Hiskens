@@ -41,7 +41,7 @@ describe("windsurf getAllWorkflows", () => {
     const workflows = getAllWorkflows();
 
     for (const workflow of workflows) {
-      expect(workflow.content).toMatch(/^---\ndescription: .+\n---\n\n/);
+      expect(workflow.content).toMatch(/^---\r?\ndescription: .+\r?\n---\r?\n\r?\n/);
     }
   });
 

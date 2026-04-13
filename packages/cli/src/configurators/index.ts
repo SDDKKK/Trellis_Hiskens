@@ -69,6 +69,13 @@ import {
   getAllPrompts as getCopilotPrompts,
   getHooksConfig as getCopilotHooksConfig,
 } from "../templates/copilot/index.js";
+import {
+  getOverlayTemplatePath,
+  loadExcludeList,
+  mergeSettings,
+  readOverlayFiles,
+  resolveOverlayPath,
+} from "../utils/overlay.js";
 
 // =============================================================================
 // Platform Functions Registry
@@ -79,6 +86,12 @@ interface PlatformFunctions {
   configure: (cwd: string) => Promise<void>;
   /** Collect template files for update tracking. Undefined = platform skipped during update. */
   collectTemplates?: () => Map<string, string>;
+}
+
+interface OverlayTarget {
+  overlayDir: string;
+  outputDir: string;
+  settingsTargetPath?: string;
 }
 
 /**
@@ -272,6 +285,200 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
   },
 };
 
+const WORKFLOW_OVERLAY_TARGETS: OverlayTarget[] = [
+  { overlayDir: "trellis", outputDir: ".trellis" },
+];
+
+const PLATFORM_OVERLAY_TARGETS: Record<AITool, OverlayTarget[]> = {
+  "claude-code": [
+    {
+      overlayDir: "claude",
+      outputDir: ".claude",
+      settingsTargetPath: ".claude/settings.json",
+    },
+  ],
+  cursor: [{ overlayDir: "cursor", outputDir: ".cursor" }],
+  opencode: [{ overlayDir: "opencode", outputDir: ".opencode" }],
+  iflow: [
+    {
+      overlayDir: "iflow",
+      outputDir: ".iflow",
+      settingsTargetPath: ".iflow/settings.json",
+    },
+  ],
+  codex: [
+    { overlayDir: "codex", outputDir: ".codex" },
+    { overlayDir: "agents", outputDir: ".agents" },
+  ],
+  kilo: [{ overlayDir: "kilo", outputDir: ".kilocode" }],
+  kiro: [{ overlayDir: "kiro", outputDir: ".kiro" }],
+  gemini: [{ overlayDir: "gemini", outputDir: ".gemini" }],
+  antigravity: [{ overlayDir: "antigravity", outputDir: ".agent" }],
+  windsurf: [{ overlayDir: "windsurf", outputDir: ".windsurf" }],
+  qoder: [{ overlayDir: "qoder", outputDir: ".qoder" }],
+  codebuddy: [{ overlayDir: "codebuddy", outputDir: ".codebuddy" }],
+  copilot: [{ overlayDir: "copilot", outputDir: ".github" }],
+};
+
+function joinProjectPath(...parts: string[]): string {
+  return path.posix.join(...parts);
+}
+
+function toFsPath(cwd: string, relativePath: string): string {
+  return path.join(cwd, ...relativePath.split("/"));
+}
+
+function isExecutableTemplate(relativePath: string): boolean {
+  return relativePath.endsWith(".py") || relativePath.endsWith(".sh");
+}
+
+function isSettingsOverlayFile(relativePath: string): boolean {
+  return path.posix.basename(relativePath) === "settings.overlay.json";
+}
+
+function mapOverlayPathToProjectPath(
+  overlayRelativePath: string,
+  targets: OverlayTarget[],
+): string | null {
+  for (const target of targets) {
+    if (
+      overlayRelativePath === target.overlayDir ||
+      overlayRelativePath.startsWith(`${target.overlayDir}/`)
+    ) {
+      const rest = overlayRelativePath
+        .slice(target.overlayDir.length)
+        .replace(/^\/+/, "");
+      return rest === ""
+        ? target.outputDir
+        : joinProjectPath(target.outputDir, rest);
+    }
+  }
+  return null;
+}
+
+function applyOverlayToTemplateMap(
+  files: Map<string, string>,
+  overlayName?: string,
+  targets: OverlayTarget[] = [],
+): Map<string, string> {
+  if (!overlayName || targets.length === 0) {
+    return files;
+  }
+
+  const overlayPath = resolveOverlayPath(overlayName);
+  if (!overlayPath) {
+    return files;
+  }
+
+  const excludedPaths = new Set<string>();
+  for (const excludePath of loadExcludeList(overlayPath)) {
+    const mappedPath = mapOverlayPathToProjectPath(excludePath, targets);
+    if (mappedPath) {
+      files.delete(mappedPath);
+      excludedPaths.add(mappedPath);
+    }
+  }
+
+  for (const target of targets) {
+    const overlayTemplatePath = getOverlayTemplatePath(
+      overlayPath,
+      target.overlayDir,
+    );
+    if (!overlayTemplatePath) {
+      continue;
+    }
+
+    for (const [relativePath, content] of readOverlayFiles(
+      overlayTemplatePath,
+    )) {
+      const projectPath = joinProjectPath(target.outputDir, relativePath);
+      if (excludedPaths.has(projectPath)) {
+        continue;
+      }
+
+      if (isSettingsOverlayFile(relativePath) && target.settingsTargetPath) {
+        const existingSettings = files.get(target.settingsTargetPath) ?? "{}";
+        files.set(
+          target.settingsTargetPath,
+          mergeSettings(
+            existingSettings,
+            path.join(overlayTemplatePath, ...relativePath.split("/")),
+          ),
+        );
+        continue;
+      }
+
+      files.set(projectPath, content);
+    }
+  }
+
+  return files;
+}
+
+async function applyOverlayToProject(
+  cwd: string,
+  overlayName?: string,
+  targets: OverlayTarget[] = [],
+): Promise<void> {
+  if (!overlayName || targets.length === 0) {
+    return;
+  }
+
+  const overlayPath = resolveOverlayPath(overlayName);
+  if (!overlayPath) {
+    return;
+  }
+
+  const excludedPaths = new Set<string>();
+  for (const excludePath of loadExcludeList(overlayPath)) {
+    const mappedPath = mapOverlayPathToProjectPath(excludePath, targets);
+    if (mappedPath) {
+      fs.rmSync(toFsPath(cwd, mappedPath), { recursive: true, force: true });
+      excludedPaths.add(mappedPath);
+    }
+  }
+
+  for (const target of targets) {
+    const overlayTemplatePath = getOverlayTemplatePath(
+      overlayPath,
+      target.overlayDir,
+    );
+    if (!overlayTemplatePath) {
+      continue;
+    }
+
+    for (const [relativePath, content] of readOverlayFiles(
+      overlayTemplatePath,
+    )) {
+      const projectPath = joinProjectPath(target.outputDir, relativePath);
+      if (excludedPaths.has(projectPath)) {
+        continue;
+      }
+
+      if (isSettingsOverlayFile(relativePath) && target.settingsTargetPath) {
+        const settingsPath = toFsPath(cwd, target.settingsTargetPath);
+        const baseSettings = fs.existsSync(settingsPath)
+          ? fs.readFileSync(settingsPath, "utf-8")
+          : "{}";
+        const merged = mergeSettings(
+          baseSettings,
+          path.join(overlayTemplatePath, ...relativePath.split("/")),
+        );
+        fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+        fs.writeFileSync(settingsPath, merged);
+        continue;
+      }
+
+      const fullPath = toFsPath(cwd, projectPath);
+      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+      fs.writeFileSync(fullPath, content);
+      if (isExecutableTemplate(projectPath)) {
+        fs.chmodSync(fullPath, "755");
+      }
+    }
+  }
+}
+
 // =============================================================================
 // Derived Helpers — all derived from AI_TOOLS registry
 // =============================================================================
@@ -345,8 +552,17 @@ export function getPlatformManagedPaths(platformId: AITool): string[] {
 export function configurePlatform(
   platformId: AITool,
   cwd: string,
+  overlayName?: string,
 ): Promise<void> {
-  return PLATFORM_FUNCTIONS[platformId].configure(cwd);
+  return PLATFORM_FUNCTIONS[platformId]
+    .configure(cwd)
+    .then(() =>
+      applyOverlayToProject(
+        cwd,
+        overlayName,
+        PLATFORM_OVERLAY_TARGETS[platformId],
+      ),
+    );
 }
 
 /**
@@ -355,8 +571,34 @@ export function configurePlatform(
  */
 export function collectPlatformTemplates(
   platformId: AITool,
+  overlayName?: string,
 ): Map<string, string> | undefined {
-  return PLATFORM_FUNCTIONS[platformId].collectTemplates?.();
+  const baseTemplates = PLATFORM_FUNCTIONS[platformId].collectTemplates?.();
+  if (!baseTemplates) {
+    return undefined;
+  }
+  return applyOverlayToTemplateMap(
+    baseTemplates,
+    overlayName,
+    PLATFORM_OVERLAY_TARGETS[platformId],
+  );
+}
+
+export function applyWorkflowOverlay(
+  cwd: string,
+  overlayName?: string,
+): Promise<void> {
+  return applyOverlayToProject(cwd, overlayName, WORKFLOW_OVERLAY_TARGETS);
+}
+
+export function collectWorkflowOverlayTemplates(
+  overlayName?: string,
+): Map<string, string> {
+  return applyOverlayToTemplateMap(
+    new Map<string, string>(),
+    overlayName,
+    WORKFLOW_OVERLAY_TARGETS,
+  );
 }
 
 /**

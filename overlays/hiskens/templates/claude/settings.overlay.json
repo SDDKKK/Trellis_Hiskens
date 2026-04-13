@@ -1,0 +1,86 @@
+{
+  "env": {
+    "GROK_API_URL": "https://fast.poloai.top/v1",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "ENABLE_TOOL_SEARCH": "true"
+  },
+  "enabledPlugins": {
+    "astral@astral-sh": true,
+    "code-simplifier@claude-plugins-official": true,
+    "codex@openai-codex": true,
+    "context7-plugin@context7-marketplace": true,
+    "github@claude-plugins-official": true,
+    "notion-workspace-plugin@notion-plugin-marketplace": true,
+    "skill-creator@claude-plugins-official": true
+  },
+  "model": "opus[1m]",
+  "alwaysThinkingEnabled": true,
+  "effortLevel": "medium",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{PYTHON_CMD}} \"$CLAUDE_PROJECT_DIR/.claude/hooks/intent-gate.py\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/rtk-rewrite.sh"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "review",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{PYTHON_CMD}} \"$CLAUDE_PROJECT_DIR/.claude/hooks/ralph-loop.py\"",
+            "timeout": 30000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "TodoWrite",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{PYTHON_CMD}} \"$CLAUDE_PROJECT_DIR/.claude/hooks/todo-enforcer.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{PYTHON_CMD}} \"$CLAUDE_PROJECT_DIR/.claude/hooks/context-monitor.py\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "{{PYTHON_CMD}} \"$CLAUDE_PROJECT_DIR/.claude/hooks/todo-enforcer.py\""
+          }
+        ]
+      }
+    ]
+  }
+}

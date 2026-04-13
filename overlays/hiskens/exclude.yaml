@@ -1,0 +1,5 @@
+exclude:
+  - claude/commands/trellis/before-dev.md
+  - claude/commands/trellis/check.md
+  - agents/skills/before-dev/SKILL.md
+  - agents/skills/check/SKILL.md

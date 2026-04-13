@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 // === External dependency mocks (hoisted by vitest) ===
 
@@ -29,10 +30,13 @@ vi.mock("node:child_process", () => ({
 import { init } from "../../src/commands/init.js";
 import { VERSION } from "../../src/constants/version.js";
 import { DIR_NAMES, PATHS } from "../../src/constants/paths.js";
+import { resolveOverlayPath } from "../../src/utils/overlay.js";
 import { execSync } from "node:child_process";
 
 // eslint-disable-next-line @typescript-eslint/no-empty-function
 const noop = () => {};
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 describe("init() integration", () => {
   let tmpDir: string;
@@ -576,5 +580,88 @@ describe("init() integration", () => {
     // packages: should appear exactly once
     const matches = configContent.match(/^packages\s*:/gm);
     expect(matches).toHaveLength(1);
+  });
+
+  it("overlay #13 init applies OVERRIDE files on top of base templates", async () => {
+    const overlayPath = resolveOverlayPath("hiskens");
+    expect(overlayPath).not.toBeNull();
+
+    await init({ yes: true, claude: true, overlay: "hiskens" });
+
+    const targetPath = path.join(
+      tmpDir,
+      ".claude",
+      "commands",
+      "trellis",
+      "brainstorm.md",
+    );
+    const overlayFile = path.join(
+      overlayPath!,
+      "templates",
+      "claude",
+      "commands",
+      "trellis",
+      "brainstorm.md",
+    );
+    expect(fs.readFileSync(targetPath, "utf-8")).toBe(
+      fs.readFileSync(overlayFile, "utf-8"),
+    );
+  });
+
+  it("overlay #14 init adds overlay-only APPEND files", async () => {
+    await init({ yes: true, claude: true, overlay: "hiskens" });
+
+    expect(
+      fs.existsSync(
+        path.join(
+          tmpDir,
+          ".claude",
+          "commands",
+          "trellis",
+          "before-python-dev.md",
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".claude", "hooks", "context-monitor.py"),
+      ),
+    ).toBe(true);
+  });
+
+  it("overlay #15 init preserves base-only BASELINE files", async () => {
+    await init({ yes: true, claude: true, overlay: "hiskens" });
+
+    const targetPath = path.join(tmpDir, ".claude", "hooks", "statusline.py");
+    const baseTemplatePath = path.join(
+      __dirname,
+      "..",
+      "..",
+      "src",
+      "templates",
+      "claude",
+      "hooks",
+      "statusline.py",
+    );
+
+    expect(fs.existsSync(targetPath)).toBe(true);
+    expect(fs.readFileSync(targetPath, "utf-8")).toBe(
+      fs.readFileSync(baseTemplatePath, "utf-8"),
+    );
+  });
+
+  it("overlay #16 init removes EXCLUDE paths from output", async () => {
+    await init({ yes: true, claude: true, codex: true, overlay: "hiskens" });
+
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".claude", "commands", "trellis", "before-dev.md"),
+      ),
+    ).toBe(false);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".agents", "skills", "before-dev", "SKILL.md"),
+      ),
+    ).toBe(false);
   });
 });

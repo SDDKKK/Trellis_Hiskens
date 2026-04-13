@@ -1,0 +1,41 @@
+"""Lazy evaluation pipeline for reliability analysis data.
+
+Demonstrates: scan_csv, filter, group_by, collect.
+"""
+
+import polars as pl
+
+# Lazy scan — no data loaded yet
+lf = pl.scan_csv("data/outage_events.csv")
+
+# Build pipeline — polars optimizes before execution
+result = (
+    lf.filter(
+        pl.col("year") == 2024,
+        pl.col("voltage_level") == 10,
+    )
+    .with_columns(
+        severity=pl.when(pl.col("duration_hours") > 8)
+        .then(pl.lit("high"))
+        .when(pl.col("duration_hours") > 2)
+        .then(pl.lit("medium"))
+        .otherwise(pl.lit("low")),
+    )
+    .group_by("feeder")
+    .agg(
+        pl.col("duration_hours").sum().alias("total_outage_hours"),
+        pl.col("affected_users").sum().alias("total_affected"),
+        pl.len().alias("event_count"),
+        (pl.col("duration_hours") > 4).sum().alias("long_outage_count"),
+    )
+    .sort("total_outage_hours", descending=True)
+    .collect()  # Execute optimized query
+)
+
+# Window function example
+ranked = result.with_columns(
+    rank=pl.col("total_outage_hours").rank(descending=True),
+)
+
+# Export
+ranked.write_csv("output/feeder_reliability_summary.csv")

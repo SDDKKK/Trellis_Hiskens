@@ -7,6 +7,7 @@ import figlet from "figlet";
 import inquirer from "inquirer";
 import { createWorkflowStructure } from "../configurators/workflow.js";
 import {
+  applyWorkflowOverlay,
   getInitToolChoices,
   resolveCliFlag,
   configurePlatform,
@@ -403,6 +404,7 @@ interface InitOptions {
   append?: boolean;
   registry?: string;
   monorepo?: boolean;
+  overlay?: string;
 }
 
 // Compile-time check: every CliFlag must be a key of InitOptions.
@@ -1122,6 +1124,7 @@ export async function init(options: InitOptions): Promise<void> {
     packages: monorepoPackages,
     remoteSpecPackages,
   });
+  await applyWorkflowOverlay(cwd, options.overlay);
 
   // Write monorepo packages to config.yaml (non-destructive patch)
   if (monorepoPackages) {
@@ -1138,7 +1141,7 @@ export async function init(options: InitOptions): Promise<void> {
     const platformId = resolveCliFlag(tool);
     if (platformId) {
       console.log(chalk.blue(`📝 Configuring ${AI_TOOLS[platformId].name}...`));
-      await configurePlatform(platformId, cwd);
+      await configurePlatform(platformId, cwd, options.overlay);
     }
   }
 

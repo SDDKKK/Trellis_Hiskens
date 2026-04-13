@@ -30,7 +30,7 @@ import { init } from "../../src/commands/init.js";
 import { update } from "../../src/commands/update.js";
 import { VERSION } from "../../src/constants/version.js";
 import { DIR_NAMES, PATHS } from "../../src/constants/paths.js";
-import { computeHash } from "../../src/utils/template-hash.js";
+import { computeHash, loadHashes } from "../../src/utils/template-hash.js";
 
 // A managed template file that update always handles (Python script)
 const MANAGED_FILE = `${PATHS.SCRIPTS}/get_context.py`;
@@ -488,5 +488,44 @@ describe("update() integration", () => {
 
     // File should be DELETED (hash matched allowed_hashes, no update.skip protection)
     expect(fs.existsSync(deprecatedFile)).toBe(false);
+  });
+
+  it("overlay #17 records overlay-managed files in template hashes", async () => {
+    await init({ yes: true, force: true, claude: true, overlay: "hiskens" });
+
+    const hashes = loadHashes(tmpDir);
+    expect(hashes[".claude/commands/trellis/before-python-dev.md"]).toBe(
+      computeHash(
+        fs.readFileSync(
+          path.join(
+            tmpDir,
+            ".claude",
+            "commands",
+            "trellis",
+            "before-python-dev.md",
+          ),
+          "utf-8",
+        ),
+      ),
+    );
+  });
+
+  it("overlay #18 update preserves user-modified overlay files when skipped", async () => {
+    await init({ yes: true, force: true, claude: true, overlay: "hiskens" });
+
+    const targetFile = path.join(
+      tmpDir,
+      ".claude",
+      "commands",
+      "trellis",
+      "before-python-dev.md",
+    );
+    fs.writeFileSync(targetFile, "user customized overlay command");
+
+    await update({ skipAll: true, overlay: "hiskens" });
+
+    expect(fs.readFileSync(targetFile, "utf-8")).toBe(
+      "user customized overlay command",
+    );
   });
 });
