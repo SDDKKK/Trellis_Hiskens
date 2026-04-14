@@ -70,10 +70,11 @@ def _is_antibot(url: str) -> bool:
 
 
 def _looks_blocked(text: str) -> bool:
-    if len(text) < 200:
-        return True
     low = text[:2000].lower()
-    return any(m in low for m in _BLOCK_MARKERS) or "returned error" in text
+    has_marker = any(m in low for m in _BLOCK_MARKERS) or "returned error" in low
+    if len(text) < 200:
+        return has_marker
+    return has_marker
 
 
 def _ok(url: str, engine: str, tier: int, md: str) -> dict:
@@ -143,8 +144,8 @@ def fetch_result(url: str, *, quiet: bool = False) -> dict:
                                 file=sys.stderr,
                             )
                         return _ok(url, "content-negotiation", 1, md)
-        except Exception:
-            pass
+        except Exception as e:
+            notes.append(f"tier1 (content-negotiation): {type(e).__name__}: {e}")
 
     # --- Tier 2: Jina Reader (skip for antibot domains) ---
     if not antibot:
@@ -166,8 +167,8 @@ def fetch_result(url: str, *, quiet: bool = False) -> dict:
                     if not quiet:
                         print("[tier2: jina-reader]", file=sys.stderr)
                     return _ok(url, "jina-reader", 2, md)
-        except Exception:
-            pass
+        except Exception as e:
+            notes.append(f"tier2 (jina-reader): {type(e).__name__}: {e}")
 
     # --- Tier 3: Cloudflare Workers AI toMarkdown ---
     cf_account = os.environ.get("CF_ACCOUNT_ID")
@@ -212,8 +213,12 @@ def fetch_result(url: str, *, quiet: bool = False) -> dict:
                                         file=sys.stderr,
                                     )
                                 return _ok(url, "cloudflare-workers-ai", 3, md)
-        except Exception:
-            pass
+        except Exception as e:
+            notes.append(f"tier3 (cloudflare-workers-ai): {type(e).__name__}: {e}")
+    else:
+        notes.append(
+            "tier3 (cloudflare-workers-ai): skipped: missing CF_ACCOUNT_ID or CF_API_TOKEN"
+        )
 
     # --- Tier 4: Tavily Extract ---
     tavily_key = os.environ.get("TAVILY_API_KEY")
@@ -238,8 +243,10 @@ def fetch_result(url: str, *, quiet: bool = False) -> dict:
                         if not quiet:
                             print("[tier4: tavily]", file=sys.stderr)
                         return _ok(url, "tavily", 4, md)
-        except Exception:
-            pass
+        except Exception as e:
+            notes.append(f"tier4 (tavily): {type(e).__name__}: {e}")
+    else:
+        notes.append("tier4 (tavily): skipped: missing TAVILY_API_KEY")
 
     # --- Tier 4.5: Firecrawl Scrape (fallback from Tavily) ---
     firecrawl_key = os.environ.get("FIRECRAWL_API_KEY")
@@ -271,8 +278,10 @@ def fetch_result(url: str, *, quiet: bool = False) -> dict:
                     if not quiet:
                         print("[tier4.5: firecrawl]", file=sys.stderr)
                     return _ok(url, "firecrawl", 4, md)
-        except Exception:
-            pass
+        except Exception as e:
+            notes.append(f"tier4.5 (firecrawl): {type(e).__name__}: {e}")
+    else:
+        notes.append("tier4.5 (firecrawl): skipped: missing FIRECRAWL_API_KEY")
 
     # --- Tier 5: MinerU API (async task-based, heavy but reliable) ---
     mineru_token = os.environ.get("MINERU_TOKEN")
@@ -299,6 +308,7 @@ def fetch_result(url: str, *, quiet: bool = False) -> dict:
             )
             with urllib.request.urlopen(req, timeout=60) as resp:
                 res = json.loads(resp.read())
+            # TODO: may be queued/retryable state, needs verification against MinerU API spec
             if res.get("code") != 0:
                 raise RuntimeError(f"create_task: {res}")
             task_id = (res.get("data") or {}).get("task_id")
@@ -355,7 +365,9 @@ def fetch_result(url: str, *, quiet: bool = False) -> dict:
         except Exception as e:
             if not quiet:
                 print(f"[tier5: mineru failed] {e}", file=sys.stderr)
-            notes.append(f"mineru failed: {e}")
+            notes.append(f"tier5 (mineru): {type(e).__name__}: {e}")
+    else:
+        notes.append("tier5 (mineru): skipped: missing MINERU_TOKEN")
 
     # All tiers exhausted
     if antibot:

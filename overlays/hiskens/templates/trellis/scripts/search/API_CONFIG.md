@@ -29,6 +29,7 @@
 - URL: https://console.x.ai/
 - Free tier available
 - Provides web search via Grok models
+- Default model: `grok-4.20-multi-agent`; endpoint: `/v1/responses` with native `web_search` tool
 
 ### Jina Reader (for web_fetch.py tier 2)
 

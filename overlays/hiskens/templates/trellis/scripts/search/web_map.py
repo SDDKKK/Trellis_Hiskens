@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Web Map — Tavily Map API for site structure discovery.
 
-Usage: python3 web_map.py <url> [--depth N] [--breadth N] [--limit N] [--instructions "..."]
+Usage: python3 web_map.py <url> [--depth N] [--breadth N] [--limit N] [--instructions "..."] [--timeout N]
 
 Requires: TAVILY_API_KEY
 """
@@ -10,6 +10,9 @@ import json
 import os
 import sys
 import urllib.request
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _common  # noqa: E402
 
 
 def map_site(
@@ -47,48 +50,51 @@ def map_site(
         },
     )
 
+    def _do_request():
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read())
+
     try:
-        with urllib.request.urlopen(req, timeout=timeout + 10) as resp:
-            data = json.loads(resp.read())
-            return json.dumps(
-                {
-                    "base_url": data.get("base_url", ""),
-                    "results": data.get("results", []),
-                    "response_time": data.get("response_time", 0),
-                },
-                ensure_ascii=False,
-                indent=2,
-            )
+        data = _common.with_retry(_do_request, attempts=3, base_delay=1.0)
+        return json.dumps(
+            {
+                "base_url": data.get("base_url", ""),
+                "results": data.get("results", []),
+                "response_time": data.get("response_time", 0),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
     except Exception as e:
         return f"Error: {e}"
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print(
-            "Usage: web_map.py <url> [--depth N] [--breadth N] [--limit N]",
-            file=sys.stderr,
+    import argparse
+
+    ap = argparse.ArgumentParser(
+        description="Tavily Map API for site structure discovery"
+    )
+    ap.add_argument("url", help="Target URL")
+    ap.add_argument("--depth", type=int, default=1, help="Max depth (default: 1)")
+    ap.add_argument("--breadth", type=int, default=20, help="Max breadth (default: 20)")
+    ap.add_argument("--limit", type=int, default=50, help="Max links (default: 50)")
+    ap.add_argument(
+        "--timeout",
+        type=int,
+        default=150,
+        help="Request timeout in seconds (default: 150)",
+    )
+    ap.add_argument("--instructions", default="", help="Optional Tavily instructions")
+    args = ap.parse_args()
+
+    print(
+        map_site(
+            args.url,
+            args.depth,
+            args.breadth,
+            args.limit,
+            args.timeout,
+            instructions=args.instructions,
         )
-        sys.exit(1)
-
-    args = sys.argv[1:]
-    url = args[0]
-    depth, breadth, limit, instructions = 1, 20, 50, ""
-    i = 1
-    while i < len(args):
-        if args[i] == "--depth" and i + 1 < len(args):
-            depth = int(args[i + 1])
-            i += 2
-        elif args[i] == "--breadth" and i + 1 < len(args):
-            breadth = int(args[i + 1])
-            i += 2
-        elif args[i] == "--limit" and i + 1 < len(args):
-            limit = int(args[i + 1])
-            i += 2
-        elif args[i] == "--instructions" and i + 1 < len(args):
-            instructions = args[i + 1]
-            i += 2
-        else:
-            i += 1
-
-    print(map_site(url, depth, breadth, limit, instructions=instructions))
+    )
