@@ -1,0 +1,22 @@
+# Force LF line endings for all text files across platforms.
+# Prevents autocrlf=true on Windows/WSL from corrupting assertions
+# that expect "\n" (e.g. YAML frontmatter tests on .md templates).
+* text=auto eol=lf
+
+# Explicit overrides for binary assets (never touch).
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.webp   binary
+*.ico    binary
+*.pdf    binary
+*.zip    binary
+*.gz     binary
+*.tar    binary
+*.woff   binary
+*.woff2  binary
+*.ttf    binary
+*.eot    binary
+*.mp4    binary
+*.mov    binary
