@@ -242,3 +242,71 @@ Completed the Hiskens per-package spec migration, validated fresh-init and legac
 ### Next Steps
 
 - None - task complete
+
+
+## Session 3: Downstream sync v0.4.0 Round 3 + overlay model unification
+
+**Date**: 2026-04-15
+**Task**: Downstream sync v0.4.0 Round 3 + overlay model unification
+**Package**: cli
+**Branch**: `main`
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+## Summary
+
+Completed Round 3 of task 04-15-downstream-sync-v0.4.0, synchronizing the latest hiskens overlay customizations to both downstream scientific projects. Standardized all overlay agents on `model: opus` to eliminate recurring drift. Captured three new operational learnings into fork-sync-guide.
+
+## Phases Executed
+
+| Phase | Target | Result |
+|-------|--------|--------|
+| 0 | Hiskens CLI rebuild | Fixed dist drift: `inject-subagent-context.py` docstring now in sync |
+| 1 | Anhui_CIM third resync | 3 real changes / 23 dry-run conflicts (87% false-positive rate from stale `.template-hashes.json`) |
+| 2 | Topo-Reliability initial upgrade | beta.10 → 0.4.0: 26 file changes, 10/12 real conflicts. Delegated to implement agent with code-spec injection |
+
+## Key Findings
+
+- **False-positive conflict rate varies by project history**: Anhui (incremental, Round 2 already absorbed c701579) → 87%. Topo (fresh beta.10→0.4.0 jump) → 17%. Per-file `git hash-object` verification is mandatory.
+- **b7e2a31 has an incomplete fix**: base template `get_research_context()` docstring updated but overlay's `context_assembly.py:691` delegation path missed. Root cause: overlay uses shared-module import pattern, not inline definition. Tracked in `04-15-finish-exit-and-research-gotcha` (implement.jsonl now includes `context_assembly.py`).
+- **Upstream v0.4.0 flips agents sonnet**: research.md, implement.md, codex-implement.md all had `model: sonnet`. Fixed at source in overlay to prevent re-drift.
+- **`trellis update` is interactive**: hangs in agent/scripted contexts. `yes |` pipe pattern is the correct workaround.
+
+## Downstream Commits (not in this repo)
+
+- Anhui_CIM: `7d73209 chore(trellis): round 3 overlay resync`
+- Topo-Reliability: `6238adf chore(trellis): update to v0.4.0 (hiskens overlay, round 3)`
+
+## Spec Updates
+
+- `fork-sync-guide.md` +93 lines: Downstream Update Flow section, Pitfall 0 (hash false positives), Pitfall 0b (interactive prompt), overlay model:opus convention
+
+## Remaining
+
+- `04-15-finish-exit-and-research-gotcha` still in planning — implement.jsonl patched, ready for next session pickup
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f6d1e87` | (see git log) |
+| `23879cc` | (see git log) |
+| `abb5999` | (see git log) |
+| `90e2906` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
