@@ -195,3 +195,50 @@ YAML frontmatter pitfall, and registered the new guide in
 ### Next Steps
 
 - None - task complete
+
+
+## Session 2: Complete Hiskens per-package spec migration
+
+**Date**: 2026-04-15
+**Task**: Complete Hiskens per-package spec migration
+**Package**: cli
+**Branch**: `main`
+
+### Summary
+
+Completed the Hiskens per-package spec migration, validated fresh-init and legacy-hook paths, and split the rollout into overlay/runtime plus CLI init commits.
+
+### Main Changes
+
+| Area | Result |
+|------|--------|
+| Overlay runtime | Migrated Hiskens workflow to package-scoped specs and SessionStart package scoping |
+| CLI init | Materialized hiskens python/matlab spec layers during monorepo init and fixed bootstrap generation |
+| Validation | Fresh downstream monorepo release smoke passed; legacy root scientific spec hooks now warn and skip root injection |
+| Finish-work | typecheck passed; tests passed with sandbox-free rerun; lint still fails on pre-existing packages/cli/test/utils/overlay.test.ts issues unrelated to this change |
+
+**Key commits**:
+- `c701579` feat(hiskens): migrate overlay workflow to package-scoped specs
+- `c33569a` feat(cli): materialize hiskens package specs in monorepo init
+- `128d5c7` chore(task): archive 04-15-hiskens-per-package-spec-migration
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `c701579` | (see git log) |
+| `c33569a` | (see git log) |
+| `128d5c7` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
