@@ -99,7 +99,7 @@ Same context injection as "implement", but execution by Codex.
 Task(
   subagent_type: "codex-implement",
   prompt: "Implement the feature described in prd.md using Codex CLI",
-  model: "sonnet",
+  model: "opus",
   run_in_background: true
 )
 ```

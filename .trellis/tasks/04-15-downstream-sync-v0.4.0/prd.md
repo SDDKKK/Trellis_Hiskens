@@ -4,6 +4,11 @@
 **Scope**: Two downstream projects — `Topo-Reliability`, `Anhui_CIM`
 **Upstream**: `Trellis_Hiskens` fork at v0.4.0 with `overlays/hiskens/` aligned
 
+**Rounds**:
+- Round 1 (2026-04-15 morning): Anhui_CIM initial upgrade `beta.10 → 0.4.0`
+- Round 2 (2026-04-15 afternoon): Anhui_CIM overlay resync after Hiskens overlay changes
+- **Round 3 (current)**: Anhui_CIM third resync + Topo-Reliability initial upgrade, triggered by new Hiskens commits `c701579`/`c33569a`/`b7e2a31`
+
 ## Goal
 
 Upgrade the two downstream projects from `.trellis/.version = 0.4.0-beta.10`
@@ -215,3 +220,167 @@ Same as Step 2, substitute path.
   - Kept current project-local versions for `.trellis/worktree.yaml` and `.trellis/.gitignore`; upstream candidates would have removed Anhui-specific worktree copy/verify settings and local ignore rules
   - Other 6 `.new` files were whitespace/newline-only diffs; no semantic content to merge
   - Deleted all `.new` files after review; no `.new` files remain in the repo
+- Anhui_CIM overlay resync after later `overlays/hiskens/` changes:
+  - Rebuilt `packages/cli` because `packages/cli/src/**` had newer commits than `dist/cli/index.js`
+  - Created branch `trellis-overlay-resync-20260415`
+  - Ran `node /home/hcx/github/Trellis_Hiskens/packages/cli/bin/trellis.js update --overlay hiskens --create-new`
+  - Auto-updated 27 managed files and surfaced 18 `.new` conflicts
+  - Conflict triage:
+    - kept Anhui-local versions for `.trellis/worktree.yaml` and `.trellis/.gitignore`
+    - kept generated/local equivalents for `.claude/settings.json`, `.claude/hooks/statusline.py`, `.cursor/commands/trellis-finish-work.md`, `.agents/skills/update-spec/SKILL.md`, `search/*`, and `.trellis/scripts/common/cli_adapter.py`
+    - accepted latest overlay versions for `.claude/hooks/session-start.py`, `.codex/hooks/session-start.py`, `.claude/commands/trellis/finish-work.md`, and `.claude/agents/plan.md`
+    - deleted all resolved `.new` files; repo left with no pending `.new`
+  - Validation:
+    - `uv run python .trellis/scripts/test_nocturne_client.py` → pass
+    - `uv run python .trellis/scripts/test_nocturne_integration.py` initially failed on an outdated `session-start.py` import-path assertion; updated the test to check `SCRIPTS_DIR` + conditional `sys.path.insert(...)`, rerun passed
+    - `uv run python -m pytest tests/test_context_assembly.py` → `41 passed`
+    - `uv run python -m ruff check .claude/hooks/session-start.py .codex/hooks/session-start.py .trellis/scripts/test_nocturne_integration.py .trellis/scripts/add_session.py .trellis/scripts/common/context_assembly.py .trellis/scripts/common/task_context.py .trellis/scripts/create_bootstrap.py .trellis/scripts/multi_agent/plan.py` → pass after `--fix` reordered imports in `.trellis/scripts/common/task_context.py` and `.trellis/scripts/create_bootstrap.py`
+
+---
+
+## Round 3 (2026-04-15 evening)
+
+### Trigger
+
+Three new Hiskens commits appeared after Anhui Round 2 (`b7bec6f`):
+
+| Commit | Impact | Class |
+|---|---|---|
+| `c701579` feat(hiskens): migrate overlay workflow to package-scoped specs | Large overlay rewrite: `trellis/scripts/common/{task_context,context_assembly}.py`, `add_session.py`, `create_bootstrap.py`, `multi_agent/plan.py`, `claude/hooks/session-start.py`, `claude/commands/trellis/{start,parallel,finish-work,before-python-dev,before-matlab-dev,check-python,check-matlab}.md`, `claude/agents/{implement,plan}.md`, `codex/agents/plan.toml` | (a) overlay |
+| `c33569a` feat(cli): materialize hiskens package specs in monorepo init | `packages/cli/src/commands/init.ts` — `materializeOverlaySpecLayers()` new function | (b) CLI src (already in dist; effectively inert for existing downstream repos) |
+| `b7e2a31` fix: harden task finish verification | `overlays/hiskens/templates/trellis/scripts/task.py` (finish path hardening) + `packages/cli/src/templates/claude/hooks/inject-subagent-context.py` (research agent gotcha docstring) + `packages/cli/test/regression.test.ts` | (a) overlay + (c) base template |
+
+### Pre-Round-3 state verification
+
+- **Hiskens dist drift**: `dist/templates/claude/hooks/inject-subagent-context.py` was stale (old docstring `"Research doesn't need much preset context"`), src had new gotcha docstring. Confirmed only this one file was drifted; `dist/commands/init.js` already had `materializeOverlaySpecLayers` so c33569a was built; `task.py` src matches dist.
+- **Topo-Reliability status** (pre-Round-3):
+  - `.trellis/.version` = `0.4.0-beta.10`
+  - hiskens overlay already fully installed (all 7 hooks present + `statusline.py`); this is an incremental upgrade, not a fresh install
+  - `.trellis.bak/` and `.claude.bak/` residuals from prior upgrade — **decision: delete before upgrade**
+  - main is ahead of origin/main — **decision: push first, then upgrade**
+- **Anhui_CIM status** (pre-Round-3): `.trellis/.version` = `0.4.0`, clean on main
+- **Migration manifests** for `beta.10 → 0.4.0`: `0.4.0-rc.0.json` / `0.4.0-rc.1.json` / `0.4.0.json` **all have `migrations: []`** — no manifest actions, everything goes through template file-sync
+
+### Round 3 Execution plan
+
+**Phase 0: Hiskens side rebuild** (required first to fix dist drift)
+
+```bash
+cd /home/hcx/github/Trellis_Hiskens/packages/cli
+pnpm run build
+grep -c "Research is intentionally lightweight" \
+  dist/templates/claude/hooks/inject-subagent-context.py  # must be ≥ 1
+```
+
+**Phase 1: Anhui_CIM third resync** (known-good path first, validates Hiskens rebuild)
+
+```bash
+cd /mnt/e/Github/repo/Anhui_CIM
+git status -sb                                 # must be clean
+git checkout -b trellis-overlay-resync-round3
+node /home/hcx/github/Trellis_Hiskens/packages/cli/bin/trellis.js update \
+  --overlay hiskens --dry-run 2>&1 | tee /tmp/anhui-r3-dryrun.log
+node /home/hcx/github/Trellis_Hiskens/packages/cli/bin/trellis.js update \
+  --overlay hiskens --create-new 2>&1 | tee /tmp/anhui-r3-update.log
+# conflict strategy: keep Anhui-local .trellis/worktree.yaml & .gitignore; prefer upstream for the rest
+# validation: pytest tests/test_context_assembly.py + test_nocturne_integration.py + verify_baseline.py + ruff
+```
+
+**Phase 2: Topo-Reliability initial upgrade**
+
+```bash
+cd /mnt/e/Github/repo/Topo-Reliability
+
+# 0. Pre-flight cleanup (user-approved)
+git push origin main                           # push the 1 ahead commit
+rm -rf .trellis.bak .claude.bak
+git status -sb                                 # must be clean after .bak removal
+
+# 1. Pre-update digest snapshot
+mkdir -p /tmp/topo-v0.4.0-snapshot
+find .trellis/tasks .trellis/workspace -type f \
+  \( -name "*.md" -o -name "*.json" -o -name "*.jsonl" -o -name "*.yaml" \) \
+  -print0 | sort -z | xargs -0 sha256sum > /tmp/topo-v0.4.0-snapshot/pre.sha256
+
+# 2. Upgrade branch
+git checkout -b trellis-update-v0.4.0
+
+# 3. Dry-run
+node /home/hcx/github/Trellis_Hiskens/packages/cli/bin/trellis.js update \
+  --overlay hiskens --dry-run 2>&1 | tee /tmp/topo-v0.4.0-snapshot/dryrun.log
+
+# 4. Execute with --create-new (same strategy as Anhui)
+node /home/hcx/github/Trellis_Hiskens/packages/cli/bin/trellis.js update \
+  --overlay hiskens --create-new 2>&1 | tee /tmp/topo-v0.4.0-snapshot/update.log
+
+# 5. Post-update verify
+cat .trellis/.version                          # expect 0.4.0
+find . -maxdepth 3 -name '*.new' -not -path './.git/*' -not -path './.venv/*'
+find .trellis/tasks .trellis/workspace -type f \
+  \( -name "*.md" -o -name "*.json" -o -name "*.jsonl" -o -name "*.yaml" \) \
+  -print0 | sort -z | xargs -0 sha256sum > /tmp/topo-v0.4.0-snapshot/post.sha256
+diff /tmp/topo-v0.4.0-snapshot/pre.sha256 /tmp/topo-v0.4.0-snapshot/post.sha256
+
+# 6. Conflict resolution (.new files)
+# Expected: at least .trellis/worktree.yaml.new + .trellis/.gitignore.new → keep Topo-local
+# Others → usually accept upstream (Anhui experience: mostly whitespace)
+
+# 7. Topo validation
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest TopoDetectionBIBC/tests -x --no-header -q
+```
+
+### Round 3 Acceptance criteria
+
+- [ ] Phase 0: `dist/templates/claude/hooks/inject-subagent-context.py` contains new "Research is intentionally lightweight" docstring
+- [ ] Phase 1: Anhui_CIM post-Round-3 `session-start.py`, `commands/trellis/{start,parallel,finish-work,before-*,check-*}.md`, `agents/{implement,plan}.md` match `overlays/hiskens/templates/...`
+- [ ] Phase 1: Anhui_CIM `.claude/hooks/inject-subagent-context.py` contains new docstring
+- [ ] Phase 1: Anhui_CIM `.trellis/scripts/task.py` finish path tests pass
+- [ ] Phase 1: Anhui_CIM `.trellis/tasks/` and `.trellis/workspace/` digests unchanged
+- [ ] Phase 1: Anhui_CIM pytest + nocturne + ruff all pass
+- [ ] Phase 2: Topo `.trellis.bak/` and `.claude.bak/` removed; ahead commit pushed to origin
+- [ ] Phase 2: Topo `.trellis/.version` = `0.4.0`
+- [ ] Phase 2: Topo `.trellis/tasks/` and `.trellis/workspace/` digests unchanged
+- [ ] Phase 2: Topo ruff + pytest TopoDetectionBIBC/tests all pass
+- [ ] Phase 2: Topo committed + merged to main
+
+### Round 3 Execution log
+
+(append-only)
+
+- **2026-04-15 evening** — Round 3 task activated (`task.py start`); task.json status → `in_progress`, phase 3.
+- **Phase 0 complete**: `pnpm run build` in `packages/cli/` succeeded (tsc + copy-templates). Verified `dist/templates/claude/hooks/inject-subagent-context.py` now contains `"Research is intentionally lightweight"` (drift resolved). `dist/cli/index.js` timestamp refreshed.
+- **Finding (cross-task, not blocking Round 3)**: b7e2a31 is an incomplete fix. It updated the base template `packages/cli/src/templates/claude/hooks/inject-subagent-context.py` (which defines `get_research_context` inline) and `overlays/hiskens/templates/claude/commands/trellis/start.md` (user-facing gotcha), but the **overlay runtime path** goes through `overlays/hiskens/templates/trellis/scripts/common/context_assembly.py:691` (shared module; the overlay hook imports from here). That file still has the old docstring `"Research doesn't need much preset context"`. Even the sibling planning task `04-15-finish-exit-and-research-gotcha/implement.jsonl` does not list `context_assembly.py` — meaning if that task is implemented as currently scoped, the overlay docstring will **still** be missed. → Action item for `04-15-finish-exit-and-research-gotcha`: add `overlays/hiskens/templates/trellis/scripts/common/context_assembly.py` to its implement.jsonl before implementation. No action required in Round 3.
+- **Phase 1 complete (Anhui_CIM Round 3)**:
+  - Created branch `trellis-overlay-resync-round3`
+  - Ran `update --overlay hiskens --dry-run` → 1 auto-update + 23 "user-modified" conflicts
+  - Ran `update --overlay hiskens --create-new` → 23 `.new` files generated, backup at `.trellis/.backup-2026-04-15T14-11-08/`
+  - Conflict resolution: 11 accept-upstream (`session-start.py` x2, `agents/{implement,plan}.md`, `codex/agents/plan.toml`, `check-cross-layer{,-base}.md`, `task_context.py`, `context_assembly.py`, `create_bootstrap.py`, `multi_agent/plan.py`) + 12 keep-local (Anhui-specific: `worktree.yaml`, `.gitignore`, `settings.json`, `statusline.py`, `cursor/trellis-finish-work.md`, `update-spec/SKILL.md`, `cli_adapter.py`, `search/*`)
+  - **Surprise finding**: only 3 of the 23 "conflicts" had real content diffs vs HEAD — `start.md`, `check-cross-layer.md`, `check-cross-layer-base.md`. The other 20 were **false positives** caused by stale `.template-hashes.json` records; verified by `git hash-object` vs HEAD blob. Round 2 had already absorbed all of c701579's overlay rewrites.
+  - Validation: `pytest tests/test_context_assembly.py` → 41 passed; `test_nocturne_client.py` → 6/6; `test_nocturne_integration.py` → all pass; `verify_baseline.py` → 10/10; `ruff check` → 2 import-order issues autofixed in `task_context.py` and `create_bootstrap.py`
+  - Commit: `7d73209 chore(trellis): round 3 overlay resync (b7e2a31 gotcha propagation)` — 3 files changed, 6 insertions, 4 deletions
+  - Fast-forward merged to Anhui `main`. Anhui now has 3 un-pushed trellis commits (Round 1/2/3) ahead of origin/main — user to push at their discretion.
+- **Phase 2 complete (Topo-Reliability initial upgrade)** — delegated to implement agent:
+  - Pre-flight: `.trellis.bak/` and `.claude.bak/` removed; `.trellis/.version` confirmed `0.4.0-beta.10`
+  - Branch `trellis-update-v0.4.0` created
+  - Dry-run: 88 auto-update candidates + 12 "Modified by you" conflicts
+  - Execution: `yes | ... update --overlay hiskens --create-new` succeeded; backup at `.trellis/.backup-2026-04-15T14-21-38/`
+  - **Conflict resolution (12 `.new` files)** — per-file `git hash-object` diff check:
+    - **False positive (2)**: `.trellis/scripts/search/API_CONFIG.md`, `.agents/skills/update-spec/SKILL.md`
+    - **Keep-local (7)**: `.trellis/worktree.yaml` (Topo verify hooks), `.trellis/.gitignore` (Topo ignores), `.claude/settings.json` (upstream added GROK_API_URL env; Topo doesn't need), `.codex/config.toml` (upstream added TUI notification config; non-critical), `.claude/commands/trellis/check-cross-layer{,-base}.md` (trailing-whitespace-only diff), `.claude/agents/research.md` (only diff is `model: opus → sonnet`; Topo prefers opus)
+    - **Accept upstream (2)**: `.claude/agents/plan.md` (c701579 package-scoped workflow + `PLAN_PACKAGE` env var), `.claude/commands/trellis/finish-work.md` (package-scoped spec updates + `uv run` unification)
+    - **Accept upstream + patch (1)**: `.claude/agents/implement.md` — accepted package-scoped spec references, then `sed` restored `model: opus` over upstream `model: sonnet`
+  - Post-update: `.trellis/.version` = `0.4.0`; tasks/workspace digests (229 files) byte-identical pre/post; executable bits preserved
+  - Validation: `ruff check` clean (no autofix needed, unlike Phase 1); `ruff format --check` pass; `pytest TopoDetectionBIBC/tests` → **10 passed** in 120.25s (pre-existing pandapower DeprecationWarnings unrelated)
+  - Commit: `6238adf chore(trellis): update to v0.4.0 (hiskens overlay, round 3)` — 26 files changed, 1175 insertions, 494 deletions
+  - Fast-forward merged to Topo `main` (`4cf5b2f..6238adf`). Topo now has 1 un-pushed commit ahead of origin/main.
+- **Round 3 surprises / learnings**:
+  - **Real-diff ratio differs dramatically**: Anhui Round 3 = 3/23 (13%), Topo Phase 2 = 10/12 (83%). The difference is Anhui had already absorbed c701579 in Round 2; Topo was jumping `beta.10 → 0.4.0` in one shot, so it got the full c701579 + rc.0/rc.1 backlog.
+  - **Upstream v0.4.0 flips several agents `opus → sonnet`** (research.md, implement.md). Both Topo and Anhui have an implicit preference for `opus`. This is a recurring drift point worth spec-ing. See action items below.
+  - **CRLF vs LF warnings on `/mnt/e/`**: autocrlf=true triggers `"LF will be replaced by CRLF"` warnings for ~46 files during `git add` on Topo. Blob content is correct; warning is cosmetic.
+  - **Trellis update auto-update count ≠ actually modified file count**: dry-run "88 auto-update candidates" produced only 26 real file changes. Rest were byte-identical writes. Cosmetic reporting artifact.
+  - **Topo ships no `test_nocturne_*` harness** (unlike Anhui), so no contract-drift test-fix was needed.
+  - **Interactive prompt confirmed**: `trellis update` hangs without stdin. `yes |` pattern is the correct invocation for scripted/agent use.
+
+

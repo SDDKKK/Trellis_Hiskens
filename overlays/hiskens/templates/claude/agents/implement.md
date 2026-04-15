@@ -3,7 +3,7 @@ name: implement
 description: |
   Code implementation expert. Understands specs and requirements, then implements features. No git commit allowed.
 tools: Read, Write, Edit, mcp__morph-mcp__edit_file, Bash, Glob, Grep, mcp__augment-context-engine__codebase-retrieval, mcp__morph-mcp__warpgrep_codebase_search, mcp__context7__resolve-library-id, mcp__context7__query-docs, mcp__ide__getDiagnostics, mcp__nocturne-memory__read_memory, mcp__nocturne-memory__search_memory
-model: sonnet
+model: opus
 hooks:
   PreToolUse:
     - matcher: Bash

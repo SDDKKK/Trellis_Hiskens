@@ -3,7 +3,7 @@ name: research
 description: |
   Code and tech search expert. Pure research, no code modifications. Finds files, patterns, and tech solutions.
 tools: Read, Bash, Glob, Grep, mcp__augment-context-engine__codebase-retrieval, mcp__morph-mcp__warpgrep_codebase_search, mcp__context7__resolve-library-id, mcp__context7__query-docs
-model: sonnet
+model: opus
 hooks:
   PreToolUse:
     - matcher: Bash

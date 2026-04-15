@@ -4,7 +4,7 @@ description: |
   Codex CLI wrapper agent. Delegates implementation to Codex with full context passthrough.
   Hook pre-assembles context into temp file; wrapper passes it via --context-file.
 tools: Read, Bash, Glob, Grep
-model: sonnet
+model: opus
 hooks:
   PreToolUse:
     - matcher: Bash

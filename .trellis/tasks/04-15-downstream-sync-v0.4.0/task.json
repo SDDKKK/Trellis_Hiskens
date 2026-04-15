@@ -2,8 +2,8 @@
   "id": "downstream-sync-v0.4.0",
   "name": "downstream-sync-v0.4.0",
   "title": "Sync hiskens overlay v0.4.0 to downstream projects",
-  "description": "",
-  "status": "planning",
+  "description": "Round 3: Hiskens dist rebuild + Anhui_CIM third resync + Topo-Reliability initial upgrade (beta.10 → 0.4.0). Triggered by Hiskens commits c701579/c33569a/b7e2a31.",
+  "status": "in_progress",
   "dev_type": "backend",
   "scope": null,
   "package": "cli",
@@ -15,7 +15,7 @@
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
-  "current_phase": 0,
+  "current_phase": 3,
   "next_action": [
     {
       "phase": 1,
