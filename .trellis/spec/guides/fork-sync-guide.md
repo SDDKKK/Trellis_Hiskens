@@ -205,7 +205,43 @@ cd packages/cli && npm test 2>&1 | tail -20     # tests stay green
 
 ## Common Pitfalls
 
-### Pitfall 1: Trusting a shallow grep when verifying feature support
+### Pitfall 0: `trellis update` downstream false-positive conflicts
+
+**Symptom**: `trellis update --overlay hiskens --dry-run` reports 20+ "Modified by you" files, but `git diff HEAD -- <file>` shows most are byte-identical to HEAD.
+
+**Cause**: `.template-hashes.json` records hashes at install time. After a multi-round resync (e.g., Round 1 accepted upstream, Round 2 re-accepted after further overlay changes), the hash tracker becomes stale even though the working-tree file already matches the latest overlay version. The next dry-run sees "stored hash ≠ current overlay hash" and flags it.
+
+**Measured rates**: Anhui Round 3: 20/23 = 87% false positive. Topo Phase 2: 2/12 = 17%. The difference: Anhui had already absorbed changes in Round 2; Topo was a fresh beta.10→0.4.0 jump.
+
+**Rule**: After `--create-new` generates `.new` files, verify EACH against HEAD before making accept/reject decisions:
+
+```bash
+for f in $(find . -name '*.new' -not -path './.git/*'); do
+  real="${f%.new}"
+  git_hash=$(git ls-tree HEAD -- "$real" 2>/dev/null | awk '{print $3}')
+  new_hash=$(git hash-object "$f")
+  if [ "$git_hash" = "$new_hash" ]; then
+    echo "FALSE-POSITIVE (rm .new): $real"
+    rm "$f"
+  else
+    echo "REAL-DIFF (decide): $real"
+  fi
+done
+```
+
+### Pitfall 0b: `trellis update` hangs in scripted/agent contexts
+
+**Symptom**: `node .../trellis.js update --overlay hiskens` hangs indefinitely when run by a Claude Code implement agent or in a background Bash command.
+
+**Cause**: The update command prompts `"Proceed? (Y/n)"` on stdin. In non-interactive contexts, stdin is `/dev/null` or a pipe, so the prompt never resolves.
+
+**Fix**: Always pipe `yes` into the command:
+
+```bash
+yes | node /path/to/trellis.js update --overlay hiskens --create-new > /tmp/update.log 2>&1
+```
+
+The `yes` command outputs `"y\n"` indefinitely, satisfying all prompts (the initial "Proceed?" and any per-file conflict prompts if `--create-new` is not used).
 
 **Symptom**: "I greped for `--mode record` in `get_context.py` and found nothing, so the fork doesn't support it."
 
@@ -367,3 +403,59 @@ If the first command returns `0` but the second one fails only when `UV_CACHE_DI
 ---
 
 **Core Principle**: Fork sync is not a rebase or a merge — it is a *negotiation* between upstream's evolution and the fork's intentional divergence. Phase A handles the merge mechanics; Phase B catches the drift; Phase C resolves the negotiation surgically. **Skipping any phase guarantees silent regression.**
+
+---
+
+## Downstream Update Flow (Consumer Projects)
+
+> **Scope**: Propagating hiskens overlay changes to downstream consumer projects (e.g., Anhui_CIM, Topo-Reliability) using `trellis update --overlay hiskens`. This is SEPARATE from Phase A/B/C above (which handle upstream merge into the fork itself).
+
+### Prerequisites
+
+1. **Rebuild the CLI** if `packages/cli/src/**` has been modified since last build:
+   ```bash
+   cd packages/cli && pnpm run build
+   ```
+   Verify dist freshness by comparing a recently modified src template against its dist counterpart. If they differ, dist is stale.
+
+2. **Consumer project must be git-clean** (or at least have no changes in `.trellis/` or `.claude/` paths).
+
+### Execution pattern
+
+```bash
+cd /path/to/consumer-project
+
+# 1. Pre-update digest (verify user data survives)
+find .trellis/tasks .trellis/workspace -type f \
+  \( -name "*.md" -o -name "*.json" -o -name "*.jsonl" -o -name "*.yaml" \) \
+  -print0 | sort -z | xargs -0 sha256sum > /tmp/pre.sha256
+
+# 2. Safety branch
+git checkout -b trellis-update-v<version>
+
+# 3. Dry-run → review
+yes | node /path/to/trellis.js update --overlay hiskens --dry-run
+
+# 4. Execute with --create-new (non-destructive conflict strategy)
+yes | node /path/to/trellis.js update --overlay hiskens --create-new
+
+# 5. Per-file verification + conflict resolution (see Pitfall 0 above)
+# 6. Post-update digest check (diff pre vs post, expect empty)
+# 7. Validation (project-specific: ruff, pytest, etc.)
+# 8. Commit + FF merge to main
+```
+
+### Known Topo/Anhui local customizations (ALWAYS keep local)
+
+| File | Reason |
+|---|---|
+| `.trellis/worktree.yaml` | Project-specific `verify:` hooks and `copy:` entries |
+| `.trellis/.gitignore` | Project-specific ignore rules (`.link-state.json`, `tasks/`, `workspace/`, etc.) |
+
+### Overlay model convention
+
+**Decision**: All hiskens overlay agents default to `model: opus`.
+
+Upstream v0.4.0+ drifts some agents toward `model: sonnet`. The overlay source-of-truth (`overlays/hiskens/templates/claude/agents/*.md`) pins `opus` to prevent recurring drift during downstream updates.
+
+If a downstream project wants `sonnet` for a specific agent, it can override locally. But the overlay default is `opus`.
