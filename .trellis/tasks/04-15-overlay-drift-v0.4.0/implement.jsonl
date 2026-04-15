@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/cli/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/cli/backend/script-conventions.md", "reason": "Python script conventions for hook and cli_adapter files"}
+{"file": ".trellis/spec/cli/backend/quality-guidelines.md", "reason": "Code quality guidelines for Python modifications"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Multi-platform thinking for cli_adapter droid port (R3)"}
+{"file": "packages/cli/src/templates/claude/hooks/session-start.py", "reason": "Upstream reference for R1 TOC refactor (port source)"}
+{"file": "packages/cli/src/templates/codex/hooks/session-start.py", "reason": "Upstream reference for R2 TOC refactor (port source)"}
+{"file": "packages/cli/src/templates/trellis/scripts/common/cli_adapter.py", "reason": "Upstream reference for R3 droid platform additions"}

@@ -1,0 +1,73 @@
+{
+  "id": "overlay-drift-v0.4.0",
+  "name": "overlay-drift-v0.4.0",
+  "title": "Sync hiskens overlay drift after upstream v0.4.0 merge",
+  "description": "",
+  "status": "active",
+  "dev_type": "backend",
+  "scope": null,
+  "package": "cli",
+  "priority": "P2",
+  "creator": "Hiskens",
+  "assignee": "Hiskens",
+  "createdAt": "2026-04-15",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "sync/upstream-v0.4.0",
+  "worktree_path": null,
+  "current_phase": 4,
+  "next_action": [
+    {
+      "phase": 1,
+      "action": "brainstorm"
+    },
+    {
+      "phase": 2,
+      "action": "research"
+    },
+    {
+      "phase": 3,
+      "action": "implement"
+    },
+    {
+      "phase": 4,
+      "action": "check"
+    },
+    {
+      "phase": 5,
+      "action": "update-spec"
+    },
+    {
+      "phase": 6,
+      "action": "record-session"
+    }
+  ],
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {},
+  "status_history": [
+    {
+      "from": "planning",
+      "to": "active",
+      "at": "2026-04-15T04:20:45.591292+00:00",
+      "by": "implement"
+    },
+    {
+      "from": "active",
+      "to": "review",
+      "at": "2026-04-15T05:04:10.417126+00:00",
+      "by": "check"
+    },
+    {
+      "from": "review",
+      "to": "active",
+      "at": "2026-04-15T06:04:06.035085+00:00",
+      "by": "implement"
+    }
+  ]
+}
