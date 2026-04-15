@@ -1,0 +1,6 @@
+{"file": ".opencode/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".opencode/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/cli/backend/quality-guidelines.md", "reason": "Check pass should verify script and test changes against standards"}
+{"file": ".trellis/spec/cli/unit-test/conventions.md", "reason": "Check pass should verify regression-test necessity and shape"}
+{"file": "packages/cli/test/regression.test.ts", "reason": "Check updated regression coverage and assertions"}
+{"file": "packages/cli/src/templates/claude/hooks/inject-subagent-context.py", "reason": "Verify documented research-context contract stays aligned with implementation"}

@@ -1,0 +1,11 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/cli/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/cli/backend/error-handling.md", "reason": "Exit-code and warning-handling conventions for CLI scripts"}
+{"file": ".trellis/spec/cli/backend/script-conventions.md", "reason": "Python script patterns and subprocess conventions for task.py and hooks"}
+{"file": ".trellis/spec/cli/backend/quality-guidelines.md", "reason": "Quality constraints for template and test changes"}
+{"file": ".trellis/spec/cli/unit-test/conventions.md", "reason": "Regression test expectations for bug fixes"}
+{"file": "packages/cli/src/templates/claude/hooks/inject-subagent-context.py", "reason": "Research agent context assembly contract and lightweight behavior"}
+{"file": "packages/cli/src/templates/trellis/scripts/task.py", "reason": "Base task lifecycle script behavior and exit codes"}
+{"file": "overlays/hiskens/templates/trellis/scripts/task.py", "reason": "Overlay task lifecycle behavior used by downstream scientific projects"}
+{"file": "overlays/hiskens/templates/trellis/scripts/common/context_assembly.py", "reason": "Overlay's actual get_research_context() implementation — the overlay hook delegates here via shared-module import, so the research-agent gotcha docstring MUST be updated here, not just in the base template (discovered during 04-15-downstream-sync-v0.4.0 Round 3)"}
+{"file": "packages/cli/test/regression.test.ts", "reason": "Existing regression harness for template-script behavior"}
