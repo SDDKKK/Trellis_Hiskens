@@ -12,7 +12,7 @@
  * 5. Platform Registry (beta.9, beta.13, beta.16)
  */
 
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -1020,6 +1020,102 @@ describe("regression: current-task path normalization", () => {
     expect(ctx.getCurrentTask()).toBe(".trellis/tasks/issue-106");
     expect(ctx.resolveTaskDir(".trellis\\tasks\\issue-106")).toBe(
       path.join(tmpDir, ".trellis", "tasks", "issue-106"),
+    );
+  });
+});
+
+describe("regression: task.py direct execution exit codes", () => {
+  let tmpDir: string;
+  const pythonCmd = process.platform === "win32" ? "python" : "python3";
+  const hiskensScriptsDir = path.resolve(
+    __dirname,
+    "../../..",
+    "overlays",
+    "hiskens",
+    "templates",
+    "trellis",
+    "scripts",
+  );
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trellis-task-exit-"));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function copyTree(sourceDir: string, destDir: string): void {
+    for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+      const srcPath = path.join(sourceDir, entry.name);
+      const destPath = path.join(destDir, entry.name);
+      if (entry.isDirectory()) {
+        fs.mkdirSync(destPath, { recursive: true });
+        copyTree(srcPath, destPath);
+        continue;
+      }
+      fs.mkdirSync(path.dirname(destPath), { recursive: true });
+      fs.writeFileSync(destPath, fs.readFileSync(srcPath, "utf-8"), "utf-8");
+    }
+  }
+
+  function writeHiskensScripts(): void {
+    copyTree(hiskensScriptsDir, path.join(tmpDir, ".trellis", "scripts"));
+  }
+
+  function writeProjectFile(relativePath: string, content: string): void {
+    const absPath = path.join(tmpDir, relativePath);
+    fs.mkdirSync(path.dirname(absPath), { recursive: true });
+    fs.writeFileSync(absPath, content, "utf-8");
+  }
+
+  function setupTaskRepo(): string {
+    writeHiskensScripts();
+    writeProjectFile(
+      path.join(".trellis", ".developer"),
+      "name=test-dev\ninitialized_at=2026-04-15T00:00:00\n",
+    );
+    writeProjectFile(path.join(".trellis", "config.yaml"), "features:\n");
+    writeProjectFile(
+      path.join(".trellis", "tasks", "issue-142", "task.json"),
+      JSON.stringify(
+        {
+          title: "Issue 142 task",
+          status: "planning",
+          package: null,
+        },
+        null,
+        2,
+      ),
+    );
+    return path.join(tmpDir, ".trellis", "scripts", "task.py");
+  }
+
+  function runTaskScript(scriptPath: string, args: string[]) {
+    return spawnSync(pythonCmd, [scriptPath, ...args], {
+      cwd: tmpDir,
+      encoding: "utf-8",
+    });
+  }
+
+  it("[issue-142] hiskens task.py start/finish return 0 when run directly via python", () => {
+    const taskRef = ".trellis/tasks/issue-142";
+    const taskScriptPath = setupTaskRepo();
+
+    const start = runTaskScript(taskScriptPath, ["start", taskRef]);
+    expect(start.error).toBeUndefined();
+    expect(start.status).toBe(0);
+    expect(start.stderr).toBe("");
+    expect(
+      fs.readFileSync(path.join(tmpDir, ".trellis", ".current-task"), "utf-8"),
+    ).toBe(taskRef);
+
+    const finish = runTaskScript(taskScriptPath, ["finish"]);
+    expect(finish.error).toBeUndefined();
+    expect(finish.status).toBe(0);
+    expect(finish.stderr).toBe("");
+    expect(fs.existsSync(path.join(tmpDir, ".trellis", ".current-task"))).toBe(
+      false,
     );
   });
 });

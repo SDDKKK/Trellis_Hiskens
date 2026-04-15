@@ -369,7 +369,7 @@ If yes, resume from the appropriate step (usually Step 7 or 8).
 
 | Agent | Purpose | Hook Injection |
 |-------|---------|----------------|
-| research | Analyze codebase | No (reads directly) |
+| research | Analyze codebase | No (lightweight only: project structure + optional research.jsonl; not for task-jsonl injection checks) |
 | implement | Write code | Yes (implement.jsonl) |
 | check | Review & fix | Yes (check.jsonl) |
 | debug | Fix specific issues | Yes (debug.jsonl) |

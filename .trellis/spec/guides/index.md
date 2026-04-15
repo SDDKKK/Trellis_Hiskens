@@ -64,6 +64,7 @@ These guides help you **ask the right questions before coding**.
 - [ ] Investigating why an installed Trellis feature differs from overlay
 - [ ] User reports "this works on upstream but not on the fork"
 - [ ] **Periodic check: how far has the fork drifted?**
+- [ ] Smoke-testing task lifecycle or hook injection after sync
 
 → Read [Fork Sync Guide](./fork-sync-guide.md)
 

@@ -54,6 +54,7 @@ Check `.claude/hooks/inject-subagent-context.py`:
 - [ ] If the hook has hardcoded tool lists or search tips, ensure the new tool is included
 - [ ] Check functions like `get_research_context()` for updates needed
 - [ ] Check `build_research_prompt()` Search Tools table
+- [ ] Do not use `research` to validate task-jsonl hook injection: it is intentionally lightweight and only gets project structure plus optional `research.jsonl`; validate task-specific jsonl wiring with `implement`, `check`, `debug`, or `review`
 
 ### 4. Default JSONL Entries
 

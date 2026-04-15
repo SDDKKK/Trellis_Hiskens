@@ -22,14 +22,14 @@ Context Source: .trellis/.current-task points to task directory
 - codex-review-output.txt - Code Review results
 """
 
-# IMPORTANT: Suppress all warnings FIRST
-import warnings
-warnings.filterwarnings("ignore")
-
 import json
 import os
 import sys
+import warnings
 from pathlib import Path
+
+# IMPORTANT: Suppress all warnings
+warnings.filterwarnings("ignore")
 
 # IMPORTANT: Force stdout to use UTF-8 on Windows
 # This fixes UnicodeEncodeError when outputting non-ASCII characters
@@ -602,9 +602,14 @@ def get_research_context(repo_root: str, task_dir: str | None) -> str:
     """
     Context for Research Agent
 
-    Research doesn't need much preset context, only needs:
+    Research is intentionally lightweight. It only needs:
     1. Project structure overview (where spec directories are)
     2. Optional research.jsonl (if there are specific search needs)
+
+    Important:
+    - Research does NOT load implement/check/debug/review task jsonl files
+    - Do NOT use Research Agent to validate task-jsonl hook injection
+    - For injection smoke tests, use implement/check/debug/review instead
     """
     context_parts = []
 

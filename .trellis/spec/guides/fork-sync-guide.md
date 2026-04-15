@@ -296,6 +296,38 @@ For each one, decide explicitly: **port verbatim** or **deliberately drop with r
 
 **Fix**: Always run BOTH narrow AND broad scope (Phase B above). Treat the narrow scope hits as "definitely action-required" and the broad scope hits as "needs triage". Never skip the broad pass.
 
+### Pitfall 6: Misreading `uv run` sandbox noise as a `task.py finish` bug
+
+**Symptom**: Lifecycle smoke shows `uv run python ./.trellis/scripts/task.py finish` exiting with `2`, but `.trellis/.current-task` is cleared and the script side effects already happened.
+
+**Cause**: The non-zero exit can come from `uv` itself trying to touch the default cache under `~/.cache/uv` in a read-only or sandboxed environment. That is an environment/runtime artifact, not necessarily a `cmd_finish()` logic bug.
+
+**Rule**:
+
+- When validating `task.py` semantics, run the script directly with `python3` to isolate the script's own exit behavior.
+- When validating the real workflow path with `uv run`, make the cache writable first: `UV_CACHE_DIR=.cache/uv uv run python ...`
+- Do not file a lifecycle-script regression until you have separated `uv` runtime noise from script logic.
+
+**Practical check**:
+
+```bash
+# Script semantics
+python3 ./.trellis/scripts/task.py finish; echo "exit=$?"
+
+# Real workflow path with writable cache
+UV_CACHE_DIR=.cache/uv uv run python ./.trellis/scripts/task.py finish; echo "exit=$?"
+```
+
+If the first command returns `0` but the second one fails only when `UV_CACHE_DIR` is missing, the problem is the `uv` environment, not `task.py`.
+
+### Pitfall 7: Using research agent to verify task-jsonl injection
+
+**Symptom**: You run a smoke test through `research` and conclude "hook injection is broken" because the agent cannot see `implement.jsonl` / `check.jsonl`.
+
+**Cause**: This is by design. `get_research_context()` is intentionally lightweight: it loads only the project structure overview plus optional `research.jsonl`. It does not load task-specific implement/check/debug/review jsonl files.
+
+**Rule**: To verify PreToolUse task-context injection, use `implement`, `check`, `debug`, or `review`. Use `research` only for codebase discovery and optional extra search scope.
+
 ---
 
 ## Decision Heuristics

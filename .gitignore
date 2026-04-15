@@ -53,6 +53,9 @@ web_modules/
 # Optional npm cache directory
 .npm
 
+# Repo-local uv cache (used to avoid sandbox/read-only ~/.cache failures)
+.cache/uv/
+
 # Optional eslint cache
 .eslintcache
 

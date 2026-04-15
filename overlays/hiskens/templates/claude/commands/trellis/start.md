@@ -257,6 +257,8 @@ Must-have before proceeding:
 
 Based on the confirmed PRD, call Research Agent to find relevant specs and patterns:
 
+> **Research agent gotcha**: `research` is intentionally lightweight. Hook injection gives it project structure plus optional `research.jsonl`, not the task-specific `implement` / `check` / `debug` / `review` jsonl files. Do not use `research` to validate task-jsonl hook injection.
+
 ```
 Task(
   subagent_type: "research",

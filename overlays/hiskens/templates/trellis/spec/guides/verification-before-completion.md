@@ -154,6 +154,28 @@ If the answers are "yes / yes / yes", the work is likely complete and the failur
 
 **Corollary**: track dispatcher retries carefully. Three consecutive retries of the same subagent hitting the same provider error is a strong signal to stop and inspect disk state rather than escalate.
 
+## Gotcha: `uv run` Exit Codes Can Reflect Cache Environment, Not Script Logic
+
+> **Warning**: A non-zero exit from `uv run python ./.trellis/scripts/task.py ...` is not automatically evidence that `task.py` itself failed.
+
+In restricted or sandboxed environments, `uv` can try to use the default cache under `~/.cache/uv`. If that path is read-only, `uv` may surface an error even when the Python script already executed its own side effects correctly.
+
+**Real failure pattern**:
+
+- `uv run python ./.trellis/scripts/task.py finish` returns `2`
+- `.trellis/.current-task` is still cleared
+- scratchpad/task cleanup already happened
+
+That combination points to a `uv` runtime/cache problem, not a `cmd_finish()` contract failure.
+
+**Verification rule**:
+
+1. Isolate script semantics with direct Python:
+   `python3 ./.trellis/scripts/task.py finish`
+2. Verify the real workflow path with writable uv cache:
+   `UV_CACHE_DIR=.cache/uv uv run python ./.trellis/scripts/task.py finish`
+3. Only file a lifecycle-script regression if the direct-Python path is wrong too.
+
 ## Core Principle
 
 > Trust nothing. Verify everything. Show your evidence.
