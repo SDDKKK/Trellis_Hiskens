@@ -26,7 +26,7 @@ max_journal_lines: 2000
 # spec_scope: "active_task"         # Only inject specs for the active task's package
 # spec_scope: ["cli", "core"]       # Only inject specs for listed packages
 session:
-  spec_scope: null
+  spec_scope: active_task
 
 #-------------------------------------------------------------------------------
 # Update Skip Paths

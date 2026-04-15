@@ -20,6 +20,7 @@ from .cli_adapter import get_cli_adapter_auto
 from .config import (
     get_features,
     get_packages,
+    get_spec_base,
     is_monorepo,
     resolve_package,
     validate_package,
@@ -69,21 +70,32 @@ def get_implement_base() -> list[dict]:
     ]
 
 
+def _get_scientific_spec_path(
+    layer: str,
+    filename: str,
+    package: str | None = None,
+    repo_root: Path | None = None,
+) -> str:
+    """Build a scientific workflow spec path with monorepo awareness."""
+    spec_base = get_spec_base(package, repo_root)
+    return f"{DIR_WORKFLOW}/{spec_base}/{layer}/{filename}"
+
+
 def get_implement_python(package: str | None = None) -> list[dict]:
     """Get Python implement context entries."""
-    # Note: package parameter is kept for API compatibility with monorepo,
-    # but local implementation uses hardcoded spec/python/ paths
     return [
         {
-            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/python/index.md",
+            "file": _get_scientific_spec_path("python", "index.md", package),
             "reason": "Python development guide",
         },
         {
-            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/python/code-style.md",
+            "file": _get_scientific_spec_path("python", "code-style.md", package),
             "reason": "Code style conventions",
         },
         {
-            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/python/quality-guidelines.md",
+            "file": _get_scientific_spec_path(
+                "python", "quality-guidelines.md", package
+            ),
             "reason": "Code quality requirements",
         },
     ]
@@ -91,15 +103,13 @@ def get_implement_python(package: str | None = None) -> list[dict]:
 
 def get_implement_matlab(package: str | None = None) -> list[dict]:
     """Get MATLAB implement context entries."""
-    # Note: package parameter is kept for API compatibility with monorepo,
-    # but local implementation uses hardcoded spec/matlab/ paths
     return [
         {
-            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/matlab/index.md",
+            "file": _get_scientific_spec_path("matlab", "index.md", package),
             "reason": "MATLAB development guide",
         },
         {
-            "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/matlab/code-style.md",
+            "file": _get_scientific_spec_path("matlab", "code-style.md", package),
             "reason": "MATLAB code style",
         },
     ]
@@ -169,7 +179,9 @@ def get_check_context(dev_type: str, repo_root: Path) -> list[dict]:
     return entries
 
 
-def get_review_context(dev_type: str, repo_root: Path) -> list[dict]:
+def get_review_context(
+    dev_type: str, repo_root: Path, package: str | None = None
+) -> list[dict]:
     """Get review context entries."""
     adapter = get_cli_adapter_auto(repo_root)
 
@@ -197,7 +209,9 @@ def get_review_context(dev_type: str, repo_root: Path) -> list[dict]:
         )
         entries.append(
             {
-                "file": f"{DIR_WORKFLOW}/{DIR_SPEC}/python/code-style.md",
+                "file": _get_scientific_spec_path(
+                    "python", "code-style.md", package, repo_root
+                ),
                 "reason": "Code clarity and style spec",
             }
         )
@@ -377,7 +391,7 @@ def cmd_init_context(args: argparse.Namespace) -> int:
 
     # review.jsonl (local addition)
     print(colored("Creating review.jsonl...", Colors.CYAN))
-    review_entries = get_review_context(dev_type, repo_root)
+    review_entries = get_review_context(dev_type, repo_root, package)
     review_file = target_dir / "review.jsonl"
     _write_jsonl(review_file, review_entries)
     print(f"  {colored('✓', Colors.GREEN)} {len(review_entries)} entries")

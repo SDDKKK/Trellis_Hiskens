@@ -20,6 +20,15 @@ from pathlib import Path
 warnings.filterwarnings("ignore")
 
 
+LEGACY_MONOREPO_SPEC_MOVES = {
+    "backend": "`spec/backend/` -> `spec/<package>/backend/`",
+    "frontend": "`spec/frontend/` -> `spec/<package>/frontend/`",
+    "python": "`spec/python/` -> `spec/<package>/python/`",
+    "matlab": "`spec/matlab/` -> `spec/<package>/matlab/`",
+}
+LEGACY_SCIENTIFIC_ROOTS = {"python", "matlab"}
+
+
 def should_skip_injection() -> bool:
     return os.environ.get("CODEX_NON_INTERACTIVE") == "1"
 
@@ -68,7 +77,7 @@ def _get_task_status(trellis_dir: Path) -> str:
         task_dir = trellis_dir / "tasks" / task_ref
 
     if not task_dir.is_dir():
-        return f"Status: STALE POINTER\nTask: {task_ref}\nNext: Task directory not found. Run: python3 ./.trellis/scripts/task.py finish"
+        return f"Status: STALE POINTER\nTask: {task_ref}\nNext: Task directory not found. Run: uv run python ./.trellis/scripts/task.py finish"
 
     task_json_path = task_dir / "task.json"
     task_data: dict = {}
@@ -82,10 +91,10 @@ def _get_task_status(trellis_dir: Path) -> str:
     task_status = task_data.get("status", "unknown")
 
     if task_status == "completed":
-        return f"Status: COMPLETED\nTask: {task_title}\nNext: Archive with `python3 ./.trellis/scripts/task.py archive {task_dir.name}` or start a new task"
+        return f"Status: COMPLETED\nTask: {task_title}\nNext: Archive with `uv run python ./.trellis/scripts/task.py archive {task_dir.name}` or start a new task"
 
     has_context = False
-    for jsonl_name in ("implement.jsonl", "check.jsonl", "spec.jsonl"):
+    for jsonl_name in ("implement.jsonl", "check.jsonl", "review.jsonl", "spec.jsonl"):
         jsonl_path = task_dir / jsonl_name
         if jsonl_path.is_file() and jsonl_path.stat().st_size > 0:
             has_context = True
@@ -128,6 +137,142 @@ def _build_workflow_toc(workflow_path: Path) -> str:
     return "\n".join(toc_lines)
 
 
+def _load_trellis_config(trellis_dir: Path) -> tuple:
+    """Load Trellis config for package-scoped guideline injection."""
+    scripts_dir = trellis_dir / "scripts"
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+
+    try:
+        from common.config import (  # type: ignore[import-not-found]
+            get_default_package,
+            get_packages,
+            get_spec_scope,
+            is_monorepo,
+        )
+        from common.paths import get_current_task  # type: ignore[import-not-found]
+
+        repo_root = trellis_dir.parent
+        is_mono = is_monorepo(repo_root)
+        packages = get_packages(repo_root) or {}
+        scope = get_spec_scope(repo_root)
+
+        task_pkg = None
+        current = get_current_task(repo_root)
+        if current:
+            task_json = repo_root / current / "task.json"
+            if task_json.is_file():
+                try:
+                    data = json.loads(task_json.read_text(encoding="utf-8"))
+                    if isinstance(data, dict):
+                        task_package = data.get("package")
+                        if isinstance(task_package, str) and task_package:
+                            task_pkg = task_package
+                except (json.JSONDecodeError, OSError):
+                    pass
+
+        default_pkg = get_default_package(repo_root)
+        return is_mono, packages, scope, task_pkg, default_pkg
+    except Exception:
+        return False, {}, None, None, None
+
+
+def _check_legacy_spec(trellis_dir: Path, is_mono: bool, packages: dict) -> str | None:
+    """Check for legacy spec directory structure in monorepo."""
+    if not is_mono or not packages:
+        return None
+
+    spec_dir = trellis_dir / "spec"
+    if not spec_dir.is_dir():
+        return None
+
+    legacy_roots = [
+        name
+        for name in LEGACY_MONOREPO_SPEC_MOVES
+        if (spec_dir / name).is_dir() and (spec_dir / name / "index.md").is_file()
+    ]
+    if not legacy_roots:
+        return None
+
+    missing = [
+        name for name in sorted(packages.keys()) if not (spec_dir / name).is_dir()
+    ]
+    legacy_paths = ", ".join(f"`spec/{name}/`" for name in legacy_roots)
+    move_hint = "; ".join(LEGACY_MONOREPO_SPEC_MOVES[name] for name in legacy_roots)
+    if not missing:
+        return (
+            f"[!] Legacy monorepo spec roots detected: {legacy_paths}\n"
+            f"Monorepo packages: {', '.join(sorted(packages.keys()))}\n"
+            f"Package-scoped specs are used in monorepo mode. Remove or migrate legacy roots: {move_hint}"
+        )
+
+    if len(missing) == len(packages):
+        return (
+            f"[!] Legacy spec structure detected: found {legacy_paths} but no "
+            "`spec/<package>/` directories.\n"
+            f"Monorepo packages: {', '.join(sorted(packages.keys()))}\n"
+            f"Please reorganize: {move_hint}"
+        )
+
+    return (
+        f"[!] Partial spec migration detected: found legacy roots {legacy_paths} "
+        f"while packages {', '.join(missing)} still missing `spec/<pkg>/` directory.\n"
+        f"Please complete migration for all packages. Target layout: {move_hint}"
+    )
+
+
+def _resolve_spec_scope(
+    is_mono: bool,
+    packages: dict,
+    scope,
+    task_pkg: str | None,
+    default_pkg: str | None,
+) -> set[str] | None:
+    """Resolve which packages should have their specs injected."""
+    if not is_mono or not packages:
+        return None
+
+    if scope is None:
+        return None
+
+    if isinstance(scope, str) and scope == "active_task":
+        if task_pkg and task_pkg in packages:
+            return {task_pkg}
+        if default_pkg and default_pkg in packages:
+            return {default_pkg}
+        return None
+
+    if isinstance(scope, list):
+        valid = set()
+        for entry in scope:
+            if entry in packages:
+                valid.add(entry)
+            else:
+                print(
+                    f"Warning: spec_scope contains unknown package: {entry}, ignoring",
+                    file=sys.stderr,
+                )
+
+        if valid:
+            if task_pkg and task_pkg not in valid:
+                print(
+                    f"Warning: active task package '{task_pkg}' is out of configured spec_scope",
+                    file=sys.stderr,
+                )
+            return valid
+
+        print(
+            "Warning: all spec_scope entries invalid, falling back to task/default/full",
+            file=sys.stderr,
+        )
+        if task_pkg and task_pkg in packages:
+            return {task_pkg}
+        if default_pkg and default_pkg in packages:
+            return {default_pkg}
+
+    return None
+
+
 def main() -> None:
     if should_skip_injection():
         sys.exit(0)
@@ -140,6 +285,12 @@ def main() -> None:
         project_dir = Path(".").resolve()
 
     trellis_dir = project_dir / ".trellis"
+    is_mono, packages, scope_config, task_pkg, default_pkg = _load_trellis_config(
+        trellis_dir
+    )
+    allowed_pkgs = _resolve_spec_scope(
+        is_mono, packages, scope_config, task_pkg, default_pkg
+    )
 
     output = StringIO()
 
@@ -149,6 +300,12 @@ Read and follow all instructions below carefully.
 </session-context>
 
 """)
+
+    legacy_warning = _check_legacy_spec(trellis_dir, is_mono, packages)
+    if legacy_warning:
+        output.write(
+            f"<migration-warning>\n{legacy_warning}\n</migration-warning>\n\n"
+        )
 
     output.write("<current-state>\n")
     context_script = trellis_dir / "scripts" / "get_context.py"
@@ -177,12 +334,17 @@ Read and follow all instructions below carefully.
                     output.write("\n\n")
                 continue
 
+            if is_mono and packages and sub.name in LEGACY_SCIENTIFIC_ROOTS:
+                continue
+
             index_file = sub / "index.md"
             if index_file.is_file():
                 output.write(f"## {sub.name}\n")
                 output.write(read_file(index_file))
                 output.write("\n\n")
             else:
+                if allowed_pkgs is not None and sub.name not in allowed_pkgs:
+                    continue
                 for nested in sorted(sub.iterdir()):
                     if not nested.is_dir():
                         continue

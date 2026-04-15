@@ -6,7 +6,7 @@ Creates a guided task to help users fill in project guidelines
 after initializing Trellis for the first time.
 
 Usage:
-    python3 create_bootstrap.py [project-type]
+    uv run python ./.trellis/scripts/create_bootstrap.py [project-type] [--package <package>]
 
 Arguments:
     project-type: python | matlab | both (default: both)
@@ -23,10 +23,18 @@ Creates:
 from __future__ import annotations
 
 import json
+import argparse
 import sys
 from datetime import datetime
 from pathlib import Path
 
+from common.config import (
+    get_packages,
+    get_spec_base,
+    is_monorepo,
+    resolve_package,
+    validate_package,
+)
 from common.paths import (
     DIR_SCRIPTS,
     DIR_TASKS,
@@ -70,33 +78,33 @@ Fill in the guideline files based on your **existing codebase**.
 """
 
 
-def write_prd_python_section() -> str:
+def write_prd_python_section(spec_base: str) -> str:
     """Write PRD Python section."""
-    return """
+    return f"""
 
 ### Python Guidelines
 
 | File | What to Document |
 |------|------------------|
-| `.trellis/spec/python/directory-structure.md` | Python module layout (src/ structure) |
-| `.trellis/spec/python/data-processing.md` | polars, data I/O, file formats |
-| `.trellis/spec/python/code-style.md` | Code style, ruff, typing, architecture |
-| `.trellis/spec/python/docstring.md` | Docstring and comment format |
-| `.trellis/spec/python/quality-guidelines.md` | ruff, uv run, pytest |
+| `.trellis/{spec_base}/python/directory-structure.md` | Python module layout (src/ structure) |
+| `.trellis/{spec_base}/python/data-processing.md` | polars, data I/O, file formats |
+| `.trellis/{spec_base}/python/code-style.md` | Code style, ruff, typing, architecture |
+| `.trellis/{spec_base}/python/docstring.md` | Docstring and comment format |
+| `.trellis/{spec_base}/python/quality-guidelines.md` | ruff, uv run, pytest |
 """
 
 
-def write_prd_matlab_section() -> str:
+def write_prd_matlab_section(spec_base: str) -> str:
     """Write PRD MATLAB section."""
-    return """
+    return f"""
 
 ### MATLAB Guidelines
 
 | File | What to Document |
 |------|------------------|
-| `.trellis/spec/matlab/code-style.md` | MATLAB code style and checkcode |
-| `.trellis/spec/matlab/quality-guidelines.md` | MATLAB quality (checkcode L1-L5) |
-| `.trellis/spec/matlab/docstring.md` | MATLAB docstring format |
+| `.trellis/{spec_base}/matlab/code-style.md` | MATLAB code style and checkcode |
+| `.trellis/{spec_base}/matlab/quality-guidelines.md` | MATLAB quality (checkcode L1-L5) |
+| `.trellis/{spec_base}/matlab/docstring.md` | MATLAB docstring format |
 """
 
 
@@ -148,8 +156,8 @@ The AI will read your code and help you document it.
 When done:
 
 ```bash
-python3 ./.trellis/scripts/task.py finish
-python3 ./.trellis/scripts/task.py archive 00-bootstrap-guidelines
+uv run python ./.trellis/scripts/task.py finish
+uv run python ./.trellis/scripts/task.py archive 00-bootstrap-guidelines
 ```
 
 ---
@@ -165,17 +173,17 @@ After completing this task:
 """
 
 
-def write_prd(task_dir: Path, project_type: str) -> None:
+def write_prd(task_dir: Path, project_type: str, spec_base: str) -> None:
     """Write prd.md file."""
     content = write_prd_header()
 
     if project_type == "matlab":
-        content += write_prd_matlab_section()
+        content += write_prd_matlab_section(spec_base)
     elif project_type == "python":
-        content += write_prd_python_section()
+        content += write_prd_python_section(spec_base)
     else:  # both
-        content += write_prd_python_section()
-        content += write_prd_matlab_section()
+        content += write_prd_python_section(spec_base)
+        content += write_prd_matlab_section(spec_base)
 
     content += write_prd_footer()
 
@@ -188,7 +196,13 @@ def write_prd(task_dir: Path, project_type: str) -> None:
 # =============================================================================
 
 
-def write_task_json(task_dir: Path, developer: str, project_type: str) -> None:
+def write_task_json(
+    task_dir: Path,
+    developer: str,
+    project_type: str,
+    spec_base: str,
+    package: str | None,
+) -> None:
     """Write task.json file."""
     today = datetime.now().strftime("%Y-%m-%d")
 
@@ -198,20 +212,20 @@ def write_task_json(task_dir: Path, developer: str, project_type: str) -> None:
             {"name": "Fill MATLAB guidelines", "status": "pending"},
             {"name": "Add code examples", "status": "pending"},
         ]
-        related_files = [".trellis/spec/matlab/"]
+        related_files = [f".trellis/{spec_base}/matlab/"]
     elif project_type == "python":
         subtasks = [
             {"name": "Fill Python guidelines", "status": "pending"},
             {"name": "Add code examples", "status": "pending"},
         ]
-        related_files = [".trellis/spec/python/"]
+        related_files = [f".trellis/{spec_base}/python/"]
     else:  # both
         subtasks = [
             {"name": "Fill Python guidelines", "status": "pending"},
             {"name": "Fill MATLAB guidelines", "status": "pending"},
             {"name": "Add code examples", "status": "pending"},
         ]
-        related_files = [".trellis/spec/python/", ".trellis/spec/matlab/"]
+        related_files = [f".trellis/{spec_base}/python/", f".trellis/{spec_base}/matlab/"]
 
     task_data = {
         "id": TASK_NAME,
@@ -219,6 +233,7 @@ def write_task_json(task_dir: Path, developer: str, project_type: str) -> None:
         "description": "Fill in project development guidelines for AI agents",
         "status": "in_progress",
         "dev_type": "docs",
+        "package": package,
         "priority": "P1",
         "creator": developer,
         "assignee": developer,
@@ -243,10 +258,19 @@ def write_task_json(task_dir: Path, developer: str, project_type: str) -> None:
 
 def main() -> int:
     """Main entry point."""
-    # Parse project type argument
-    project_type = "both"
-    if len(sys.argv) > 1:
-        project_type = sys.argv[1]
+    parser = argparse.ArgumentParser(
+        description="Create Bootstrap Task for First-Time Setup"
+    )
+    parser.add_argument(
+        "project_type",
+        nargs="?",
+        default="both",
+        help="Project type: python | matlab | both (default: both)",
+    )
+    parser.add_argument("--package", help="Package name for monorepo projects")
+    args = parser.parse_args()
+
+    project_type = args.project_type
 
     # Validate project type
     if project_type not in ("python", "matlab", "both"):
@@ -260,9 +284,24 @@ def main() -> int:
     if not developer:
         print("Error: Developer not initialized")
         print(
-            f"Run: python3 ./{DIR_WORKFLOW}/{DIR_SCRIPTS}/init_developer.py <your-name>"
+            f"Run: uv run python ./{DIR_WORKFLOW}/{DIR_SCRIPTS}/init_developer.py <your-name>"
         )
         return 1
+
+    package = args.package
+    if package:
+        if not is_monorepo(repo_root):
+            print("Warning: --package ignored in single-repo project")
+            package = None
+        elif not validate_package(package, repo_root):
+            packages = get_packages(repo_root)
+            available = ", ".join(sorted(packages.keys())) if packages else "(none)"
+            print(f"Error: unknown package '{package}'. Available: {available}")
+            return 1
+    else:
+        package = resolve_package(repo_root=repo_root)
+
+    spec_base = get_spec_base(package, repo_root)
 
     tasks_dir = get_tasks_dir(repo_root)
     task_dir = tasks_dir / TASK_NAME
@@ -277,8 +316,8 @@ def main() -> int:
     task_dir.mkdir(parents=True, exist_ok=True)
 
     # Write files
-    write_task_json(task_dir, developer, project_type)
-    write_prd(task_dir, project_type)
+    write_task_json(task_dir, developer, project_type, spec_base, package)
+    write_prd(task_dir, project_type, spec_base)
 
     # Set as current task
     set_current_task(relative_path, repo_root)

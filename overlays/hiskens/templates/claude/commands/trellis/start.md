@@ -32,7 +32,7 @@ cat .trellis/workflow.md
 ### Step 2: Get Current Context
 
 ```bash
-python3 ./.trellis/scripts/get_context.py
+uv run python ./.trellis/scripts/get_context.py
 ```
 
 This shows: developer identity, git status, current task (if any), active tasks, memory status, session freshness.
@@ -40,27 +40,28 @@ This shows: developer identity, git status, current task (if any), active tasks,
 ### Step 3: Read Guidelines Index
 
 ```bash
-python3 ./.trellis/scripts/get_context.py --mode packages
+uv run python ./.trellis/scripts/get_context.py --mode packages
 ```
 
 This shows available packages and their spec layers. Read the relevant spec indexes:
 
 ```bash
 # Discover packages and their spec layers
-python3 ./.trellis/scripts/get_context.py --mode packages
+uv run python ./.trellis/scripts/get_context.py --mode packages
 
-# Read index for the package you'll work on
+# Read index for the package/layer you'll work on
 cat .trellis/spec/<package>/<layer>/index.md
 
-# Hiskens default spec layers:
-cat .trellis/spec/python/index.md
-cat .trellis/spec/matlab/index.md
+# Hiskens scientific layers are package-scoped, for example:
+cat .trellis/spec/<package>/python/index.md
+cat .trellis/spec/<package>/matlab/index.md
 
 # Always read shared thinking guides
 cat .trellis/spec/guides/index.md
 ```
 
 > **Important**: The index files are navigation — they list the actual guideline files (e.g., `error-handling.md`, `conventions.md`, `mock-strategies.md`).
+> In single-repo projects, replace `.trellis/spec/<package>/...` with `.trellis/spec/...`.
 > At this step, just read the indexes to understand what's available.
 > When you start actual development, you MUST go back and read the specific guideline files relevant to your task, as listed in the index's Pre-Development Checklist.
 
@@ -199,12 +200,13 @@ PRD and task directory already exist from brainstorm. Skip directly to Phase 2.
 Quick confirm:
 - What is the goal?
 - What type of development? (python / matlab / both)
+- Which package is in scope? (if monorepo)
 - Any specific requirements or constraints?
 
 **Step 2: Create Task Directory** `[AI]`
 
 ```bash
-TASK_DIR=$(python3 ./.trellis/scripts/task.py create "<title>" --slug <name>)
+TASK_DIR=$(uv run python ./.trellis/scripts/task.py create "<title>" --slug <name> [--package <package>])
 ```
 
 **Step 3: Write PRD** `[AI]`
@@ -286,7 +288,7 @@ Task(
 Initialize default context:
 
 ```bash
-python3 ./.trellis/scripts/task.py init-context "$TASK_DIR" <type>
+uv run python ./.trellis/scripts/task.py init-context "$TASK_DIR" <type> [--package <package>]
 # type: python | matlab | both
 ```
 
@@ -294,14 +296,14 @@ Add code-spec files found by Research Agent:
 
 ```bash
 # For each relevant code-spec and code pattern:
-python3 ./.trellis/scripts/task.py add-context "$TASK_DIR" implement "<path>" "<reason>"
-python3 ./.trellis/scripts/task.py add-context "$TASK_DIR" check "<path>" "<reason>"
+uv run python ./.trellis/scripts/task.py add-context "$TASK_DIR" implement "<path>" "<reason>"
+uv run python ./.trellis/scripts/task.py add-context "$TASK_DIR" check "<path>" "<reason>"
 ```
 
 **Step 7: Activate Task** `[AI]`
 
 ```bash
-python3 ./.trellis/scripts/task.py start "$TASK_DIR"
+uv run python ./.trellis/scripts/task.py start "$TASK_DIR"
 ```
 
 This sets `.current-task` so hooks can inject context.
@@ -401,13 +403,13 @@ If yes, resume from the appropriate step (usually Step 7 or 8).
 
 | Script | Purpose |
 |--------|---------|
-| `python3 ./.trellis/scripts/get_context.py` | Get session context |
-| `python3 ./.trellis/scripts/task.py create` | Create task directory |
-| `python3 ./.trellis/scripts/task.py init-context` | Initialize jsonl files |
-| `python3 ./.trellis/scripts/task.py add-context` | Add code-spec/context file to jsonl |
-| `python3 ./.trellis/scripts/task.py start` | Set current task |
-| `python3 ./.trellis/scripts/task.py finish` | Clear current task |
-| `python3 ./.trellis/scripts/task.py archive` | Archive completed task |
+| `uv run python ./.trellis/scripts/get_context.py` | Get session context |
+| `uv run python ./.trellis/scripts/task.py create` | Create task directory |
+| `uv run python ./.trellis/scripts/task.py init-context` | Initialize jsonl files |
+| `uv run python ./.trellis/scripts/task.py add-context` | Add code-spec/context file to jsonl |
+| `uv run python ./.trellis/scripts/task.py start` | Set current task |
+| `uv run python ./.trellis/scripts/task.py finish` | Clear current task |
+| `uv run python ./.trellis/scripts/task.py archive` | Archive completed task |
 
 ### Sub Agents `[AI]`
 

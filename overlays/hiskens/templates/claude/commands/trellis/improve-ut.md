@@ -8,6 +8,18 @@ Analyze and improve unit test coverage for recent changes or specified modules.
 
 ## Execution Flow
 
+### Step 0: Discover Test Specs
+
+```bash
+uv run python ./.trellis/scripts/get_context.py --mode packages
+```
+
+Read the relevant package-scoped unit-test specs first:
+- `.trellis/spec/<package>/unit-test/index.md`
+- `.trellis/spec/<package>/unit-test/conventions.md`
+
+If the target package does not have a dedicated `unit-test` layer, fall back to the relevant runtime layer and the existing local test patterns.
+
 ### Step 1: Identify Test Scope
 
 Determine what needs testing:
@@ -41,7 +53,7 @@ For each changed file, check:
 
 ### Step 4: Generate Tests
 
-Follow conventions from `.trellis/spec/unit-test/conventions.md`:
+Follow conventions from `.trellis/spec/<package>/unit-test/conventions.md` when available:
 
 ```python
 # File: tests/test_<module_name>.py
@@ -123,3 +135,5 @@ Development Flow:
 - `/trellis:improve-ut` - Improve test coverage (this command)
 - `/trellis:finish-work` - Pre-commit checklist (includes test check)
 - `/trellis:check-python` - Verify code standards
+
+In single-repo projects, replace `.trellis/spec/<package>/...` with `.trellis/spec/...`.

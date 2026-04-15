@@ -2,7 +2,8 @@
 """
 Multi-Agent Pipeline: Plan Agent Launcher.
 
-Usage: python3 plan.py --name <task-name> --type <dev-type> --requirement "<requirement>"
+Usage: uv run python ./.trellis/scripts/multi_agent/plan.py --name <task-name> --type <dev-type> --requirement "<requirement>"
+       uv run python ./.trellis/scripts/multi_agent/plan.py --name <task-name> --type <dev-type> --package <package> --requirement "<requirement>"
 
 This script:
 1. Creates task directory
@@ -29,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from common.cli_adapter import get_cli_adapter
 from common.developer import ensure_developer
+from common.io import read_json
 from common.paths import get_repo_root
 
 # =============================================================================
@@ -82,6 +84,7 @@ def main() -> int:
     parser.add_argument(
         "--requirement", "-r", required=True, help="Requirement description"
     )
+    parser.add_argument("--package", help="Package name for monorepo projects")
     parser.add_argument(
         "--platform",
         "-p",
@@ -95,6 +98,7 @@ def main() -> int:
     task_name = args.name
     dev_type = args.type
     requirement = args.requirement
+    package = args.package
     platform = args.platform
 
     # Initialize CLI adapter
@@ -135,7 +139,12 @@ def main() -> int:
 
     # Create task using task.py's create command
     create_args = ap.Namespace(
-        title=requirement, slug=task_name, assignee=None, priority="P2", description=""
+        title=requirement,
+        slug=task_name,
+        assignee=None,
+        priority="P2",
+        description="",
+        package=package,
     )
 
     # Capture stdout to get task dir
@@ -152,8 +161,18 @@ def main() -> int:
 
     task_dir = stdout_capture.getvalue().strip().split("\n")[-1]
     task_dir_abs = project_root / task_dir
+    task_json_path = task_dir_abs / "task.json"
+    task_package: str | None = None
+    if task_json_path.is_file():
+        task_data = read_json(task_json_path)
+        if isinstance(task_data, dict):
+            package_value = task_data.get("package")
+            if isinstance(package_value, str) and package_value:
+                task_package = package_value
 
     log_success(f"Task directory: {task_dir}")
+    if task_package:
+        log_info(f"Package: {task_package}")
 
     # =============================================================================
     # Step 2: Prepare and Start Plan Agent
@@ -174,6 +193,7 @@ def main() -> int:
     env["PLAN_DEV_TYPE"] = dev_type
     env["PLAN_TASK_DIR"] = task_dir
     env["PLAN_REQUIREMENT"] = requirement
+    env["PLAN_PACKAGE"] = task_package or ""
     env["https_proxy"] = https_proxy
     env["http_proxy"] = http_proxy
     env["all_proxy"] = all_proxy
@@ -221,6 +241,8 @@ def main() -> int:
     print()
     print(f"  Task:  {task_name}")
     print(f"  Type:  {dev_type}")
+    if task_package:
+        print(f"  Package: {task_package}")
     print(f"  Dir:   {task_dir}")
     print(f"  Log:   {log_file}")
     print(f"  PID:   {agent_pid}")
@@ -233,7 +255,7 @@ def main() -> int:
     print(f"  ls -la {task_dir}")
     print()
     print(f"{Colors.YELLOW}After completion, run:{Colors.NC}")
-    print(f"  python3 ./.trellis/scripts/multi_agent/start.py {task_dir}")
+    print(f"  uv run python ./.trellis/scripts/multi_agent/start.py {task_dir}")
 
     return 0
 

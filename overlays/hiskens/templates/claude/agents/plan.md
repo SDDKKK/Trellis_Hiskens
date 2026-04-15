@@ -87,7 +87,7 @@ PLAN_REQUIREMENT = <the requirement from environment>
       rm -rf $PLAN_TASK_DIR
    
    2. Run with revised requirement:
-      python3 ./.trellis/scripts/multi_agent/plan.py --name "<name>" --type "<type>" --requirement "<revised requirement>"
+      uv run python ./.trellis/scripts/multi_agent/plan.py --name "<name>" --type "<type>" --requirement "<revised requirement>"
    EOF
    ```
 
@@ -169,6 +169,7 @@ PLAN_TASK_NAME    # Task name (e.g., "user-auth")
 PLAN_DEV_TYPE        # Development type: python | matlab | both
 PLAN_REQUIREMENT     # Requirement description from user
 PLAN_TASK_DIR     # Pre-created task directory path
+PLAN_PACKAGE      # Resolved package name for monorepo tasks (may be empty)
 ```
 
 Read them at startup:
@@ -176,6 +177,7 @@ Read them at startup:
 ```bash
 echo "Task: $PLAN_TASK_NAME"
 echo "Type: $PLAN_DEV_TYPE"
+echo "Package: ${PLAN_PACKAGE:-<none>}"
 echo "Requirement: $PLAN_REQUIREMENT"
 echo "Directory: $PLAN_TASK_DIR"
 ```
@@ -200,7 +202,11 @@ ${PLAN_TASK_DIR}/
 ### Step 1: Initialize Context Files
 
 ```bash
-python3 ./.trellis/scripts/task.py init-context "$PLAN_TASK_DIR" "$PLAN_DEV_TYPE"
+if [ -n "$PLAN_PACKAGE" ]; then
+  uv run python ./.trellis/scripts/task.py init-context "$PLAN_TASK_DIR" "$PLAN_DEV_TYPE" --package "$PLAN_PACKAGE"
+else
+  uv run python ./.trellis/scripts/task.py init-context "$PLAN_TASK_DIR" "$PLAN_DEV_TYPE"
+fi
 ```
 
 This creates base jsonl files with standard specs for the dev type.
@@ -249,13 +255,13 @@ Parse research agent output and add entries to jsonl files:
 
 ```bash
 # For each entry in implement.jsonl section:
-python3 ./.trellis/scripts/task.py add-context "$PLAN_TASK_DIR" implement "<path>" "<reason>"
+uv run python ./.trellis/scripts/task.py add-context "$PLAN_TASK_DIR" implement "<path>" "<reason>"
 
 # For each entry in check.jsonl section:
-python3 ./.trellis/scripts/task.py add-context "$PLAN_TASK_DIR" check "<path>" "<reason>"
+uv run python ./.trellis/scripts/task.py add-context "$PLAN_TASK_DIR" check "<path>" "<reason>"
 
 # For each entry in debug.jsonl section:
-python3 ./.trellis/scripts/task.py add-context "$PLAN_TASK_DIR" debug "<path>" "<reason>"
+uv run python ./.trellis/scripts/task.py add-context "$PLAN_TASK_DIR" debug "<path>" "<reason>"
 ```
 
 ### Step 4: Write prd.md
@@ -297,12 +303,13 @@ EOF
 
 ```bash
 # Set branch name
-python3 ./.trellis/scripts/task.py set-branch "$PLAN_TASK_DIR" "feature/${PLAN_TASK_NAME}"
+uv run python ./.trellis/scripts/task.py set-branch "$PLAN_TASK_DIR" "feature/${PLAN_TASK_NAME}"
 
 # Set scope (from research agent suggestion)
-python3 ./.trellis/scripts/task.py set-scope "$PLAN_TASK_DIR" "<scope>"
+uv run python ./.trellis/scripts/task.py set-scope "$PLAN_TASK_DIR" "<scope>"
 
 # Update dev_type in task.json
+# package is already synced by init-context when PLAN_PACKAGE is provided
 jq --arg type "$PLAN_DEV_TYPE" '.dev_type = $type' \
   "$PLAN_TASK_DIR/task.json" > "$PLAN_TASK_DIR/task.json.tmp" \
   && mv "$PLAN_TASK_DIR/task.json.tmp" "$PLAN_TASK_DIR/task.json"
@@ -311,7 +318,7 @@ jq --arg type "$PLAN_DEV_TYPE" '.dev_type = $type' \
 ### Step 6: Validate Configuration
 
 ```bash
-python3 ./.trellis/scripts/task.py validate "$PLAN_TASK_DIR"
+uv run python ./.trellis/scripts/task.py validate "$PLAN_TASK_DIR"
 ```
 
 If validation fails, fix the invalid paths and re-validate.
@@ -328,9 +335,9 @@ echo "Files created:"
 ls -la "$PLAN_TASK_DIR"
 echo ""
 echo "Context summary:"
-python3 ./.trellis/scripts/task.py list-context "$PLAN_TASK_DIR"
+uv run python ./.trellis/scripts/task.py list-context "$PLAN_TASK_DIR"
 echo ""
-echo "Ready for: python3 ./.trellis/scripts/multi_agent/start.py $PLAN_TASK_DIR"
+echo "Ready for: uv run python ./.trellis/scripts/multi_agent/start.py $PLAN_TASK_DIR"
 ```
 
 ---

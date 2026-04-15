@@ -18,11 +18,11 @@ Adapt and integrate a Claude global skill into your project's development guidel
 
 > [!] **Important**: The goal of skill integration is to update **development guidelines**, not to generate project code directly.
 >
-> - Guidelines content -> Write to `.trellis/spec/{target}/doc.md`
-> - Code examples -> Place in `.trellis/spec/{target}/examples/skills/<skill-name>/`
+> - Guidelines content -> Write to `.trellis/spec/<package>/{layer}/doc.md`
+> - Code examples -> Place in `.trellis/spec/<package>/{layer}/examples/skills/<skill-name>/`
 > - Example files -> Use `.template` suffix (e.g., `component.tsx.template`) to avoid IDE errors
 >
-> Where `{target}` is `matlab` or `python`, determined by skill type.
+> Where `{layer}` is usually `matlab` or `python`, and `<package>` is determined by the package you are extending.
 
 ## Execution Steps
 
@@ -43,10 +43,10 @@ Based on skill type, determine which guidelines to update:
 
 | Skill Category | Integration Target |
 |----------------|-------------------|
-| MATLAB/Scientific Computing | `.trellis/spec/matlab/` |
-| Python/Data Processing | `.trellis/spec/python/` |
+| MATLAB/Scientific Computing | `.trellis/spec/<package>/matlab/` |
+| Python/Data Processing | `.trellis/spec/<package>/python/` |
 | Documentation (`doc-coauthoring`, `docx`, `pdf`) | `.trellis/` or create dedicated guidelines |
-| Testing | `.trellis/spec/python/` |
+| Testing | `.trellis/spec/<package>/unit-test/` or the relevant runtime layer |
 
 ### 3. Analyze Skill Content
 
@@ -89,8 +89,8 @@ See `examples/skills/<skill-name>/`
 #### 4.2 Create Examples Directory (if code examples exist)
 
 ```bash
-# Directory structure ({target} = matlab or python)
-.trellis/spec/{target}/
+# Directory structure (`<package>` + `{layer}` = matlab or python)
+.trellis/spec/<package>/{layer}/
 |-- doc.md                      # Add skill-related section
 |-- index.md                    # Update index
 +-- examples/
@@ -122,7 +122,7 @@ Add to the Quick Navigation table in `index.md`:
 
 ### # Overview
 - **Skill description**: [Functionality description]
-- **Integration target**: `.trellis/spec/{target}/`
+- **Integration target**: `.trellis/spec/<package>/{layer}/`
 
 ### # Tech Stack Compatibility
 
@@ -134,11 +134,11 @@ Add to the Quick Navigation table in `index.md`:
 
 | Type | Path |
 |------|------|
-| Guidelines doc | `.trellis/spec/{target}/doc.md` (section: `skill-<name>`) |
-| Code examples | `.trellis/spec/{target}/examples/skills/<name>/` |
-| Index update | `.trellis/spec/{target}/index.md` |
+| Guidelines doc | `.trellis/spec/<package>/{layer}/doc.md` (section: `skill-<name>`) |
+| Code examples | `.trellis/spec/<package>/{layer}/examples/skills/<name>/` |
+| Index update | `.trellis/spec/<package>/{layer}/index.md` |
 
-> `{target}` = `matlab` or `python`
+> `{layer}` = `matlab` or `python`; determine `<package>` first with `uv run python ./.trellis/scripts/get_context.py --mode packages`
 
 ### # Dependencies (if needed)
 
@@ -172,9 +172,9 @@ If this skill is frequently used, create a shortcut command:
 
 | Skill | Integration Target | Examples Directory |
 |-------|-------------------|-------------------|
-| `scientific-computing` | `matlab` | `examples/skills/scientific-computing/` |
-| `data-processing` | `python` | `examples/skills/data-processing/` |
-| `mcp-builder` | `python` | `examples/skills/mcp-builder/` |
+| `scientific-computing` | `<package>/matlab` | `examples/skills/scientific-computing/` |
+| `data-processing` | `<package>/python` | `examples/skills/data-processing/` |
+| `mcp-builder` | `<package>/python` | `examples/skills/mcp-builder/` |
 | `doc-coauthoring` | `.trellis/` | N/A (documentation workflow only) |
 
 ## Example: Integrating `mcp-builder` Skill
@@ -182,7 +182,7 @@ If this skill is frequently used, create a shortcut command:
 ### Directory Structure
 
 ```
-.trellis/spec/python/
+.trellis/spec/<package>/python/
 |-- doc.md                           # Add MCP section
 |-- index.md                         # Add index entry
 +-- examples/

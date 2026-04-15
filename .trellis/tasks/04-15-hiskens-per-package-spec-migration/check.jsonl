@@ -1,0 +1,6 @@
+{"file": ".opencode/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".opencode/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/spec/cli/backend/script-conventions.md", "reason": "Verify migrated scripts stay package-aware"}
+{"file": ".trellis/spec/cli/backend/platform-integration.md", "reason": "Verify hook size and package-scoped SessionStart behavior"}
+{"file": ".trellis/spec/guides/fork-sync-guide.md", "reason": "Check overlay drift cleanup against upstream templates"}
+{"file": ".trellis/tasks/04-15-hiskens-per-package-spec-migration/info.md", "reason": "Phase-by-phase migration validation plan and breakpoint inventory"}

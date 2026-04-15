@@ -1,0 +1,8 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/cli/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/spec/cli/backend/script-conventions.md", "reason": "Task/package-aware script behavior and config conventions"}
+{"file": ".trellis/spec/cli/backend/platform-integration.md", "reason": "SessionStart additionalContext and platform hook constraints"}
+{"file": ".trellis/spec/guides/fork-sync-guide.md", "reason": "Overlay drift audit and upstream sync rules"}
+{"file": ".trellis/tasks/04-15-hiskens-per-package-spec-migration/info.md", "reason": "Phase-by-phase implementation prep and hidden dependency map"}
+{"file": ".trellis/tasks/archive/2026-03/03-09-monorepo-spec-adapt/prd.md", "reason": "Historical design notes for per-package spec adaptation"}
+{"file": ".trellis/tasks/archive/2026-03/03-10-monorepo-compat/prd.md", "reason": "Historical compatibility notes for monorepo package migration"}

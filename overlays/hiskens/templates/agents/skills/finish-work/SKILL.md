@@ -36,7 +36,7 @@ uv run pytest
 
 ### 1.5. Test Coverage
 
-Check if your change needs new or updated tests (see `.trellis/spec/unit-test/conventions.md`):
+Check if your change needs new or updated tests (see the relevant package-scoped unit-test spec, for example `.trellis/spec/<package>/unit-test/conventions.md` when available):
 - [ ] New pure function → unit test added?
 - [ ] Bug fix → regression test added?
 - [ ] Changed data processing behavior → integration test added/updated?
@@ -45,10 +45,12 @@ Check if your change needs new or updated tests (see `.trellis/spec/unit-test/co
 ### 2. Documentation Sync
 
 **Spec Docs**:
-- [ ] Does `.trellis/spec/python/` need updates?
+- [ ] Does `.trellis/spec/<package>/python/` need updates?
   - New patterns, new modules, new conventions
-- [ ] Does `.trellis/spec/matlab/` need updates?
+- [ ] Does `.trellis/spec/<package>/matlab/` need updates?
   - New functions, new scripts, new patterns
+- [ ] Does another package-scoped spec layer need updates?
+  - Example: `.trellis/spec/<package>/backend/`, `.trellis/spec/<package>/unit-test/`
 - [ ] Does `.trellis/spec/guides/` need updates?
   - New cross-layer flows, lessons from bugs
 
@@ -62,24 +64,29 @@ If YES -> Update the relevant spec doc.
 Run this check to detect if any spec files may be out of date:
 
 ```bash
+# Discover package-scoped spec roots first
+uv run python ./.trellis/scripts/get_context.py --mode packages
+
 # Get files changed in this session
 CHANGED=$(git diff --name-only HEAD)
 
 # Cross-reference against spec directory
 echo "$CHANGED" | while read f; do
   case "$f" in
-    *.py) echo "Python changed: $f -> check .trellis/spec/python/" ;;
-    *.m)  echo "MATLAB changed: $f -> check .trellis/spec/matlab/" ;;
-    *.java) echo "Java changed: $f -> check .trellis/spec/java/" ;;
+    *.py) echo "Python changed: $f -> check package-scoped python specs (.trellis/spec/<package>/python/)" ;;
+    *.m)  echo "MATLAB changed: $f -> check package-scoped matlab specs (.trellis/spec/<package>/matlab/)" ;;
+    *.java) echo "Java changed: $f -> check the relevant package-scoped backend/docs/spec layer" ;;
   esac
 done
 ```
 
 If any spec files may be stale, output:
-`"Spec Sync: .trellis/spec/java/optimization-solver.md may be outdated"`
+`"Spec Sync: .trellis/spec/<package>/python/code-style.md may be outdated"`
 
 If no staleness detected:
 `"Spec Sync: CLEAN"`
+
+In single-repo projects, replace `.trellis/spec/<package>/...` with `.trellis/spec/...`.
 
 ### 2.5. Code-Spec Hard Block (Infra/Cross-Layer)
 
@@ -146,19 +153,23 @@ update_memory(uri, append="## Title\n\nContent...")
 
 ### 7. Task Status Update
 
-If there is an active task, complete it after the checklist passes:
+If there is an active task, only run `task.py complete` after the checklist passes **and** the task status is already `active` or `review`:
 
 ```bash
-# Complete current task (sets status, records commit, clears pointer, resets scratchpad)
-python3 ./.trellis/scripts/task.py complete
+# If the task is still in planning, promote it first
+uv run python ./.trellis/scripts/task.py set-status ".trellis/tasks/<task-dir>" active
+
+# Complete current task (works only from active/review)
+uv run python ./.trellis/scripts/task.py complete
 
 # Or complete a specific task
-python3 ./.trellis/scripts/task.py complete ".trellis/tasks/<task-dir>"
+uv run python ./.trellis/scripts/task.py complete ".trellis/tasks/<task-dir>"
 ```
 
+- [ ] Task status is already `active` or `review` before `complete`?
 - [ ] Task completed via `task.py complete`?
 
-> **Note**: Only complete if ALL relevant checklist items above pass. If issues remain, keep the task in its current status and fix first.
+> **Note**: `task.py complete` does **not** transition directly from `planning`. If issues remain, or the task has not been promoted yet, keep the task in its current status and fix that first.
 
 ### 8. Completion Options
 
@@ -169,7 +180,7 @@ All checks passed. Present these options to the user:
 3. **Keep as-is** -- Leave current state, handle later
 4. **Discard changes** -- Abandon all uncommitted changes (requires confirmation)
 
-For Option 2: run `python3 ./.trellis/scripts/multi_agent/create_pr.py`
+For Option 2: run `uv run python ./.trellis/scripts/multi_agent/create_pr.py`
 For Option 4: require user to type "discard" before executing `git restore .`
 
 ---
@@ -207,7 +218,7 @@ Identify reusable patterns from this session:
 After composing the reflection, **immediately** run:
 
 ```bash
-python3 ./.trellis/scripts/add_session.py \
+uv run python ./.trellis/scripts/add_session.py \
   --title "<session title>" \
   --commit "<hash>" \
   --learning "What went right: <item>. What to improve: <item>. Key learning: <item>"
@@ -251,8 +262,9 @@ git diff --name-only
 
 # 3. Based on changed files, check relevant items above
 
-# 4. Complete task (if active task exists)
-python3 ./.trellis/scripts/task.py complete
+# 4. If the task is still planning, promote it before completion
+uv run python ./.trellis/scripts/task.py set-status ".trellis/tasks/<task-dir>" active
+uv run python ./.trellis/scripts/task.py complete ".trellis/tasks/<task-dir>"
 ```
 
 ---

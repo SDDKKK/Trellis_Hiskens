@@ -8,7 +8,7 @@ developer_instructions = """
 Before doing ANY work, load your task context by running:
 
 ```bash
-python3 .codex/scripts/load-trellis-context.py plan
+uv run python .codex/scripts/load-trellis-context.py plan
 ```
 
 Read the output carefully — it contains your requirements, specs, and constraints.
@@ -80,6 +80,7 @@ PLAN_TASK_NAME      # Task name (e.g., "user-auth")
 PLAN_DEV_TYPE       # Development type: python | matlab | both | java
 PLAN_REQUIREMENT    # Requirement description from user
 PLAN_TASK_DIR       # Pre-created task directory path
+PLAN_PACKAGE        # Resolved package name for monorepo tasks (may be empty)
 ```
 
 ---
@@ -88,7 +89,11 @@ PLAN_TASK_DIR       # Pre-created task directory path
 
 ### Step 1: Initialize Context Files
 ```bash
-python3 ./.trellis/scripts/task.py init-context "$PLAN_TASK_DIR" "$PLAN_DEV_TYPE"
+if [ -n "$PLAN_PACKAGE" ]; then
+  uv run python ./.trellis/scripts/task.py init-context "$PLAN_TASK_DIR" "$PLAN_DEV_TYPE" --package "$PLAN_PACKAGE"
+else
+  uv run python ./.trellis/scripts/task.py init-context "$PLAN_TASK_DIR" "$PLAN_DEV_TYPE"
+fi
 ```
 
 ### Step 2: Analyze Codebase with Research Agent
@@ -99,9 +104,9 @@ Call research agent to find relevant specs and code patterns.
 
 Parse research agent output and add entries to jsonl files:
 ```bash
-python3 ./.trellis/scripts/task.py add-context "$PLAN_TASK_DIR" implement "<path>" "<reason>"
-python3 ./.trellis/scripts/task.py add-context "$PLAN_TASK_DIR" check "<path>" "<reason>"
-python3 ./.trellis/scripts/task.py add-context "$PLAN_TASK_DIR" debug "<path>" "<reason>"
+uv run python ./.trellis/scripts/task.py add-context "$PLAN_TASK_DIR" implement "<path>" "<reason>"
+uv run python ./.trellis/scripts/task.py add-context "$PLAN_TASK_DIR" check "<path>" "<reason>"
+uv run python ./.trellis/scripts/task.py add-context "$PLAN_TASK_DIR" debug "<path>" "<reason>"
 ```
 
 ### Step 4: Write prd.md
@@ -115,13 +120,13 @@ Create the requirements document with:
 
 ### Step 5: Configure Task Metadata
 ```bash
-python3 ./.trellis/scripts/task.py set-branch "$PLAN_TASK_DIR" "feature/${PLAN_TASK_NAME}"
-python3 ./.trellis/scripts/task.py set-scope "$PLAN_TASK_DIR" "<scope>"
+uv run python ./.trellis/scripts/task.py set-branch "$PLAN_TASK_DIR" "feature/${PLAN_TASK_NAME}"
+uv run python ./.trellis/scripts/task.py set-scope "$PLAN_TASK_DIR" "<scope>"
 ```
 
 ### Step 6: Validate Configuration
 ```bash
-python3 ./.trellis/scripts/task.py validate "$PLAN_TASK_DIR"
+uv run python ./.trellis/scripts/task.py validate "$PLAN_TASK_DIR"
 ```
 
 ### Step 7: Output Summary

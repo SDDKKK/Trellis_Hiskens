@@ -77,20 +77,22 @@ Even after injecting guidelines, AI has limited context window. As conversation 
 |       |-- task.json       # Task metadata
 |       +-- prd.md          # Requirements doc
 |-- spec/                   # "AI Training Data" - project knowledge
-|   |-- python/             # Python conventions
-|   |-- matlab/             # MATLAB conventions
+|   |-- <package>/          # Package-scoped knowledge in monorepos
+|   |   |-- python/         # Python conventions
+|   |   |-- matlab/         # MATLAB conventions
+|   |   +-- <other-layer>/  # backend, unit-test, docs, etc.
 |   +-- guides/             # Thinking patterns
 +-- scripts/                # Automation tools
 ```
 
 ### Understanding spec/ subdirectories
 
-**python/** - Python scientific computing knowledge:
+**<package>/python/** - Package-scoped Python scientific computing knowledge:
 - Data processing patterns (polars, scipy, numpy)
 - Docstring conventions
 - Quality guidelines (ruff compliance)
 
-**matlab/** - MATLAB scientific computing knowledge:
+**<package>/matlab/** - Package-scoped MATLAB scientific computing knowledge:
 - Code style (naming, structure, formatting)
 - Docstring conventions
 - Quality guidelines (checkcode compliance)
@@ -130,8 +132,10 @@ AI needs the same onboarding - but compressed into seconds at session start.
 AI models have "pre-trained knowledge" - general patterns from millions of codebases. But YOUR project has specific conventions that differ from generic patterns.
 
 **WHAT IT ACTUALLY DOES**:
-1. Reads `.trellis/spec/matlab/` or `.trellis/spec/python/`
-2. Loads project-specific patterns into AI's working context:
+1. Discovers package-scoped spec roots with `uv run python ./.trellis/scripts/get_context.py --mode packages`
+2. Reads `.trellis/spec/<package>/matlab/` or `.trellis/spec/<package>/python/`
+3. Reads shared guides from `.trellis/spec/guides/`
+4. Loads project-specific patterns into AI's working context:
    - Code style conventions
    - Data processing patterns
    - Docstring standards
@@ -208,7 +212,7 @@ All the context AI built during this session will be lost when session ends. The
 ### Example 1: Bug Fix Session
 
 **[1/8] /trellis:start** - AI needs project context before touching code
-**[2/8] python3 ./.trellis/scripts/task.py create "Fix bug" --slug fix-bug** - Track work for future reference
+**[2/8] uv run python ./.trellis/scripts/task.py create "Fix bug" --slug fix-bug** - Track work for future reference
 **[3/8] /trellis:before-python-dev** - Inject project-specific Python knowledge
 **[4/8] Investigate and fix the bug** - Actual development work
 **[5/8] /trellis:check-python** - Re-verify code against guidelines
@@ -219,7 +223,7 @@ All the context AI built during this session will be lost when session ends. The
 ### Example 2: Planning Session (No Code)
 
 **[1/4] /trellis:start** - Context needed even for non-coding work
-**[2/4] python3 ./.trellis/scripts/task.py create "Planning task" --slug planning-task** - Planning is valuable work
+**[2/4] uv run python ./.trellis/scripts/task.py create "Planning task" --slug planning-task** - Planning is valuable work
 **[3/4] Review docs, create subtask list** - Actual planning work
 **[4/4] /trellis:record-session (with --summary)** - Planning decisions must be recorded
 
@@ -269,9 +273,13 @@ After explaining Part 1 and Part 2, check if the project's development guideline
 Check if `.trellis/spec/` contains empty templates or customized guidelines:
 
 ```bash
-# Check if files are still empty templates (look for placeholder text)
-grep -l "To be filled by the team" .trellis/spec/python/*.md 2>/dev/null | wc -l
-grep -l "To be filled by the team" .trellis/spec/matlab/*.md 2>/dev/null | wc -l
+# Discover package-scoped spec roots first
+uv run python ./.trellis/scripts/get_context.py --mode packages
+
+# Check if any package-scoped spec files are still empty templates
+find .trellis/spec -type f -name '*.md' ! -path '.trellis/spec/guides/*' | while read f; do
+  grep -q "To be filled by the team" "$f" && echo "$f"
+done
 ```
 
 ## Step 2: Determine Situation
@@ -282,7 +290,7 @@ If guidelines are empty templates (contain "To be filled by the team"), this is 
 
 Explain to the developer:
 
-"I see that the development guidelines in `.trellis/spec/` are still empty templates. This is normal for a new Trellis setup!
+"I see that some package-scoped development guidelines under `.trellis/spec/<package>/<layer>/` are still empty templates. This is normal for a new Trellis setup!
 
 The templates contain placeholder text that needs to be replaced with YOUR project's actual conventions. Without this, `/before-*-dev` commands won't provide useful guidance.
 
@@ -292,7 +300,7 @@ The templates contain placeholder text that needs to be replaced with YOUR proje
 2. Identify the patterns and conventions already in use
 3. Document them in the guideline files
 
-For example, for `.trellis/spec/python/data-processing.md`:
+For example, for `.trellis/spec/<package>/python/data-processing.md`:
 - What data processing library does your project use? (polars/pandas)
 - How are data files organized?
 - What naming conventions for variables/functions?
@@ -305,16 +313,16 @@ If guidelines have real content (no "To be filled" placeholders), this is an exi
 
 Explain to the developer:
 
-"Great! Your team has already customized the development guidelines. You can start using `/before-*-dev` commands right away.
+"Great! Your team has already customized the package-scoped development guidelines. You can start using `/before-*-dev` commands right away.
 
-I recommend reading through `.trellis/spec/` to familiarize yourself with the team's coding standards."
+I recommend reading through the relevant `.trellis/spec/<package>/<layer>/` directories to familiarize yourself with the team's coding standards."
 
 ## Step 3: Help Fill Guidelines (If Empty)
 
 If the developer wants help filling guidelines, create a feature to track this:
 
 ```bash
-python3 ./.trellis/scripts/task.py create "Fill spec guidelines" --slug fill-spec-guidelines
+uv run python ./.trellis/scripts/task.py create "Fill spec guidelines" --slug fill-spec-guidelines
 ```
 
 Then systematically analyze the codebase and fill each guideline file:
@@ -325,14 +333,13 @@ Then systematically analyze the codebase and fill each guideline file:
 4. **List forbidden patterns** - Document anti-patterns the team avoids
 
 Work through one file at a time:
-- `python/directory-structure.md`
-- `python/data-processing.md`
-- `python/docstring.md`
-- `python/quality-guidelines.md`
-- `matlab/directory-structure.md`
-- `matlab/code-style.md`
-- `matlab/docstring.md`
-- `matlab/quality-guidelines.md`
+- `<package>/python/data-processing.md`
+- `<package>/python/code-style.md`
+- `<package>/python/docstring.md`
+- `<package>/python/quality-guidelines.md`
+- `<package>/matlab/code-style.md`
+- `<package>/matlab/docstring.md`
+- `<package>/matlab/quality-guidelines.md`
 
 ---
 
@@ -347,7 +354,7 @@ After covering all three parts, summarize:
 
 **Next steps** (tell user):
 1. Run `/trellis:record-session` to record this onboard session
-2. [If guidelines empty] Start filling in `.trellis/spec/` guidelines
+2. [If guidelines empty] Start filling in the relevant `.trellis/spec/<package>/<layer>/` guidelines
 3. [If guidelines ready] Start your first development task
 
 What would you like to do first?"

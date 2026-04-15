@@ -17,6 +17,8 @@ import json
 import os
 from pathlib import Path
 
+from .config import get_default_package, get_packages
+
 # =============================================================================
 # Path Constants (change here to rename directories)
 # =============================================================================
@@ -753,20 +755,97 @@ def get_plan_context(repo_root: str, task_dir: str | None) -> str:
 
     # 1. Project spec directory overview
     spec_path = f"{DIR_WORKFLOW}/{DIR_SPEC}"
-    spec_base = os.path.join(repo_root, spec_path)
-    categories = []
-    if os.path.isdir(spec_base):
-        for entry in sorted(os.listdir(spec_base)):
-            entry_path = os.path.join(spec_base, entry)
-            if os.path.isdir(entry_path):
-                index_file = os.path.join(entry_path, "index.md")
-                has_index = os.path.exists(index_file)
-                categories.append(
-                    f"  ├── {entry}/" + (" (has index.md)" if has_index else "")
+    repo_root_path = Path(repo_root)
+    spec_root = repo_root_path / DIR_WORKFLOW / DIR_SPEC
+    packages = get_packages(repo_root_path)
+
+    if packages:
+        default_pkg = get_default_package(repo_root_path)
+        package_lines = []
+        for package_name in sorted(packages):
+            label = (
+                f"{package_name} (default)"
+                if package_name == default_pkg
+                else package_name
+            )
+            package_spec_dir = spec_root / package_name
+            if not package_spec_dir.is_dir():
+                package_lines.append(
+                    f"- {label}: missing `{spec_path}/{package_name}/`"
+                )
+                continue
+
+            layers = sorted(
+                entry.name
+                for entry in package_spec_dir.iterdir()
+                if entry.is_dir() and not entry.name.startswith(".")
+            )
+            if layers:
+                package_lines.append(
+                    f"- {label}: "
+                    + ", ".join(
+                        f"`{spec_path}/{package_name}/{layer}/`" for layer in layers
+                    )
+                )
+            else:
+                package_lines.append(
+                    f"- {label}: no layer directories found under `{spec_path}/{package_name}/`"
                 )
 
-    category_tree = "\n".join(categories) if categories else "  (no categories found)"
-    project_structure = f"""## Project Spec Directory
+        legacy_dirs = []
+        if spec_root.is_dir():
+            for entry in sorted(spec_root.iterdir()):
+                if not entry.is_dir() or entry.name.startswith("."):
+                    continue
+                if entry.name in packages or entry.name == "guides":
+                    continue
+                legacy_dirs.append(entry.name)
+
+        guides_line = (
+            f"- shared guides: `{spec_path}/guides/`"
+            if (spec_root / "guides").is_dir()
+            else "- shared guides: not found"
+        )
+        legacy_block = ""
+        if legacy_dirs:
+            legacy_block = (
+                "\n\n## Legacy Flat Spec Directories\n\n"
+                + "\n".join(f"- `{spec_path}/{entry}/`" for entry in legacy_dirs)
+            )
+
+        project_structure = f"""## Project Spec Directory
+
+Mode: monorepo
+
+## Declared Packages
+
+{chr(10).join(package_lines) if package_lines else "- (no packages found)"}
+
+## Shared Spec Roots
+
+{guides_line}{legacy_block}
+
+## Available Dev Types
+
+- `python` — Python development (scientific computing)
+- `matlab` — MATLAB development
+- `both` — Cross-layer Python + MATLAB"""
+    else:
+        categories = []
+        if spec_root.is_dir():
+            for entry in sorted(spec_root.iterdir()):
+                if not entry.is_dir():
+                    continue
+                index_file = entry / "index.md"
+                has_index = index_file.exists()
+                categories.append(
+                    f"  ├── {entry.name}/" + (" (has index.md)" if has_index else "")
+                )
+
+        category_tree = (
+            "\n".join(categories) if categories else "  (no categories found)"
+        )
+        project_structure = f"""## Project Spec Directory
 
 ```
 {spec_path}/

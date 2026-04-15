@@ -131,10 +131,12 @@ git diff main...HEAD --name-only
 ### 2. Categorized Review
 
 **MATLAB files** (`MATLAB/`):
-- Reference `.trellis/spec/matlab/index.md`
+- First discover packages with `uv run python ./.trellis/scripts/get_context.py --mode packages`
+- Reference `.trellis/spec/<package>/matlab/index.md`
 
 **Python files** (`src/`, `scripts/`):
-- Reference `.trellis/spec/python/index.md`
+- First discover packages with `uv run python ./.trellis/scripts/get_context.py --mode packages`
+- Reference `.trellis/spec/<package>/python/index.md`
 
 ### 3. Output Review Report
 

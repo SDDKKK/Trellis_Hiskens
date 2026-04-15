@@ -56,7 +56,7 @@ What broader problems does this bug reveal?
 Solidify insights into the system:
 
 - [ ] Update `.trellis/spec/guides/` thinking guides
-- [ ] Update `.trellis/spec/python/` or `matlab/` docs
+- [ ] Update `.trellis/spec/<package>/python/` or `.trellis/spec/<package>/matlab/` docs
 - [ ] Record root cause and workaround in `.trellis/memory/known-issues.md`
 - [ ] Create issue record (if applicable)
 - [ ] Create feature ticket for root fix
@@ -115,8 +115,8 @@ Three levels of insight:
 
 1. **Update spec/guides** - Don't just list TODOs, actually update the relevant files:
    - Cross-layer issue → update `guides/cross-layer-thinking-guide.md`
-   - Python code issue → update `python/*.md`
-   - MATLAB code issue → update `matlab/*.md`
+   - Python code issue → update `<package>/python/*.md`
+   - MATLAB code issue → update `<package>/matlab/*.md`
    - Code reuse issue → update `guides/code-reuse-thinking-guide.md`
 
 2. **Commit the spec updates** - This is the primary output, not just the analysis text

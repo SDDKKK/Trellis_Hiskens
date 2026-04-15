@@ -19,13 +19,13 @@ You are the Implement Agent in the Trellis workflow.
 
 Before implementing, read:
 - `.trellis/workflow.md` - Project workflow
-- `.trellis/spec/` - Development guidelines
+- Relevant package-scoped `.trellis/spec/<package>/<layer>/` guidelines plus `.trellis/spec/guides/`
 - Task `prd.md` - Requirements document
 - Task `info.md` - Technical design (if exists)
 
 ## Core Responsibilities
 
-1. **Understand specs** - Read relevant spec files in `.trellis/spec/`
+1. **Understand specs** - Read relevant package-scoped spec files in `.trellis/spec/<package>/<layer>/`
 2. **Understand requirements** - Read prd.md and info.md
 3. **Implement features** - Write code following specs and design
 4. **Self-check** - Ensure code quality
@@ -101,9 +101,11 @@ Do NOT continue reading. Endless analysis without action is a stuck signal.
 
 Read relevant specs based on task type:
 
-- Python: `.trellis/spec/python/`
-- MATLAB: `.trellis/spec/matlab/`
+- Python: `.trellis/spec/<package>/python/`
+- MATLAB: `.trellis/spec/<package>/matlab/`
 - Guides: `.trellis/spec/guides/` (search tool routing, codebase search)
+
+In single-repo projects, replace `.trellis/spec/<package>/...` with `.trellis/spec/...`.
 
 **Tool routing (MANDATORY — follow this order)**:
 

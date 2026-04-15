@@ -4,7 +4,8 @@
 Add a new session to journal file and update index.md.
 
 Usage:
-    python3 add_session.py --title "Title" --commit "hash" --summary "Summary"
+    python3 add_session.py --title "Title" --commit "hash" --summary "Summary" [--package cli]
+    python3 add_session.py --title "Title" --branch "feat/my-branch"
     echo "content" | python3 add_session.py --title "Title" --commit "hash"
 """
 
@@ -30,16 +31,25 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
-from common.config import get_max_journal_lines
+from common.config import (
+    get_max_journal_lines,
+    get_packages,
+    is_monorepo,
+    resolve_package,
+    validate_package,
+)
 from common.developer import ensure_developer
+from common.git import run_git
 from common.paths import (
     FILE_JOURNAL_PREFIX,
     FILE_LEARNINGS,
     ensure_memory_dir,
+    get_current_task,
     get_developer,
     get_repo_root,
     get_workspace_dir,
 )
+from common.tasks import load_task
 
 # =============================================================================
 # Helper Functions
@@ -139,6 +149,8 @@ def generate_session_content(
     summary: str,
     extra_content: str,
     today: str,
+    package: str | None = None,
+    branch: str | None = None,
 ) -> str:
     """Generate session content."""
     if commit and commit != "-":
@@ -150,12 +162,15 @@ def generate_session_content(
     else:
         commit_table = "(No commits - planning session)"
 
+    package_line = f"\n**Package**: {package}" if package else ""
+    branch_line = f"\n**Branch**: `{branch}`" if branch else ""
+
     return f"""
 
 ## Session {session_num}: {title}
 
 **Date**: {today}
-**Task**: {title}
+**Task**: {title}{package_line}{branch_line}
 
 ### Summary
 
@@ -389,6 +404,8 @@ def add_session(
     extra_content: str = "(Add details)",
     learning: str | None = None,
     do_promote_learning: bool = False,
+    package: str | None = None,
+    branch: str | None = None,
 ) -> int:
     """Add a new session."""
     repo_root = get_repo_root()
@@ -414,7 +431,7 @@ def add_session(
     new_session = current_session + 1
 
     session_content = generate_session_content(
-        new_session, title, commit, summary, extra_content, today
+        new_session, title, commit, summary, extra_content, today, package, branch
     )
     content_lines = len(session_content.splitlines())
 
@@ -497,6 +514,8 @@ def main() -> int:
     parser.add_argument("--commit", default="-", help="Comma-separated commit hashes")
     parser.add_argument("--summary", default="(Add summary)", help="Brief summary")
     parser.add_argument("--content-file", help="Path to file with detailed content")
+    parser.add_argument("--package", help="Package name tag (e.g., cli, docs-site)")
+    parser.add_argument("--branch", help="Branch name (auto-detected if omitted)")
     parser.add_argument(
         "--learning", default=None, help="Learning text to append to learnings.md"
     )
@@ -517,6 +536,37 @@ def main() -> int:
     elif not sys.stdin.isatty():
         extra_content = sys.stdin.read()
 
+    repo_root = get_repo_root()
+    current = get_current_task(repo_root)
+    task_data = load_task(repo_root / current) if current else None
+
+    package = args.package
+    if package:
+        if not is_monorepo(repo_root):
+            print("Warning: --package ignored in single-repo project", file=sys.stderr)
+            package = None
+        elif not validate_package(package, repo_root):
+            packages = get_packages(repo_root)
+            available = ", ".join(sorted(packages.keys())) if packages else "(none)"
+            print(
+                f"Error: unknown package '{package}'. Available: {available}",
+                file=sys.stderr,
+            )
+            return 1
+    else:
+        task_package = task_data.package if task_data else None
+        package = resolve_package(task_package, repo_root)
+
+    branch = args.branch
+    if not branch:
+        if task_data and task_data.raw.get("branch"):
+            branch = task_data.raw["branch"]
+        else:
+            _, branch_out, _ = run_git(["branch", "--show-current"], cwd=repo_root)
+            detected = branch_out.strip()
+            if detected:
+                branch = detected
+
     return add_session(
         args.title,
         args.commit,
@@ -524,6 +574,8 @@ def main() -> int:
         extra_content,
         learning=args.learning,
         do_promote_learning=args.promote_learning,
+        package=package,
+        branch=branch,
     )
 
 
