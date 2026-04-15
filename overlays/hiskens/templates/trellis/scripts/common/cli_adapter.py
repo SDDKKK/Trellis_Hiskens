@@ -1,7 +1,7 @@
 """
 CLI Adapter for Multi-Platform Support.
 
-Abstracts differences between Claude Code, OpenCode, Cursor, iFlow, Codex, Kilo, Kiro Code, Gemini CLI, Antigravity, Qoder, and CodeBuddy interfaces.
+Abstracts differences between Claude Code, OpenCode, Cursor, iFlow, Codex, Kilo, Kiro Code, Gemini CLI, Antigravity, Qoder, CodeBuddy, and Factory Droid interfaces.
 
 Supported platforms:
 - claude: Claude Code (default)
@@ -15,6 +15,7 @@ Supported platforms:
 - antigravity: Antigravity (workflow-based)
 - qoder: Qoder
 - codebuddy: CodeBuddy
+- droid: Factory Droid (commands-based)
 
 Usage:
     from common.cli_adapter import CLIAdapter
@@ -45,6 +46,7 @@ Platform = Literal[
     "antigravity",
     "qoder",
     "codebuddy",
+    "droid",
 ]
 
 
@@ -111,6 +113,8 @@ class CLIAdapter:
             return ".qoder"
         elif self.platform == "codebuddy":
             return ".codebuddy"
+        elif self.platform == "droid":
+            return ".factory"
         else:
             return ".claude"
 
@@ -206,6 +210,8 @@ class CLIAdapter:
             return f".agent/workflows/{name}.md"
         elif self.platform == "kilo":
             return f".kilocode/workflows/{name}.md"
+        elif self.platform == "droid":
+            return f".factory/commands/trellis/{name}.md"
         else:
             return f"{self.config_dir_name}/commands/trellis/{name}.md"
 
@@ -234,6 +240,8 @@ class CLIAdapter:
         elif self.platform == "qoder":
             return {}
         elif self.platform == "codebuddy":
+            return {}
+        elif self.platform == "droid":
             return {}
         else:
             return {"CLAUDE_NON_INTERACTIVE": "1"}
@@ -306,6 +314,10 @@ class CLIAdapter:
             raise ValueError(
                 "CodeBuddy does not support non-interactive mode (no CLI agent)"
             )
+        elif self.platform == "droid":
+            raise ValueError(
+                "Factory Droid CLI agent run is not yet integrated with Trellis multi-agent."
+            )
 
         else:  # claude
             cmd = ["claude", "-p"]
@@ -357,6 +369,10 @@ class CLIAdapter:
         elif self.platform == "codebuddy":
             raise ValueError(
                 "CodeBuddy does not support non-interactive mode (no CLI agent)"
+            )
+        elif self.platform == "droid":
+            raise ValueError(
+                "Factory Droid CLI resume is not yet integrated with Trellis multi-agent."
             )
         else:
             return ["claude", "--resume", session_id]
@@ -424,6 +440,8 @@ class CLIAdapter:
             return "qodercli"
         elif self.platform == "codebuddy":
             return "codebuddy"
+        elif self.platform == "droid":
+            return "droid"
         else:
             return "claude"
 
@@ -488,7 +506,7 @@ def get_cli_adapter(platform: str = "claude") -> CLIAdapter:
     """Get CLI adapter for the specified platform.
 
     Args:
-        platform: Platform name ('claude', 'opencode', 'cursor', 'iflow', 'codex', 'kilo', 'kiro', 'gemini', 'antigravity', 'qoder', or 'codebuddy')
+        platform: Platform name ('claude', 'opencode', 'cursor', 'iflow', 'codex', 'kilo', 'kiro', 'gemini', 'antigravity', 'qoder', 'codebuddy', or 'droid')
 
     Returns:
         CLIAdapter instance
@@ -508,9 +526,10 @@ def get_cli_adapter(platform: str = "claude") -> CLIAdapter:
         "antigravity",
         "qoder",
         "codebuddy",
+        "droid",
     ):
         raise ValueError(
-            f"Unsupported platform: {platform} (must be 'claude', 'opencode', 'cursor', 'iflow', 'codex', 'kilo', 'kiro', 'gemini', 'antigravity', 'qoder', or 'codebuddy')"
+            f"Unsupported platform: {platform} (must be 'claude', 'opencode', 'cursor', 'iflow', 'codex', 'kilo', 'kiro', 'gemini', 'antigravity', 'qoder', 'codebuddy', or 'droid')"
         )
 
     return CLIAdapter(platform=platform)  # type: ignore
@@ -529,6 +548,7 @@ _ALL_PLATFORM_CONFIG_DIRS = (
     ".agent",
     ".qoder",
     ".codebuddy",
+    ".factory",
 )
 """All platform config directory names (used by detect_platform exclusion checks)."""
 
@@ -557,13 +577,14 @@ def detect_platform(project_root: Path) -> Platform:
     9. .agent/workflows exists and no other platform dirs → antigravity
     10. .codebuddy directory exists → codebuddy
     11. .qoder directory exists → qoder
-    12. Default → claude
+    12. .factory directory exists → droid
+    13. Default → claude
 
     Args:
         project_root: Project root directory
 
     Returns:
-        Detected platform ('claude', 'opencode', 'cursor', 'iflow', 'codex', 'kilo', 'kiro', 'gemini', 'antigravity', 'qoder', 'codebuddy', or default 'claude')
+        Detected platform ('claude', 'opencode', 'cursor', 'iflow', 'codex', 'kilo', 'kiro', 'gemini', 'antigravity', 'qoder', 'codebuddy', 'droid', or default 'claude')
     """
     import os
 
@@ -581,6 +602,7 @@ def detect_platform(project_root: Path) -> Platform:
         "antigravity",
         "qoder",
         "codebuddy",
+        "droid",
     ):
         return env_platform  # type: ignore
 
@@ -631,6 +653,10 @@ def detect_platform(project_root: Path) -> Platform:
     # Check for .qoder directory (Qoder-specific)
     if (project_root / ".qoder").is_dir():
         return "qoder"
+
+    # Check for .factory directory (Factory Droid-specific)
+    if (project_root / ".factory").is_dir():
+        return "droid"
 
     return "claude"
 

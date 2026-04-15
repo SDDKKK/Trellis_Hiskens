@@ -297,6 +297,32 @@ def get_stale_session_warning(trellis_dir: Path, project_dir: Path) -> str:
     return "\n".join(parts)
 
 
+def _build_workflow_toc(workflow_path: Path) -> str:
+    """Build a compact section index for workflow.md (lazy-load the full file on demand).
+
+    Replaces full-file injection to keep additionalContext payload small.
+    The full file is accessible via: Read tool on .trellis/workflow.md
+    """
+    content = read_file(workflow_path)
+    if not content:
+        return "No workflow.md found"
+
+    toc_lines = [
+        "# Development Workflow — Section Index",
+        "Full guide: .trellis/workflow.md  (read on demand)",
+        "",
+    ]
+    for line in content.splitlines():
+        if line.startswith("## "):
+            toc_lines.append(line)
+
+    toc_lines += [
+        "",
+        "To read a section: use the Read tool on .trellis/workflow.md",
+    ]
+    return "\n".join(toc_lines)
+
+
 def main():
     # Skip injection in non-interactive mode (multi-agent scripts set CLAUDE_NON_INTERACTIVE=1)
     if should_skip_injection():
@@ -304,7 +330,6 @@ def main():
 
     project_dir = Path(os.environ.get("CLAUDE_PROJECT_DIR", ".")).resolve()
     trellis_dir = project_dir / ".trellis"
-    claude_dir = project_dir / ".claude"
 
     # 1. Header
     print("""<session-context>
@@ -382,8 +407,7 @@ Read and follow all instructions below carefully.
 
     # 3. Workflow Guide
     print("<workflow>")
-    workflow_content = read_file(trellis_dir / "workflow.md", "No workflow.md found")
-    print(workflow_content)
+    print(_build_workflow_toc(trellis_dir / "workflow.md"))
     print("</workflow>")
     print()
 
@@ -413,18 +437,11 @@ Read and follow all instructions below carefully.
     print("</guidelines>")
     print()
 
-    # 5. Session Instructions
-    print("<instructions>")
-    start_md = read_file(
-        claude_dir / "commands" / "trellis" / "start.md", "No start.md found"
-    )
-    print(start_md)
-    print("</instructions>")
-    print()
-
-    # 6. Final directive
+    # 5. Final directive
     print("""<ready>
-Context loaded. Wait for user's first message, then follow <instructions> to handle their request.
+Context loaded. Workflow index, project state, and guidelines are already injected above — do NOT re-read them.
+Wait for the user's first message, then handle it following the workflow guide.
+If there is an active task, ask whether to continue it.
 </ready>""")
 
 
