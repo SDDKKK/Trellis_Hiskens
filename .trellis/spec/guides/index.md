@@ -57,6 +57,16 @@ These guides help you **ask the right questions before coding**.
 
 → Read [Cross-Platform Thinking Guide](./cross-platform-thinking-guide.md)
 
+### When Doing Fork Maintenance / Upstream Sync
+
+- [ ] Syncing the hiskens fork to a new upstream Trellis version
+- [ ] Resolving overlay drift after upstream changes
+- [ ] Investigating why an installed Trellis feature differs from overlay
+- [ ] User reports "this works on upstream but not on the fork"
+- [ ] **Periodic check: how far has the fork drifted?**
+
+→ Read [Fork Sync Guide](./fork-sync-guide.md)
+
 ### When Verifying AI Cross-Review Results
 
 - [ ] Reviewer claims "user input can be malicious" → Check the actual data source (internal manifest? user config? external API?)

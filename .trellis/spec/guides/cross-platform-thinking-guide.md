@@ -128,6 +128,15 @@ path = Path(base) / filename
 *.py text eol=lf
 ```
 
+> **Pitfall**: When upstream tests assert `startsWith("---\n")` on template files (e.g., YAML frontmatter in command/skill `.md` files), `core.autocrlf=true` on Windows/WSL silently converts checked-out LF to CRLF, breaking the assertion even though the repo blob is correct. The bug only surfaces when upstream introduces NEW frontmatter-bearing files (e.g., a new platform's command set), so it can hide for a long time on the fork side.
+>
+> **Fix** (repo-local — never touch global git config without permission):
+> 1. Add/verify `.gitattributes` enforces `* text=auto eol=lf`
+> 2. `git config --local core.autocrlf false`
+> 3. `git rm --cached -rq . && git reset --hard HEAD` to renormalize the working tree
+>
+> See `fork-sync-guide.md` Pitfall 3 for the full case study.
+
 ### 4. Environment Variables
 
 | Variable | macOS/Linux | Windows |
