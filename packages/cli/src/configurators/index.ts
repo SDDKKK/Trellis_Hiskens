@@ -31,6 +31,7 @@ import { configureWindsurf } from "./windsurf.js";
 import { configureQoder } from "./qoder.js";
 import { configureCodebuddy } from "./codebuddy.js";
 import { configureCopilot } from "./copilot.js";
+import { configureDroid } from "./droid.js";
 
 // Shared utilities
 import { resolvePlaceholders } from "./shared.js";
@@ -69,6 +70,7 @@ import {
   getAllPrompts as getCopilotPrompts,
   getHooksConfig as getCopilotHooksConfig,
 } from "../templates/copilot/index.js";
+import { getAllCommands as getDroidCommands } from "../templates/droid/index.js";
 import {
   getOverlayTemplatePath,
   loadExcludeList,
@@ -283,6 +285,17 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
       return files;
     },
   },
+  droid: {
+    configure: configureDroid,
+    collectTemplates: () => {
+      const files = new Map<string, string>();
+      // Commands live under .factory/commands/trellis/ (nested namespace, like Claude)
+      for (const cmd of getDroidCommands()) {
+        files.set(`.factory/commands/trellis/${cmd.name}.md`, cmd.content);
+      }
+      return files;
+    },
+  },
 };
 
 const WORKFLOW_OVERLAY_TARGETS: OverlayTarget[] = [
@@ -318,6 +331,7 @@ const PLATFORM_OVERLAY_TARGETS: Record<AITool, OverlayTarget[]> = {
   qoder: [{ overlayDir: "qoder", outputDir: ".qoder" }],
   codebuddy: [{ overlayDir: "codebuddy", outputDir: ".codebuddy" }],
   copilot: [{ overlayDir: "copilot", outputDir: ".github" }],
+  droid: [{ overlayDir: "droid", outputDir: ".factory" }],
 };
 
 function joinProjectPath(...parts: string[]): string {

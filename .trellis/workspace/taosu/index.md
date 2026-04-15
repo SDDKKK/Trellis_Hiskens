@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-4.md`
-- **Total Sessions**: 109
-- **Last Active**: 2026-04-09
+- **Total Sessions**: 112
+- **Last Active**: 2026-04-14
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-4.md` | ~436 | Active |
+| `journal-4.md` | ~643 | Active |
 | `journal-3.md` | ~1988 | Archived |
 | `journal-2.md` | ~1963 | Archived |
 | `journal-1.md` | ~1998 | Archived |
@@ -32,6 +32,9 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 112 | 2026-04-14 | Factory Droid platform support + Codex shared-layer hint | `0015246`, `d7e9b13` | `feat/v0.4.0-beta` |
+| 111 | 2026-04-10 | Fix #154: lazy-load workflow.md in session-start, update spec | `e7b304b`, `94c5af5` | `feat/v0.4.0-beta` |
+| 110 | 2026-04-10 | fix #157: init re-init fast path | `1b767f2`, `e988c79` | `feat/v0.4.0-beta` |
 | 109 | 2026-04-09 | Reply to #154, merge fix PRs, document task start/finish lifecycle | `e0acefb`, `5139ae6` | `feat/v0.4.0-beta` |
 | 108 | 2026-04-07 | Update task next_action template to 6-phase lifecycle | `b930880` | `feat/v0.4.0-beta` |
 | 107 | 2026-04-06 | PR triage, issue fixes, marketplace submodule migration | `4a54d8c`, `786cbdf` | `feat/v0.4.0-beta` |

@@ -434,3 +434,210 @@ Tradeoff: `<workflow>` block grows by ~0.9KB, which runs counter to #154's direc
 ### Next Steps
 
 - None - task complete
+
+
+## Session 110: fix #157: init re-init fast path
+
+**Date**: 2026-04-10
+**Task**: fix #157: init re-init fast path
+**Package**: cli
+**Branch**: `feat/v0.4.0-beta`
+
+### Summary
+
+Fix bootstrap task re-creation bug and add re-init fast path for trellis init
+
+### Main Changes
+
+**Issue**: [#157](https://github.com/mindfold-ai/Trellis/issues/157) — `trellis init` 重复生成 bootstrap task + 多设备/加平台体验差
+
+**Changes**:
+
+| Commit | Type | Description |
+|--------|------|-------------|
+| `1b767f2` | fix | 用 `isFirstInit` 标记区分首次/重复 init，只在首次创建 bootstrap task |
+| `e988c79` | feat | 新增 `handleReinit()` 快速路径，re-init 时跳过完整交互流程 |
+
+**Re-init fast path behavior**:
+- `trellis init --codex` → 只配置 Codex
+- `trellis init -u name` → 只初始化 developer identity（新设备场景）
+- `trellis init`（裸调用）→ 三选一菜单：加平台 / 加开发者 / 完整重初始化
+- `--force` / `--skip-existing` → 跳过快速路径，走完整流程（向后兼容）
+
+**Updated Files**:
+- `packages/cli/src/commands/init.ts`
+
+**Quality**: lint ✓ typecheck ✓ 582 tests ✓
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `1b767f2` | (see git log) |
+| `e988c79` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 111: Fix #154: lazy-load workflow.md in session-start, update spec
+
+**Date**: 2026-04-10
+**Task**: Fix #154: lazy-load workflow.md in session-start, update spec
+**Package**: cli
+**Branch**: `feat/v0.4.0-beta`
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+## Context
+
+Continuation of issue #154 work. User community feedback (2 additional users on social media) confirmed the SessionStart hook size problem is widespread — not just the original reporter. Decided to implement the fix ourselves since the external contributor hadn't submitted a PR after 2 days.
+
+## What Was Done
+
+### 1. Implemented workflow.md lazy-load (commit e7b304b)
+
+Replaced `<workflow>` full content injection (11.6 KB) with a 2-line pointer in session-start.py. start.md Step 1 already tells the AI to `cat .trellis/workflow.md`, so the content is still accessed — just on-demand instead of pre-loaded.
+
+Added annotation in `<instructions>` block noting Steps 2-3 (context + guidelines) are already injected by the hook, directing AI to skip to Step 4.
+
+Updated `<ready>` block to match the new flow: "Start from Step 1, skip Steps 2-3, proceed to Step 4."
+
+**Changed files** (4 session-start.py mirrors):
+- `packages/cli/src/templates/claude/hooks/session-start.py`
+- `packages/cli/src/templates/codex/hooks/session-start.py`
+- `packages/cli/src/templates/iflow/hooks/session-start.py`
+- `.claude/hooks/session-start.py` (dogfood)
+
+**Copilot excluded** — has no start.md to replace workflow.md with.
+
+**Result**: vanilla 29.1 KB → 17.9 KB (under 20 KB threshold).
+
+### 2. Fixed `__pycache__` test crash (not committed separately)
+
+Running Python hooks locally left `__pycache__/` inside `src/templates/claude/hooks/`, causing `getAllHooks()` to crash with EISDIR (trying to readFileSync a directory). Cleaned up; documented in spec.
+
+### 3. Updated spec (commit 94c5af5)
+
+Added to `platform-integration.md`:
+- **SessionStart Hook: additionalContext Size Constraint** section — 20 KB limit, size budget table, "inject instructions not reference" design decision, guidelines growth risk warning
+- **`__pycache__` EISDIR crash** — new Common Mistakes entry
+
+### 4. Design decision rationale
+
+User rejected the "dynamic TOC" approach (Approach A from issue #154) because AI won't proactively read a TOC. Instead adopted "inject start.md, let it tell AI to read workflow.md" — the AI follows an explicit instruction rather than deciding on its own to read a reference.
+
+## Commits
+
+- `e7b304b` — fix(hooks): replace workflow.md full injection with lazy-load via start.md (#154)
+- `94c5af5` — docs(spec): add SessionStart size constraint and __pycache__ gotcha
+
+## Open Items
+
+- Issue #154 still open — contributor may submit additional PRs for further optimizations
+- `<guidelines>` block (5-11 KB) is the next growth risk — may need similar lazy-load treatment
+- Copilot session-start.py not touched (no start.md equivalent)
+- Release script `git diff-index --quiet HEAD` without `--cached` is fragile with dirty submodules — noted but not fixed
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e7b304b` | (see git log) |
+| `94c5af5` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 112: Factory Droid platform support + Codex shared-layer hint
+
+**Date**: 2026-04-14
+**Task**: Factory Droid platform support + Codex shared-layer hint
+**Package**: cli
+**Branch**: `feat/v0.4.0-beta`
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+| Area | Change |
+|---|---|
+| New platform | Added Factory Droid (`droid`) at Cursor-level scope: commands-only, no hooks/agents |
+| Registry | New entry in `AI_TOOLS` — `configDir: .factory`, `cliFlag: droid`, `defaultChecked: false`, plus AITool/CliFlag/TemplateDir union extensions |
+| Templates | 12 generic command md files under `src/templates/droid/commands/trellis/`, each with optional `description` YAML frontmatter (Droid auto-completion shows it). Sourced by stripping `trellis-` prefix from cursor templates and renaming. Files use nested `trellis/` subdirectory like Claude — Droid's docs say nesting is unsupported but actual binary picks them up |
+| Configurator | `configureDroid()` mirrors Cursor's filtered copy with `.js` exclusion. New `getDroidTemplatePath()` + deprecated `getDroidSourcePath()` alias in `extract.ts` |
+| CLI / init | `--droid` flag in `cli/index.ts`, `droid?: boolean` in `InitOptions` |
+| Python runtime | Full `cli_adapter.py` integration (template + live `.trellis/scripts/` byte-identical): Platform literal, `config_dir_name`, `get_trellis_command_path`, `get_non_interactive_env`, `cli_name`, `_ALL_PLATFORM_CONFIG_DIRS`, `detect_platform`, `get_cli_adapter` validation, `TRELLIS_PLATFORM` env list, module docstring. `build_run_command` / `build_resume_command` raise ValueError ("not yet integrated with multi-agent") — same pattern as Copilot/Windsurf |
+| Tests | +8 tests across 5 files: dedicated `droid.test.ts` (5), `extract.test.ts` (path + alias), `init.integration.test.ts` (`#3j` + negative assertions in `#1`/`#2`), `platforms.test.ts` (detection + configure + collectTemplates), `regression.test.ts` (registry + cli_adapter branch coverage). All 603 tests pass |
+| Docs | `README.md` and `README_CN.md` — added Factory Droid to platform list, flag list, and FAQ |
+| Codex UX | Codex option `name` field gains parenthetical: `Codex (also writes .agents/skills/ — read by Cursor, Gemini CLI, GitHub Copilot, Amp, Kimi Code)`. Verified each client's official docs explicitly list `.agents/skills/`. Claude Code intentionally omitted — its docs only list `.claude/skills/` |
+
+**Background — Amp Code investigation**: Originally planned to add Amp as a separate platform but research found Amp uses skills (`.agents/skills/`), not commands. Since Codex already writes `.agents/skills/` and Amp reads from there, no new platform was needed. Surfaced this fact via the Codex name hint instead.
+
+**Discarded approach — standalone `agentskills` platform**: Briefly implemented a separate "Shared Skills (.agents/)" pseudo-platform that would write `.agents/skills/` independent of Codex. Reverted after verifying Claude Code does NOT actually read `.agents/skills/` (contrary to several third-party blog claims), making the standalone option misleading. The simpler Codex parenthetical proved sufficient.
+
+**Updated Files**:
+- `packages/cli/src/types/ai-tools.ts`
+- `packages/cli/src/configurators/droid.ts` (new)
+- `packages/cli/src/configurators/index.ts`
+- `packages/cli/src/templates/droid/index.ts` (new)
+- `packages/cli/src/templates/droid/commands/trellis/*.md` (12 new)
+- `packages/cli/src/templates/extract.ts`
+- `packages/cli/src/templates/trellis/scripts/common/cli_adapter.py`
+- `.trellis/scripts/common/cli_adapter.py` (live sync)
+- `packages/cli/src/cli/index.ts`
+- `packages/cli/src/commands/init.ts`
+- `packages/cli/test/templates/droid.test.ts` (new)
+- `packages/cli/test/templates/extract.test.ts`
+- `packages/cli/test/configurators/platforms.test.ts`
+- `packages/cli/test/commands/init.integration.test.ts`
+- `packages/cli/test/regression.test.ts`
+- `README.md`
+- `README_CN.md`
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `0015246` | (see git log) |
+| `d7e9b13` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
