@@ -40,10 +40,29 @@ This shows: developer identity, git status, current task (if any), active tasks,
 ### Step 3: Read Guidelines Index
 
 ```bash
-cat .trellis/spec/matlab/index.md    # MATLAB guidelines
-cat .trellis/spec/python/index.md    # Python guidelines
-cat .trellis/spec/guides/index.md    # Thinking guides
+python3 ./.trellis/scripts/get_context.py --mode packages
 ```
+
+This shows available packages and their spec layers. Read the relevant spec indexes:
+
+```bash
+# Discover packages and their spec layers
+python3 ./.trellis/scripts/get_context.py --mode packages
+
+# Read index for the package you'll work on
+cat .trellis/spec/<package>/<layer>/index.md
+
+# Hiskens default spec layers:
+cat .trellis/spec/python/index.md
+cat .trellis/spec/matlab/index.md
+
+# Always read shared thinking guides
+cat .trellis/spec/guides/index.md
+```
+
+> **Important**: The index files are navigation — they list the actual guideline files (e.g., `error-handling.md`, `conventions.md`, `mock-strategies.md`).
+> At this step, just read the indexes to understand what's available.
+> When you start actual development, you MUST go back and read the specific guideline files relevant to your task, as listed in the index's Pre-Development Checklist.
 
 ### Step 4: Report and Ask
 
@@ -58,15 +77,30 @@ When user describes a task, classify it:
 | Type | Criteria | Workflow |
 |------|----------|----------|
 | **Question** | User asks about code, architecture, or how something works | Answer directly |
-| **Trivial Fix** | Typo fix, comment update, single-line change, < 5 minutes | Direct Edit |
-| **Development Task** | Any code change that: modifies logic, adds features, fixes bugs, touches multiple files | **Task Workflow** |
-| **Complex Task** | Vague goal, unclear scope, multiple valid approaches, architectural decisions | **Brainstorm → Task Workflow** |
+| **Trivial Fix** | Typo fix, comment update, single-line change | Direct Edit |
+| **Simple Task** | Clear goal, 1-2 files, well-defined scope | Quick confirm → Implement |
+| **Complex Task** | Vague goal, multiple files, architectural decisions | **Brainstorm → Task Workflow** |
+
+### Classification Signals
+
+**Trivial/Simple indicators:**
+- User specifies exact file and change
+- "Fix the typo in X"
+- "Add field Y to component Z"
+- Clear acceptance criteria already stated
+
+**Complex indicators:**
+- "I want to add a feature for..."
+- "Can you help me improve..."
+- Mentions multiple areas or systems
+- No clear implementation path
+- User seems unsure about approach
 
 ### Decision Rule
 
-> **If in doubt, use Task Workflow.**
+> **If in doubt, use Brainstorm + Task Workflow.**
 >
-> Task Workflow ensures specs are injected to agents, resulting in higher quality code.
+> Task Workflow ensures code-spec context is injected to agents, resulting in higher quality code.
 > The overhead is minimal, but the benefit is significant.
 
 ---
@@ -80,100 +114,100 @@ For questions or trivial fixes, work directly:
 
 ---
 
-## Complex Task — Brainstorm First
+## Simple Task
 
-If the task is complex (vague requirements, multiple approaches, architectural decisions):
+For simple, well-defined tasks:
 
-1. Use `/trellis:brainstorm` to discover and refine requirements
-2. Brainstorm produces a validated PRD with clear acceptance criteria
-3. Then proceed to Task Workflow below with the refined requirements
+1. Quick confirm: "I understand you want to [goal]. Shall I proceed?"
+2. If no, clarify and confirm again
+3. **If yes: execute ALL steps below without stopping. Do NOT ask for additional confirmation between steps.**
+   - Create task directory (Phase 1 Path B, Step 2)
+   - Write PRD (Step 3)
+   - Research codebase (Phase 2, Step 5)
+   - Configure context (Step 6)
+   - Activate task (Step 7)
+   - Implement (Phase 3, Step 8)
+   - Check quality (Step 9)
+   - Semantic review (Step 10)
+   - Complete (Step 11)
 
-> **When in doubt**: If you'd need to ask 3+ clarifying questions, use brainstorm.
+---
+
+## Complex Task - Brainstorm First
+
+For complex or vague tasks, **automatically start the brainstorm process** — do NOT skip directly to implementation.
+
+See `/trellis:brainstorm` for the full process. Summary:
+
+1. **Acknowledge and classify** - State your understanding
+2. **Create task directory** - Track evolving requirements in `prd.md`
+3. **Ask questions one at a time** - Update PRD after each answer
+4. **Propose approaches** - For architectural decisions
+5. **Confirm final requirements** - Get explicit approval
+6. **Proceed to Task Workflow** - With clear requirements in PRD
+
+> **Subtask Decomposition**: If brainstorm reveals multiple independent work items,
+> consider creating subtasks using `--parent` flag or `add-subtask` command.
+> See `/trellis:brainstorm` Step 8 for details.
+
+> For deep multi-layer reasoning on complex tasks, see `.trellis/spec/guides/thinking-framework.md` (optional reference, not required by the workflow).
+
+### Key Brainstorm Principles
+
+| Principle | Description |
+|-----------|-------------|
+| **One question at a time** | Never overwhelm with multiple questions |
+| **Update PRD immediately** | After each answer, update the document |
+| **Prefer multiple choice** | Easier for users to answer |
+| **YAGNI** | Challenge unnecessary complexity |
 
 ---
 
 ## Task Workflow (Development Tasks)
 
 **Why this workflow?**
-- Research Agent analyzes what specs are needed
-- Specs are configured in jsonl files
-- Implement Agent receives specs via Hook injection
-- Check Agent verifies against specs
+- Research Agent analyzes what code-spec files are needed
+- Code-spec files are configured in jsonl files
+- Implement Agent receives code-spec context via Hook injection
+- Check Agent verifies against code-spec requirements
 - Result: Code that follows project conventions automatically
 
-### Step 1: Challenge & Reframe `[AI]`
-
-**Trigger**: Only for NEW tasks. Skip when continuing existing tasks.
-
-Follow the **Think Phase** from the `<thinking-framework>` skeleton injected at session start:
-- 1a. Restate Understanding
-- 1b. Premise Challenge (2-3 implicit assumptions)
-- 1c. Code Mapping (sub-problems + existing coverage)
-- 1d. Scope Decision (EXPANSION / SELECTIVE_EXPANSION / HOLD_SCOPE / REDUCTION)
-
-**Record**: Add validated premises and scope mode to `prd.md`.
-
-For detailed methodology: `cat .trellis/spec/guides/thinking-framework.md`
-
-### Step 2: Research the Codebase `[AI]`
-
-Call Research Agent to analyze:
+### Overview: Two Entry Points
 
 ```
-Task(
-  subagent_type: "research",
-  prompt: "Analyze the codebase for this task:
+From Brainstorm (Complex Task):
+  PRD confirmed → Research → Configure Context → Activate → Implement → Check → Complete
 
-  Task: <user's task description>
-  Type: <python/matlab/both>
-
-  Please find:
-  1. Relevant spec files in .trellis/spec/
-  2. Existing code patterns to follow (find 2-3 examples)
-  3. Files that will likely need modification
-
-  Output:
-  ## Relevant Specs
-  - <path>: <why it's relevant>
-
-  ## Code Patterns Found
-  - <pattern>: <example file path>
-
-  ## Files to Modify
-  - <path>: <what change>
-
-  ## Suggested Task Name
-  - <short-slug-name>",
-  model: "opus"
-)
+From Simple Task:
+  Confirm → Create Task → Write PRD → Research → Configure Context → Activate → Implement → Check → Complete
 ```
 
-### Step 3: Create Task Directory `[AI]`
+**Key principle: Research happens AFTER requirements are clear (PRD exists).**
 
-Based on research results:
+---
+
+### Phase 1: Establish Requirements
+
+#### Path A: From Brainstorm (skip to Phase 2)
+
+PRD and task directory already exist from brainstorm. Skip directly to Phase 2.
+
+#### Path B: From Simple Task
+
+**Step 1: Confirm Understanding** `[AI]`
+
+Quick confirm:
+- What is the goal?
+- What type of development? (python / matlab / both)
+- Any specific requirements or constraints?
+
+**Step 2: Create Task Directory** `[AI]`
 
 ```bash
-TASK_DIR=$(python3 ./.trellis/scripts/task.py create "<title from research>" --slug <suggested-slug>)
+TASK_DIR=$(python3 ./.trellis/scripts/task.py create "<title>" --slug <name>)
 ```
 
-### Step 4: Configure Context `[AI]`
-
-Initialize default context:
-
-```bash
-python3 ./.trellis/scripts/task.py init-context "$TASK_DIR" <type>
-# type: python | matlab | both
-```
-
-Add specs found by Research Agent:
-
-```bash
-# For each relevant spec and code pattern:
-python3 ./.trellis/scripts/task.py add-context "$TASK_DIR" implement "<path>" "<reason>"
-python3 ./.trellis/scripts/task.py add-context "$TASK_DIR" check "<path>" "<reason>"
-```
-
-### Step 5: Write Requirements `[AI]`
+**Step 3: Write PRD** `[AI]`
 
 Create `prd.md` in the task directory with:
 
@@ -195,7 +229,76 @@ Create `prd.md` in the task directory with:
 <Any technical decisions or constraints>
 ```
 
-### Step 6: Activate Task `[AI]`
+---
+
+### Phase 2: Prepare for Implementation (shared)
+
+> Both paths converge here. PRD and task directory must exist before proceeding.
+
+**Step 4: Code-Spec Depth Check** `[AI]`
+
+If the task touches infra or cross-layer contracts, do not start implementation until code-spec depth is defined.
+
+Trigger this requirement when the change includes any of:
+- New or changed Python↔MATLAB contracts (data file formats, variable naming conventions)
+- New config schemas or shared constants
+- Changes to data interchange files (.mat, .csv, .json, .h5)
+- Infra integrations (storage, queue, cache, secrets, env contracts)
+
+Must-have before proceeding:
+- [ ] Target code-spec files to update are identified
+- [ ] Concrete contract is defined (signature, fields, env keys)
+- [ ] Validation and error matrix is defined
+- [ ] At least one Good/Base/Bad case is defined
+
+**Step 5: Research the Codebase** `[AI]`
+
+Based on the confirmed PRD, call Research Agent to find relevant specs and patterns:
+
+```
+Task(
+  subagent_type: "research",
+  prompt: "Analyze the codebase for this task:
+
+  Task: <goal from PRD>
+  Type: <python/matlab/both>
+
+  Please find:
+  1. Relevant code-spec files in .trellis/spec/
+  2. Existing code patterns to follow (find 2-3 examples)
+  3. Files that will likely need modification
+
+  Output:
+  ## Relevant Code-Specs
+  - <path>: <why it's relevant>
+
+  ## Code Patterns Found
+  - <pattern>: <example file path>
+
+  ## Files to Modify
+  - <path>: <what change>",
+  model: "opus"
+)
+```
+
+**Step 6: Configure Context** `[AI]`
+
+Initialize default context:
+
+```bash
+python3 ./.trellis/scripts/task.py init-context "$TASK_DIR" <type>
+# type: python | matlab | both
+```
+
+Add code-spec files found by Research Agent:
+
+```bash
+# For each relevant code-spec and code pattern:
+python3 ./.trellis/scripts/task.py add-context "$TASK_DIR" implement "<path>" "<reason>"
+python3 ./.trellis/scripts/task.py add-context "$TASK_DIR" check "<path>" "<reason>"
+```
+
+**Step 7: Activate Task** `[AI]`
 
 ```bash
 python3 ./.trellis/scripts/task.py start "$TASK_DIR"
@@ -203,60 +306,62 @@ python3 ./.trellis/scripts/task.py start "$TASK_DIR"
 
 This sets `.current-task` so hooks can inject context.
 
-### Step 6b: Code-Spec Depth Check `[AI]`
+---
 
-Before implementing, check if this task touches infrastructure or cross-layer contracts:
+### Phase 3: Execute (shared)
 
-- New or changed Python↔MATLAB contracts (data file formats, variable naming)?
-- New config schemas or shared constants?
-- Changes to data interchange files (.mat, .csv, .json, .h5)?
+**Step 8: Implement** `[AI]`
 
-If yes → read relevant spec files in `.trellis/spec/` before proceeding.
-If no → proceed directly to implementation.
-
-### Step 7: Implement `[AI]`
-
-Call Implement Agent (specs are auto-injected by hook):
+Call Implement Agent (code-spec context is auto-injected by hook):
 
 ```
 Task(
   subagent_type: "implement",
   prompt: "Implement the task described in prd.md.
 
-  Follow all specs that have been injected into your context.
+  Follow all code-spec files that have been injected into your context.
   Run lint and typecheck before finishing.",
   model: "opus"
 )
 ```
 
-### Step 8: Check Quality `[AI]`
+**Step 9: Check Quality** `[AI]`
 
-Call Check Agent for programmatic verification (ruff check/format):
+Call Check Agent (code-spec context is auto-injected by hook):
 
 ```
 Task(
   subagent_type: "check",
-  prompt: "Check code standards (D3). Fix any ruff issues.
-  Ensure lint and format pass.",
+  prompt: "Check code standards (D3). Fix any ruff or format issues.
+  Ensure lint and format pass.
+
+  Scope: Dimension 3 (code standards) only.
+  Semantic review (D1/D2/D4/D5) is delegated to a separate review agent in Step 10.",
   model: "opus"
 )
 ```
 
-### Step 9: Semantic Review `[AI]`
+**Step 10: Semantic Review** `[AI]`
 
-Call Review Agent for semantic review (D1/D2/D4/D5):
+Call Review Agent for dimensions 1/2/4/5 (correctness, design, tests, docs):
 
 ```
 Task(
   subagent_type: "review",
-  prompt: "Review all code changes for scientific correctness,
-  cross-layer consistency, performance, and data integrity.
-  Fix any issues you find directly.",
+  prompt: "Perform semantic review on all code changes.
+
+  Dimensions to cover:
+  - D1: Correctness — does the code do what the PRD says?
+  - D2: Design — is the structure sound? Any code smells?
+  - D4: Tests — is test coverage adequate for the changes?
+  - D5: Docs — are docstrings and comments accurate?
+
+  Report findings and fix issues directly where safe.",
   model: "opus"
 )
 ```
 
-### Step 10: Complete `[AI]`
+**Step 11: Complete** `[AI]`
 
 1. Verify lint and typecheck pass
 2. Report what was implemented
@@ -273,7 +378,7 @@ If `get_context.py` shows a current task:
 
 1. Read the task's `prd.md` to understand the goal
 2. Check `task.json` for current status and phase
-3. If a stale session warning appears, review the scratchpad and git diff before continuing
+3. If a stale-session warning appears in the session start context, review the scratchpad and recent git diff before continuing.
 4. Ask user: "Continue working on <task-name>?"
 
 If yes, resume from the appropriate step (usually Step 7 or 8).
@@ -287,7 +392,7 @@ If yes, resume from the appropriate step (usually Step 7 or 8).
 | Command | When to Use |
 |---------|-------------|
 | `/trellis:start` | Begin a session (this command) |
-| `/trellis:brainstorm` | Discover requirements for complex tasks |
+| `/trellis:brainstorm` | Clarify vague requirements (called from start) |
 | `/trellis:parallel` | Complex tasks needing isolated worktree |
 | `/trellis:finish-work` | Before committing changes |
 | `/trellis:record-session` | After completing a task |
@@ -296,13 +401,13 @@ If yes, resume from the appropriate step (usually Step 7 or 8).
 
 | Script | Purpose |
 |--------|---------|
-| `get_context.py` | Get session context |
-| `task.py create` | Create task directory |
-| `task.py init-context` | Initialize jsonl files |
-| `task.py add-context` | Add spec to jsonl |
-| `task.py start` | Set current task |
-| `task.py finish` | Clear current task |
-| `task.py archive` | Archive completed task |
+| `python3 ./.trellis/scripts/get_context.py` | Get session context |
+| `python3 ./.trellis/scripts/task.py create` | Create task directory |
+| `python3 ./.trellis/scripts/task.py init-context` | Initialize jsonl files |
+| `python3 ./.trellis/scripts/task.py add-context` | Add code-spec/context file to jsonl |
+| `python3 ./.trellis/scripts/task.py start` | Set current task |
+| `python3 ./.trellis/scripts/task.py finish` | Clear current task |
+| `python3 ./.trellis/scripts/task.py archive` | Archive completed task |
 
 ### Sub Agents `[AI]`
 
@@ -318,7 +423,7 @@ If yes, resume from the appropriate step (usually Step 7 or 8).
 
 ## Key Principle
 
-> **Specs are injected, not remembered.**
+> **Code-spec context is injected, not remembered.**
 >
-> The Task Workflow ensures agents receive relevant specs automatically.
+> The Task Workflow ensures agents receive relevant code-spec context automatically.
 > This is more reliable than hoping the AI "remembers" conventions.
