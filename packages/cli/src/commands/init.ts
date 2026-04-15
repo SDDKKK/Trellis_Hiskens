@@ -30,6 +30,7 @@ import {
   type ProjectType,
   type DetectedPackage,
 } from "../utils/project-detector.js";
+import { resolveOverlayPath } from "../utils/overlay.js";
 import { initializeHashes } from "../utils/template-hash.js";
 import {
   fetchTemplateIndex,
@@ -382,6 +383,76 @@ function createBootstrapTask(
   }
 }
 
+function createBootstrapTaskFromScript(
+  cwd: string,
+  pythonCmd: string,
+  projectType: ProjectType,
+): boolean {
+  const scriptPath = path.join(cwd, PATHS.SCRIPTS, "create_bootstrap.py");
+
+  if (!fs.existsSync(scriptPath)) {
+    return false;
+  }
+
+  try {
+    execSync(`${pythonCmd} "${scriptPath}" "${projectType}"`, {
+      cwd,
+      stdio: "pipe",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getOverlaySpecLayers(overlayName?: string): string[] {
+  if (!overlayName) {
+    return [];
+  }
+
+  const overlayPath = resolveOverlayPath(overlayName);
+  if (!overlayPath) {
+    return [];
+  }
+
+  const specRoot = path.join(overlayPath, "templates", "trellis", "spec");
+  if (!fs.existsSync(specRoot)) {
+    return [];
+  }
+
+  return fs
+    .readdirSync(specRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name !== "guides")
+    .map((entry) => entry.name);
+}
+
+function materializeOverlaySpecLayers(
+  cwd: string,
+  packages: DetectedPackage[],
+  specLayers: string[],
+): void {
+  if (packages.length === 0 || specLayers.length === 0) {
+    return;
+  }
+
+  const specRoot = path.join(cwd, PATHS.SPEC);
+
+  for (const layer of specLayers) {
+    const sourceDir = path.join(specRoot, layer);
+    if (!fs.existsSync(sourceDir)) {
+      continue;
+    }
+
+    for (const pkg of packages) {
+      const packageDir = path.join(specRoot, sanitizePkgName(pkg.name), layer);
+      fs.mkdirSync(path.dirname(packageDir), { recursive: true });
+      fs.cpSync(sourceDir, packageDir, { recursive: true });
+    }
+
+    fs.rmSync(sourceDir, { recursive: true, force: true });
+  }
+}
+
 /**
  * Handle re-init when .trellis/ already exists.
  * Returns true if handled (caller should return), false if user chose full re-init.
@@ -598,8 +669,10 @@ function writeMonorepoConfig(cwd: string, packages: DetectedPackage[]): void {
   }
 
   // Use first non-submodule package as default, fallback to first package
-  const defaultPkg =
-    packages.find((p) => !p.isSubmodule)?.name ?? packages[0]?.name;
+  const defaultPkgSource = packages.find((p) => !p.isSubmodule) ?? packages[0];
+  const defaultPkg = defaultPkgSource
+    ? sanitizePkgName(defaultPkgSource.name)
+    : undefined;
   if (defaultPkg) {
     lines.push(`default_package: ${defaultPkg}`);
   }
@@ -727,6 +800,7 @@ export async function init(options: InitOptions): Promise<void> {
 
   let monorepoPackages: DetectedPackage[] | undefined;
   let remoteSpecPackages: Set<string> | undefined;
+  let overlaySpecLayers: string[] = [];
 
   if (options.monorepo !== false) {
     // options.monorepo: true = --monorepo, false = --no-monorepo, undefined = auto
@@ -870,6 +944,10 @@ export async function init(options: InitOptions): Promise<void> {
         }
       }
     }
+  }
+
+  if (monorepoPackages) {
+    overlaySpecLayers = getOverlaySpecLayers(options.overlay);
   }
 
   // Tool definitions derived from platform registry
@@ -1289,8 +1367,12 @@ export async function init(options: InitOptions): Promise<void> {
     skipSpecTemplates: useRemoteTemplate,
     packages: monorepoPackages,
     remoteSpecPackages,
+    skipPackageSpecTemplates: overlaySpecLayers.length > 0,
   });
   await applyWorkflowOverlay(cwd, options.overlay);
+  if (monorepoPackages && overlaySpecLayers.length > 0) {
+    materializeOverlaySpecLayers(cwd, monorepoPackages, overlaySpecLayers);
+  }
 
   // Write monorepo packages to config.yaml (non-destructive patch)
   if (monorepoPackages) {
@@ -1337,20 +1419,27 @@ export async function init(options: InitOptions): Promise<void> {
 
   // Initialize developer identity (silent - no output)
   if (developerName) {
+    const pythonCmd = getPythonCommand();
+
     try {
-      const pythonCmd = getPythonCommand();
       const scriptPath = path.join(cwd, PATHS.SCRIPTS, "init_developer.py");
       execSync(`${pythonCmd} "${scriptPath}" "${developerName}"`, {
         cwd,
         stdio: "pipe", // Silent
       });
+    } catch {
+      // Silent failure - user can run init_developer.py manually.
+    }
 
-      // Create bootstrap task only on first init (not re-init for new platforms/devices)
-      if (isFirstInit) {
+    // Create bootstrap task when it does not already exist.
+    // This is more robust than relying on first-init detection alone.
+    const bootstrapTaskDir = path.join(cwd, PATHS.TASKS, BOOTSTRAP_TASK_NAME);
+    if (!fs.existsSync(bootstrapTaskDir)) {
+      if (options.overlay) {
+        createBootstrapTaskFromScript(cwd, pythonCmd, projectType);
+      } else {
         createBootstrapTask(cwd, developerName, projectType, monorepoPackages);
       }
-    } catch {
-      // Silent failure - user can run init_developer.py manually
     }
   }
 

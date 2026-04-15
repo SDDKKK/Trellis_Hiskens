@@ -21,9 +21,25 @@ vi.mock("inquirer", () => ({
   default: { prompt: vi.fn().mockResolvedValue({}) },
 }));
 
-vi.mock("node:child_process", () => ({
-  execSync: vi.fn().mockReturnValue(""),
-}));
+vi.mock("node:child_process", async () => {
+  const actual = await vi.importActual<typeof import("node:child_process")>(
+    "node:child_process",
+  );
+
+  return {
+    ...actual,
+    execSync: vi.fn((command: string, options?: Parameters<typeof actual.execSync>[1]) => {
+      if (
+        command.includes("--version") ||
+        command.includes("init_developer.py") ||
+        command.includes("create_bootstrap.py")
+      ) {
+        return actual.execSync(command, options);
+      }
+      return Buffer.from("");
+    }),
+  };
+});
 
 // === Imports ===
 
@@ -516,7 +532,7 @@ describe("init() integration", () => {
     expect(configContent).toContain("path: packages/cli");
     expect(configContent).toContain("docs:");
     expect(configContent).toContain("path: packages/docs");
-    expect(configContent).toContain("default_package:");
+    expect(configContent).toContain("default_package: cli");
   });
 
   it("#15 monorepo: bootstrap task references per-package spec paths", async () => {
@@ -711,5 +727,64 @@ describe("init() integration", () => {
     expect(settings.hooks.PostToolUse[0].hooks[0].command).toContain(
       `${expectedPython} "$CLAUDE_PROJECT_DIR/.claude/hooks/todo-enforcer.py"`,
     );
+  });
+
+  it("overlay #18 monorepo init creates package-scoped bootstrap via generated script", async () => {
+    setupPnpmWorkspace(tmpDir, [
+      { rel: "packages/solver", name: "@smoke/solver" },
+      { rel: "packages/viz", name: "@smoke/viz", files: { "vite.config.ts": "" } },
+    ]);
+
+    await init({ yes: true, user: "dev", overlay: "hiskens" });
+
+    const taskDir = path.join(tmpDir, PATHS.TASKS, "00-bootstrap-guidelines");
+    expect(fs.existsSync(taskDir)).toBe(true);
+
+    const taskJson = JSON.parse(
+      fs.readFileSync(path.join(taskDir, "task.json"), "utf-8"),
+    ) as {
+      package: string | null;
+      relatedFiles: string[];
+    };
+    expect(taskJson.package).toBe("solver");
+    expect(taskJson.relatedFiles).toContain(".trellis/spec/solver/python/");
+    expect(taskJson.relatedFiles).toContain(".trellis/spec/solver/matlab/");
+
+    expect(
+      fs.existsSync(path.join(tmpDir, PATHS.SPEC, "solver", "python", "index.md")),
+    ).toBe(true);
+    expect(
+      fs.existsSync(path.join(tmpDir, PATHS.SPEC, "solver", "matlab", "index.md")),
+    ).toBe(true);
+    expect(
+      fs.existsSync(path.join(tmpDir, PATHS.SPEC, "viz", "python", "index.md")),
+    ).toBe(true);
+    expect(
+      fs.existsSync(path.join(tmpDir, PATHS.SPEC, "viz", "matlab", "index.md")),
+    ).toBe(true);
+    expect(fs.existsSync(path.join(tmpDir, PATHS.SPEC, "python"))).toBe(false);
+    expect(fs.existsSync(path.join(tmpDir, PATHS.SPEC, "matlab"))).toBe(false);
+    expect(
+      fs.existsSync(path.join(tmpDir, PATHS.SPEC, "solver", "backend")),
+    ).toBe(false);
+    expect(
+      fs.existsSync(path.join(tmpDir, PATHS.SPEC, "viz", "frontend")),
+    ).toBe(false);
+    expect(
+      fs.existsSync(path.join(tmpDir, PATHS.SPEC, "frontend")),
+    ).toBe(false);
+    expect(
+      fs.existsSync(path.join(tmpDir, PATHS.SPEC, "backend")),
+    ).toBe(false);
+
+    const prd = fs.readFileSync(path.join(taskDir, "prd.md"), "utf-8");
+    expect(prd).toContain(".trellis/spec/solver/python/");
+    expect(prd).toContain(".trellis/spec/solver/matlab/");
+
+    const currentTask = fs.readFileSync(
+      path.join(tmpDir, DIR_NAMES.WORKFLOW, ".current-task"),
+      "utf-8",
+    );
+    expect(currentTask.trim()).toBe(".trellis/tasks/00-bootstrap-guidelines");
   });
 });
