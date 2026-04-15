@@ -1,0 +1,10 @@
+{"file": ".trellis/workflow.md", "reason": "Project workflow and conventions"}
+{"file": ".trellis/spec/cli/backend/index.md", "reason": "Backend development guide"}
+{"file": ".trellis/tasks/04-15-downstream-sync-v0.4.0/prd.md", "reason": "Task goal, risks, and step-by-step execution plan for downstream sync"}
+{"file": ".trellis/spec/guides/fork-sync-guide.md", "reason": "Primary guardrails for upstream/fork sync and overlay preservation"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "WSL and /mnt/e downstream execution constraints, python invocation, and line-ending risks"}
+{"file": ".trellis/spec/cli/backend/migrations.md", "reason": "Update behavior, protected paths, and safe-file-delete semantics for trellis update"}
+{"file": "packages/cli/package.json", "reason": "Source of truth for the CLI build script and package entrypoints"}
+{"file": "packages/cli/bin/trellis.js", "reason": "Runtime CLI entrypoint that imports the built dist/cli/index.js output"}
+{"file": "packages/cli/scripts/copy-templates.js", "reason": "Build-time template copy behavior and the fact overlays are not copied into dist"}
+{"file": "packages/cli/src/utils/overlay.ts", "reason": "Runtime overlay resolution from repo-root overlays/ and overlay template lookup"}

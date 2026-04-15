@@ -1,0 +1,10 @@
+{"file": ".opencode/commands/trellis/finish-work.md", "reason": "Finish work checklist"}
+{"file": ".opencode/commands/trellis/check.md", "reason": "Code quality check spec"}
+{"file": ".trellis/tasks/04-15-downstream-sync-v0.4.0/prd.md", "reason": "Task goal, risks, and verification checklist for downstream sync"}
+{"file": ".trellis/spec/guides/fork-sync-guide.md", "reason": "Verification checklist for safe downstream sync and overlay drift handling"}
+{"file": ".trellis/spec/guides/cross-platform-thinking-guide.md", "reason": "Cross-platform verification for WSL/Windows filesystem behavior during downstream update"}
+{"file": ".trellis/spec/cli/backend/migrations.md", "reason": "Protected-path and migration verification when reviewing downstream update behavior"}
+{"file": "packages/cli/package.json", "reason": "Verify the build script and package entrypoints used for Step 0 rebuild"}
+{"file": "packages/cli/bin/trellis.js", "reason": "Verify the rebuilt CLI entrypoint still targets dist/cli/index.js"}
+{"file": "packages/cli/scripts/copy-templates.js", "reason": "Verify build-time copy behavior used during Step 0 rebuild"}
+{"file": "packages/cli/src/utils/overlay.ts", "reason": "Verify overlay runtime behavior stays source-backed rather than dist-backed"}
