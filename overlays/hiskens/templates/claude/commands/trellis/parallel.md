@@ -41,8 +41,7 @@ python3 ./.trellis/scripts/get_context.py
 ### Step 3: Read Project Guidelines `[AI]`
 
 ```bash
-cat .trellis/spec/python/index.md    # Python guidelines index
-cat .trellis/spec/matlab/index.md    # MATLAB guidelines index
+python3 ./.trellis/scripts/get_context.py --mode packages  # Discover available spec layers
 cat .trellis/spec/guides/index.md    # Thinking guides
 ```
 
