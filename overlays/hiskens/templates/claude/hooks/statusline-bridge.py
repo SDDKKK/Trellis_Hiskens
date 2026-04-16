@@ -19,8 +19,9 @@ Configuration in ~/.claude/settings.json (USER-level, not project-level):
 
 Inner command resolution (first match wins):
     1. TRELLIS_INNER_STATUSLINE env var
-    2. Auto-detect: `ccr statusline` if ccr is on PATH
-    3. Fallback: built-in display [Model] Ctx:XX% $X.XX
+    2. Project-local `.claude/hooks/statusline.py`
+    3. Auto-detect: `ccr statusline` if ccr is on PATH
+    4. Fallback: built-in display [Model] Ctx:XX% $X.XX
 
 Bridge file: /tmp/claude-ctx-{session_id}.json
 """
@@ -92,7 +93,14 @@ def find_inner_command() -> list[str] | None:
     if inner:
         return inner.split()
 
-    # 2. Auto-detect ccr
+    # 2. Prefer project-local Trellis statusline implementation
+    project_dir = os.environ.get("CLAUDE_PROJECT_DIR", "")
+    if project_dir:
+        project_statusline = Path(project_dir) / ".claude" / "hooks" / "statusline.py"
+        if project_statusline.is_file():
+            return [sys.executable, str(project_statusline)]
+
+    # 3. Auto-detect ccr
     ccr = shutil.which("ccr")
     if ccr:
         return [ccr, "statusline"]

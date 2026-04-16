@@ -719,10 +719,10 @@ def get_research_context(repo_root: str, task_dir: str | None) -> str:
 - **Local code search (semantic)**: Use `mcp__morph-mcp__warpgrep_codebase_search` (preferred, multi-turn parallel) or `mcp__augment-context-engine__codebase-retrieval` (fallback)
 - Local code search (exact match): Use Grep tool
 - Layer 0 (Library docs): Use mcp__context7__resolve-library-id then mcp__context7__query-docs
-- Layer 1 (Quick answer): Use Bash("python3 .trellis/scripts/search/web_search.py '<query>'")
-- Layer 2 (Structured search): Use web_search.py then web_fetch.py for key URLs
-- Layer 3 (Deep research): Use multiple web_search.py rounds then web_fetch.py for verification
-- Web search (Grok): Use Bash("python3 .trellis/scripts/search/web_search.py '<query>'")
+- Layer 1 (Quick answer): Prefer `mcp__grok-search__web_search`; fallback: Bash("python3 .trellis/scripts/search/web_search.py '<query>'")
+- Layer 2 (Structured search): Use `mcp__grok-search__web_search` then `web_fetch.py` for key URLs
+- Layer 3 (Deep research): Use multiple `mcp__grok-search__web_search` rounds then `web_fetch.py` for verification
+- Web search (Grok): Prefer `mcp__grok-search__web_search` (use `mcp__grok-search__get_sources` for cited URLs)
 - Web content (Grok): Use Bash("python3 .trellis/scripts/search/web_fetch.py '<url>'")
 - Escalation: Layer 0 → 1 → 2 → 3. Start at lowest sufficient layer.
 - Fallback: If morph-mcp unavailable, use codebase-retrieval for all semantic search needs"""

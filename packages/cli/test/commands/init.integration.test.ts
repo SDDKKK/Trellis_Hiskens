@@ -671,10 +671,23 @@ describe("init() integration", () => {
     ).toBe(true);
   });
 
-  it("overlay #15 init preserves base-only BASELINE files", async () => {
+  it("overlay #15 init installs overlay statusline template when provided", async () => {
+    const overlayPath = resolveOverlayPath("hiskens");
+    expect(overlayPath).not.toBeNull();
+    if (!overlayPath) {
+      throw new Error("Expected hiskens overlay to exist");
+    }
+
     await init({ yes: true, claude: true, overlay: "hiskens" });
 
     const targetPath = path.join(tmpDir, ".claude", "hooks", "statusline.py");
+    const overlayTemplatePath = path.join(
+      overlayPath,
+      "templates",
+      "claude",
+      "hooks",
+      "statusline.py",
+    );
     const baseTemplatePath = path.join(
       __dirname,
       "..",
@@ -688,7 +701,9 @@ describe("init() integration", () => {
 
     expect(fs.existsSync(targetPath)).toBe(true);
     expect(fs.readFileSync(targetPath, "utf-8")).toBe(
-      fs.readFileSync(baseTemplatePath, "utf-8"),
+      fs.existsSync(overlayTemplatePath)
+        ? fs.readFileSync(overlayTemplatePath, "utf-8")
+        : fs.readFileSync(baseTemplatePath, "utf-8"),
     );
   });
 
@@ -786,5 +801,16 @@ describe("init() integration", () => {
       "utf-8",
     );
     expect(currentTask.trim()).toBe(".trellis/tasks/00-bootstrap-guidelines");
+  });
+
+  it("overlay #19 init copies statusline companion files and skills", async () => {
+    await init({ yes: true, claude: true, overlay: "hiskens" });
+
+    expect(
+      fs.existsSync(path.join(tmpDir, ".claude", "hooks", "parse_sub2api_usage.py")),
+    ).toBe(true);
+    expect(
+      fs.existsSync(path.join(tmpDir, ".claude", "skills", "grok-search", "SKILL.md")),
+    ).toBe(true);
   });
 });

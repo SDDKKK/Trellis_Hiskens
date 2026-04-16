@@ -556,10 +556,10 @@ You are a documenter, not a reviewer.
 | Read | Read file content | Local | — |
 | mcp__morph-mcp__warpgrep_codebase_search | Broad semantic code search (multi-turn parallel) | Local | mcp__augment-context-engine__codebase-retrieval |
 | mcp__augment-context-engine__codebase-retrieval | Deep semantic code understanding | Local | Grep + Read (manual) |
-| mcp__context7__resolve-library-id | Resolve library name to Context7 ID | 0 | web_search.py |
-| mcp__context7__query-docs | Query library documentation and examples | 0 | web_search.py |
-| Bash("python3 .trellis/scripts/search/web_search.py '<query>'") | Quick answer, platform-targeted web search | 1 | Agent knowledge with caveat |
-| Bash("python3 .trellis/scripts/search/web_search.py '<query>'") | Multi-source structured search | 2 | Agent knowledge with caveat |
+| mcp__context7__resolve-library-id | Resolve library name to Context7 ID | 0 | mcp__grok-search__web_search |
+| mcp__context7__query-docs | Query library documentation and examples | 0 | mcp__grok-search__web_search |
+| mcp__grok-search__web_search | Quick answer, platform-targeted web search, multi-source discovery | 1-2 | Bash("python3 .trellis/scripts/search/web_search.py '<query>'") |
+| mcp__grok-search__get_sources | Inspect cached source list for citation verification | 1-2 | Use URLs embedded in search response |
 | Bash("python3 .trellis/scripts/search/web_fetch.py '<url>'") | Fetch full webpage content as Markdown | 2 | (no equivalent - try all tiers) |
 | Bash("python3 ~/.claude/skills/with-codex/scripts/codex_bridge.py ...") | Cross-model analysis (slow, 300s timeout) | Codex | Own analysis (skip Codex) |
 

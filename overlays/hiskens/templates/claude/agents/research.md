@@ -2,7 +2,7 @@
 name: research
 description: |
   Code and tech search expert. Pure research, no code modifications. Finds files, patterns, and tech solutions.
-tools: Read, Bash, Glob, Grep, mcp__augment-context-engine__codebase-retrieval, mcp__morph-mcp__warpgrep_codebase_search, mcp__context7__resolve-library-id, mcp__context7__query-docs
+tools: Read, Bash, Glob, Grep, mcp__augment-context-engine__codebase-retrieval, mcp__morph-mcp__warpgrep_codebase_search, mcp__context7__resolve-library-id, mcp__context7__query-docs, mcp__grok-search__*
 model: opus
 hooks:
   PreToolUse:
@@ -47,11 +47,11 @@ Best for: API references, usage examples, version-specific behavior.
 Use the appropriate layer based on query complexity:
 
 - **Layer 0** (Library docs): `mcp__context7__resolve-library-id` → `mcp__context7__query-docs`
-- **Layer 1** (Web search): `uv run .trellis/scripts/search/web_search.py "<query>"` (platform-targeted: `--platform github`)
+- **Layer 1** (Web search): Prefer `mcp__grok-search__web_search` (inspect citations with `mcp__grok-search__get_sources` when needed); fallback: `uv run .trellis/scripts/search/web_search.py "<query>"` (platform-targeted: `--platform github`)
 - **Layer 2** (URL content): `uv run .trellis/scripts/search/web_fetch.py "<url>"` (full page → clean markdown)
 - **Layer 3** (Site mapping): `uv run .trellis/scripts/search/web_map.py "<url>"` (discover link structure)
 
-All search scripts are called via Bash. See `.trellis/spec/guides/search-guide.md` for full routing guide and fallback paths.
+Prefer Grok Search MCP for live web search. Use project scripts via Bash as fallback, or when you need the local multi-tier fetch/map behavior. See `.trellis/spec/guides/search-guide.md` for full routing guide and fallback paths.
 
 ### 4. Codex Deep Analysis (Optional)
 

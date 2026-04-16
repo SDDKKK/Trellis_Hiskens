@@ -10,6 +10,8 @@ description: >
 # GitHub Explorer — 项目深度分析
 
 > **Philosophy**: README 只是门面，真正的价值藏在 Issues、Commits 和社区讨论里。
+>
+> **Search routing**: 优先使用 `grok-search` MCP 做实时搜索与来源发现；需要全文抓取时使用 `web_fetch.py`；只有在 MCP 不可用时才回退到 `web_search.py`。
 
 ## Workflow
 
@@ -19,15 +21,9 @@ description: >
 
 ### Phase 1: 定位 Repo
 
-1. 用 `web_search.py` 搜索 GitHub 确认完整 org/repo：
-   ```bash
-   python3 .trellis/scripts/search/web_search.py "site:github.com <project_name>" --platform github
-   ```
+1. 用 `mcp__grok-search__web_search` 搜索 GitHub 确认完整 org/repo，必要时用 `mcp__grok-search__get_sources` 拿到候选仓库 URL。
 
-2. 用 `web_search.py` 补充获取社区链接和非 GitHub 资源：
-   ```bash
-   python3 .trellis/scripts/search/web_search.py "<project_name> review 评测 使用体验"
-   ```
+2. 用 `mcp__grok-search__web_search` 补充获取社区链接和非 GitHub 资源，必要时继续用 `mcp__grok-search__get_sources` 提取来源 URL。
 
 3. 用 `web_fetch.py` 抓取 repo 主页获取基础信息（README、Stars、Forks、License、最近更新）：
    ```bash
@@ -47,10 +43,10 @@ description: >
 |---|---|---|---|
 | GitHub Repo | README、About、Contributors | `web_fetch.py` | `python3 .trellis/scripts/search/web_fetch.py "https://github.com/{org}/{repo}"` |
 | GitHub Issues | Top 3-5 高质量 Issue | `web_fetch.py` | `python3 .trellis/scripts/search/web_fetch.py "https://github.com/{org}/{repo}/issues?q=sort:comments-desc"` |
-| 中文社区 | 深度评测、使用经验 | `web_search.py` | `python3 .trellis/scripts/search/web_search.py "<project> 评测 使用体验 site:zhihu.com OR site:v2ex.com"` |
-| 技术博客 | 技术架构分析 | `web_search.py` + `web_fetch.py` | Search-then-Fetch 模式（见下方） |
-| 讨论区 | 用户反馈、槽点 | `web_search.py` | `python3 .trellis/scripts/search/web_search.py "<project> discussion experience reddit OR v2ex"` |
-| 竞品分析 | 同赛道对比 | `web_search.py` | `python3 .trellis/scripts/search/web_search.py "<project> vs alternatives compare"` |
+| 中文社区 | 深度评测、使用经验 | `grok-search MCP` | `mcp__grok-search__web_search` → `mcp__grok-search__get_sources` |
+| 技术博客 | 技术架构分析 | `grok-search MCP` + `web_fetch.py` | Search-then-Fetch 模式（见下方） |
+| 讨论区 | 用户反馈、槽点 | `grok-search MCP` | `mcp__grok-search__web_search` → `mcp__grok-search__get_sources` |
+| 竞品分析 | 同赛道对比 | `grok-search MCP` | `mcp__grok-search__web_search` → `mcp__grok-search__get_sources` |
 | 知识图谱 | DeepWiki/Zread 收录情况 | `web_fetch.py` | 直接抓取 `https://deepwiki.com/{org}/{repo}` 和 `https://zread.ai/{org}/{repo}` |
 | 项目依赖库文档 | API 用法、版本特性 | Context7 | `mcp__context7__resolve-library-id` → `mcp__context7__query-docs` |
 
@@ -61,20 +57,20 @@ description: >
 | 场景 | 层级 | 工具 | 示例 |
 |------|------|------|------|
 | **项目依赖库文档** | Layer 0 | Context7 | `mcp__context7__resolve-library-id(libraryName="<lib>", query="<question>")` → `mcp__context7__query-docs(libraryId="<id>", query="<question>")` |
-| **快速事实查询** | Layer 1 | `web_search.py` | `python3 .trellis/scripts/search/web_search.py "What is <project>?"` |
-| **多源对比/社区声量** | Layer 2 | `web_search.py` + `web_fetch.py` | Search-then-Fetch：先搜索获取 URL 列表，再抓取关键页面全文 |
-| **深度技术调研** | Layer 3 | `web_search.py` + `web_fetch.py` | 多轮搜索+抓取，综合分析 |
-| **GitHub 代码搜索** | Grok | `web_search.py` | `python3 .trellis/scripts/search/web_search.py "<query>" --platform github` |
+| **快速事实查询** | Layer 1 | `grok-search MCP` | `mcp__grok-search__web_search` |
+| **多源对比/社区声量** | Layer 2 | `grok-search MCP` + `web_fetch.py` | Search-then-Fetch：先搜索获取 URL 列表，再抓取关键页面全文 |
+| **深度技术调研** | Layer 3 | `grok-search MCP` + `web_fetch.py` | 多轮搜索+抓取，综合分析 |
+| **GitHub 代码搜索** | Grok | `grok-search MCP` | `mcp__grok-search__web_search` with `platform="GitHub"` |
 
 #### Search-then-Fetch 模式（Layer 2 标准流程）
 
 用于技术博客、社区讨论等需要全文内容的场景：
 
 ```
-Step 1: python3 .trellis/scripts/search/web_search.py "<project> architecture deep dive"
-        → 返回结构化结果：标题、URL、摘要
+Step 1: `mcp__grok-search__web_search` 查询 "<project> architecture deep dive"
+        → 返回搜索结论与 session_id
 
-Step 2: 从结果中挑选 2-3 个最相关的 URL
+Step 2: 用 `mcp__grok-search__get_sources(session_id)` 取回来源列表，从中挑选 2-3 个最相关的 URL
 
 Step 3: python3 .trellis/scripts/search/web_fetch.py "<url1>"
         python3 .trellis/scripts/search/web_fetch.py "<url2>"
@@ -94,11 +90,11 @@ Step 4: 综合分析，引用所有来源
 3. **Tier 3**: Tavily Extract API — 需 TAVILY_API_KEY
 
 当 `web_fetch.py` 所有 tier 均失败时（如严格反爬站点）：
-- 尝试 `web_search.py` 获取该页面的摘要信息作为替代
+- 优先尝试 `mcp__grok-search__web_search` 获取该页面或主题的摘要信息作为替代
 - 如仍需全文，告知用户手动提供内容
 
 **高风险域名**（`mp.weixin.qq.com`, `zhihu.com`, `xiaohongshu.com`）：
-- 优先用 `web_search.py` 搜索相关内容摘要，避免直接抓取
+- 优先用 `mcp__grok-search__web_search` 搜索相关内容摘要，避免直接抓取
 - 如需原文，尝试 `web_fetch.py`（Tavily tier 可能成功），失败则标注"无法获取全文"
 
 ### Phase 3: 分析研判
@@ -204,9 +200,9 @@ Step 4: 综合分析，引用所有来源
 
 ## Execution Notes
 
-- 优先使用 `web_search.py` + `web_fetch.py` 进行 GitHub 信息采集
-- 社区声量和竞品分析使用 `web_search.py`（Layer 2），需要全文时追加 `web_fetch.py`
-- 深度技术调研使用多轮 `web_search.py` + `web_fetch.py`（Layer 3）
+- 优先使用 `grok-search` MCP + `web_fetch.py` 进行 GitHub 信息采集
+- 社区声量和竞品分析优先使用 `mcp__grok-search__web_search`（Layer 2），需要全文时追加 `web_fetch.py`
+- 深度技术调研使用多轮 `mcp__grok-search__web_search` + `web_fetch.py`（Layer 3）
 - 并行采集不同来源以提高效率（独立的 Bash 调用和 MCP 调用可并行）
 - 所有链接必须真实可访问，不要编造 URL
 - 中文输出，技术术语保留英文
@@ -215,8 +211,9 @@ Step 4: 综合分析，引用所有来源
 
 | 工具不可用 | 降级方案 |
 |---|---|
-| `web_search.py` 不可用（GROK_API_KEY 未配置） | 使用 agent 自身知识回答（标注知识截止日期） |
-| `web_fetch.py` 全部 tier 失败 | `web_search.py` 获取摘要；告知用户手动提供全文 |
+| `grok-search` MCP 不可用 | 回退到 `web_search.py`；如脚本也不可用，再使用 agent 自身知识回答（标注知识截止日期） |
+| `web_search.py` 不可用（GROK_API_KEY 未配置） | 若 `grok-search` MCP 可用则继续使用 MCP；否则使用 agent 自身知识回答（标注知识截止日期） |
+| `web_fetch.py` 全部 tier 失败 | `mcp__grok-search__web_search` 获取摘要；告知用户手动提供全文 |
 | `web_map.py` 不可用（TAVILY_API_KEY 未配置） | 跳过文档站点结构发现，不影响核心流程 |
 | Context7 库未收录 | 使用 agent 自身知识回答（标注知识截止日期） |
 | 所有外部工具不可用 | 基于 agent 自身知识回答（标注知识截止日期） |
@@ -240,7 +237,8 @@ Step 4: 综合分析，引用所有来源
 
 | 依赖 | 类型 | 用途 | 必需 |
 |------|------|------|------|
-| `web_search.py` | 项目脚本 (`.trellis/scripts/search/`) | Grok API 搜索（GitHub 定位、代码搜索） | 否（可用 agent 知识替代） |
+| `grok-search` MCP | MCP 工具 | 首选实时搜索、GitHub 定位、社区/竞品来源发现 | 否（可回退到 `web_search.py`） |
+| `web_search.py` | 项目脚本 (`.trellis/scripts/search/`) | Grok API 搜索 fallback（当 MCP 不可用时） | 否（可用 agent 知识替代） |
 | `web_fetch.py` | 项目脚本 (`.trellis/scripts/search/`) | 3-tier Markdown 抓取（repo 页面、Issue、博客） | 是 |
 | `web_map.py` | 项目脚本 (`.trellis/scripts/search/`) | 站点结构发现（文档站点） | 否 |
 | `resolve-library-id` / `query-docs` | Context7 MCP | 项目依赖库文档查询（Layer 0） | 否 |

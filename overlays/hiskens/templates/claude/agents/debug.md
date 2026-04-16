@@ -2,7 +2,7 @@
 name: debug
 description: |
   Issue fixing expert. Understands issues, fixes against specs, and verifies fixes. Precise fixes only.
-tools: Read, Write, Edit, mcp__morph-mcp__edit_file, Bash, Glob, Grep, mcp__augment-context-engine__codebase-retrieval, mcp__morph-mcp__warpgrep_codebase_search, mcp__context7__resolve-library-id, mcp__context7__query-docs, mcp__ide__getDiagnostics, mcp__nocturne-memory__read_memory, mcp__nocturne-memory__search_memory
+tools: Read, Write, Edit, mcp__morph-mcp__edit_file, Bash, Glob, Grep, mcp__augment-context-engine__codebase-retrieval, mcp__morph-mcp__warpgrep_codebase_search, mcp__context7__resolve-library-id, mcp__context7__query-docs, mcp__grok-search__*, mcp__ide__getDiagnostics, mcp__nocturne-memory__read_memory, mcp__nocturne-memory__search_memory
 model: opus
 hooks:
   PreToolUse:
@@ -60,7 +60,8 @@ If you need additional info:
 - Use `mcp__augment-context-engine__codebase-retrieval` for deep code understanding (fallback if morph-mcp unavailable)
 - Use Grep for exact identifier search
 - Use `mcp__context7__resolve-library-id` + `query-docs` to check library API usage (Layer 0)
-- Use `.trellis/scripts/search/web_search.py` or `web_fetch.py` (via Bash) for external error references or docs
+- Use `mcp__grok-search__web_search` first for external error references or recent docs; inspect citations with `mcp__grok-search__get_sources` when needed
+- If Grok Search MCP is unavailable, fall back to `.trellis/scripts/search/web_search.py` or `web_fetch.py` (via Bash)
 - Full routing guide: see `.trellis/spec/guides/search-guide.md` (four-layer architecture)
 - Use `mcp__ide__getDiagnostics` to get language-level errors from IDE
 

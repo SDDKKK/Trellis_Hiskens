@@ -1,6 +1,6 @@
 # External Search Strategy Guide
 
-> **Purpose**: Unified routing for all external information retrieval -- Context7 (library docs), Grok Scripts (web search/fetch/map). Three-layer architecture from free/fast to comprehensive.
+> **Purpose**: Unified routing for all external information retrieval -- Context7 (library docs), Grok Search MCP (preferred live web search), and project Grok scripts (fallback search plus robust fetch/map). Three-layer architecture from free/fast to comprehensive.
 
 ---
 
@@ -14,10 +14,11 @@ Without a clear tool routing policy:
 - Search results lack source attribution
 - Failed searches get abandoned instead of retried
 
-The project provides two complementary external search toolsets:
+The project provides three complementary external search toolsets:
 
 - **Context7 MCP** (`resolve-library-id` / `query-docs`): Library documentation and code examples (free, fastest)
-- **Grok Scripts** (`.trellis/scripts/search/`): Web search, URL content extraction, site mapping (via Bash)
+- **Grok Search MCP** (`mcp__grok-search__web_search` / `mcp__grok-search__get_sources`): Preferred live web search and source inspection
+- **Project Grok Scripts** (`.trellis/scripts/search/`): Fallback web search plus URL content extraction and site mapping (via Bash)
 
 ---
 
@@ -37,14 +38,14 @@ This module activates automatically in these scenarios:
 
 ### Mandatory Replacement Rules
 
-Built-in WebSearch/WebFetch are disabled in `settings.json`. All web searches are done via MCP tools or Bash calls to project scripts.
+Built-in WebSearch/WebFetch are disabled in `settings.json`. Prefer Grok Search MCP for live search. Use project scripts as fallback or when you need the local multi-tier fetch/map behavior.
 
 | Scenario | Disabled (Built-in) | Usage |
 |----------|---------------------|-------|
 | Library docs | N/A | `mcp__context7__resolve-library-id` → `mcp__context7__query-docs` |
-| Quick answer | `WebSearch` | `Bash("uv run .trellis/scripts/search/web_search.py '<query>'")` |
-| Structured search | `WebSearch` | `Bash("uv run .trellis/scripts/search/web_search.py '<query>'")` |
-| Deep research | `WebSearch` | Multiple `web_search.py` + `web_fetch.py` rounds |
+| Quick answer | `WebSearch` | `mcp__grok-search__web_search` |
+| Structured search | `WebSearch` | `mcp__grok-search__web_search` → `mcp__grok-search__get_sources` → `web_fetch.py` |
+| Deep research | `WebSearch` | Multiple `mcp__grok-search__web_search` rounds + `web_fetch.py` |
 | Web fetch | `WebFetch` | `Bash("uv run .trellis/scripts/search/web_fetch.py '<url>'")` |
 | Site map | N/A | `Bash("uv run .trellis/scripts/search/web_map.py '<url>'")` |
 
@@ -54,7 +55,9 @@ Built-in WebSearch/WebFetch are disabled in `settings.json`. All web searches ar
 |------|------------|--------|----------|
 | `context7..resolve-library-id` | `libraryName`, `query` | Library ID | Resolve library name to Context7 ID |
 | `context7..query-docs` | `libraryId`, `query` | Docs + code examples | Query library documentation |
-| `web_search.py` | `<query>` (required), `--platform <p>`, `--model <m>` (optional) | Structured text | Platform-targeted search, code search |
+| `mcp__grok-search__web_search` | `query`, `platform` (optional), `extra_sources` (optional) | Search answer + source cache session | Preferred live web search, platform-targeted search |
+| `mcp__grok-search__get_sources` | `session_id` | Cached source list | Inspect citations returned by Grok Search MCP |
+| `web_search.py` | `<query>` (required), `--platform <p>`, `--model <m>` (optional) | Structured text | Fallback web search when MCP is unavailable |
 | `web_fetch.py` | `<url>` (required) | Structured Markdown | Full content extraction / deep analysis |
 | `web_map.py` | `<url>` (required), `--depth N`, `--breadth N`, `--limit N` (optional) | JSON site map | Site structure discovery |
 
@@ -62,12 +65,12 @@ Built-in WebSearch/WebFetch are disabled in `settings.json`. All web searches ar
 
 ## Environment Variables
 
-Scripts use the following environment variables:
+`grok-search` MCP is configured globally at the CLI level. The variables below apply to the project-local scripts and may also be reused by the MCP server depending on your global setup.
 
 | Variable | Used by | Description |
 |----------|---------|-------------|
-| `GROK_API_URL` | web_search.py | Grok API base URL |
-| `GROK_API_KEY` | web_search.py | Grok API key |
+| `GROK_API_URL` | web_search.py (fallback) | Grok API base URL |
+| `GROK_API_KEY` | web_search.py (fallback) | Grok API key |
 | `JINA_API_KEY` | web_fetch (tier 2) | Jina Reader API key (optional, free tier: 20 RPM without key, 500 RPM with free key) |
 | `TAVILY_API_KEY` | web_fetch (tier 4), web_map | Tavily API key |
 | `TAVILY_API_URL` | web_map | Tavily URL (default: `https://api.tavily.com`) |
@@ -88,24 +91,24 @@ Need information?
 |   +-- Know exact identifier? --> Grep
 |   +-- Broad semantic search? --> warpgrep (preferred) or codebase-retrieval (fallback)
 |   +-- Deep code understanding? --> codebase-retrieval
-|   +-- Need code examples from web? --> web_search.py --platform github
+|   +-- Need code examples from web? --> mcp__grok-search__web_search (platform=GitHub) or web_search.py --platform github
 |
 +-- Is it about a LIBRARY/FRAMEWORK? (API usage, version-specific behavior)
 |   |
 |   +-- Known library name? --> Context7 (Layer 0: resolve-library-id → query-docs)
-|   +-- Context7 has no results? --> web_search.py (Layer 1 fallback)
+|   +-- Context7 has no results? --> mcp__grok-search__web_search (Layer 1 fallback)
 |
 +-- Is it a SIMPLE QUESTION? (fact, concept, quick lookup)
 |   |
-|   +-- --> web_search.py (Layer 1)
+|   +-- --> mcp__grok-search__web_search (Layer 1)
 |
 +-- Need MULTIPLE SOURCES / COMPARISON? (alternatives, best practices)
 |   |
-|   +-- --> web_search.py → web_fetch.py for key URLs (Layer 2 pipeline)
+|   +-- --> mcp__grok-search__web_search → web_fetch.py for key URLs (Layer 2 pipeline)
 |
 +-- Need DEEP RESEARCH? (architecture decisions, complex trade-offs)
 |   |
-|   +-- --> Multiple web_search.py + web_fetch.py rounds (Layer 2 iterative)
+|   +-- --> Multiple mcp__grok-search__web_search rounds + web_fetch.py (Layer 2 iterative)
 |
 +-- Have a SPECIFIC URL to read? --> web_fetch.py (irreplaceable)
 +-- Need SITE STRUCTURE?         --> web_map.py (irreplaceable)
@@ -125,10 +128,10 @@ Need information?
 | Scenario | Tool | Layer |
 |----------|------|-------|
 | Library API usage / code examples | Context7 (`resolve-library-id` → `query-docs`) | 0 |
-| Simple fact / concept explanation | `web_search.py` | 1 |
-| Find multiple sources / compare options | `web_search.py` + `web_fetch.py` | 2 |
-| Architecture decision / deep research | Multiple `web_search.py` + `web_fetch.py` rounds | 2 |
-| Platform-targeted search (GitHub, etc.) | `web_search.py --platform github` | 1 |
+| Simple fact / concept explanation | `mcp__grok-search__web_search` | 1 |
+| Find multiple sources / compare options | `mcp__grok-search__web_search` + `web_fetch.py` | 2 |
+| Architecture decision / deep research | Multiple `mcp__grok-search__web_search` rounds + `web_fetch.py` | 2 |
+| Platform-targeted search (GitHub, etc.) | `mcp__grok-search__web_search` or `web_search.py --platform github` | 1 |
 | Fetch full content from a URL | `web_fetch.py` | — |
 | Discover site link structure | `web_map.py` | — |
 | Broad semantic code search | `warpgrep` (preferred) or `codebase-retrieval` | Local |
@@ -147,12 +150,12 @@ Before selecting a layer, classify the query intent. Intent determines layer and
 
 | Intent | Signal Words | Recommended Layer |
 |--------|-------------|-------------------|
-| **Factual** | "what is X", "X definition", "什么是X", "X的定义" | Layer 1 (web_search) |
-| **Status** | "latest X", "X最新进展", "X update", time-implying words | Layer 1 (web_search) |
-| **Comparison** | "X vs Y", "X和Y区别", "X or Y", "compare" | Layer 2 (web_search + web_fetch) |
+| **Factual** | "what is X", "X definition", "什么是X", "X的定义" | Layer 1 (grok-search web_search) |
+| **Status** | "latest X", "X最新进展", "X update", time-implying words | Layer 1 (grok-search web_search) |
+| **Comparison** | "X vs Y", "X和Y区别", "X or Y", "compare" | Layer 2 (grok-search web_search + web_fetch) |
 | **Tutorial** | "how to X", "怎么做X", "X教程", "X tutorial" | Layer 0 (Context7) → Layer 1 |
 | **Exploratory** | "深入了解X", "X生态", "about X", "X ecosystem" | Layer 2 (multiple rounds) |
-| **News** | "X新闻", "本周X", "X this week", "X announcement" | Layer 1 (web_search) |
+| **News** | "X新闻", "本周X", "X this week", "X announcement" | Layer 1 (grok-search web_search) |
 | **Resource** | "X官网", "X GitHub", "X文档", "X docs", "X repo" | Layer 0 (Context7) / Layer 1 |
 
 **Intent Priority** (when multiple match): Resource > News > Status > Comparison > Tutorial > Factual > Exploratory
@@ -185,15 +188,15 @@ Determine the appropriate layer based on intent classification:
 | Query Type | Layer | Primary Tool |
 |------------|-------|-------------|
 | "How to use polars `group_by`?" | 0 | Context7 |
-| "What is WAL mode in SQLite?" | 1 | web_search.py |
-| "Compare SQLite vs DuckDB for analytics" | 2 | web_search.py + web_fetch.py |
-| "Best architecture for real-time reliability monitoring" | 2 | Multiple web_search.py + web_fetch.py rounds |
+| "What is WAL mode in SQLite?" | 1 | `mcp__grok-search__web_search` |
+| "Compare SQLite vs DuckDB for analytics" | 2 | `mcp__grok-search__web_search` + `web_fetch.py` |
+| "Best architecture for real-time reliability monitoring" | 2 | Multiple `mcp__grok-search__web_search` rounds + `web_fetch.py` |
 
 ### Phase 2: Search Execution
 
 1. **Start at the lowest sufficient layer** -- don't jump to Layer 2 for a simple API question
 2. **Escalate if needed** -- if Layer 0 returns nothing, try Layer 1; if Layer 1 is too shallow, escalate to Layer 2
-3. **Combine tools within a layer** -- Layer 2 uses web_search for discovery + web_fetch for full content
+3. **Combine tools within a layer** -- Layer 2 uses Grok Search MCP for discovery + `web_fetch.py` for full content
 4. **Iterative retrieval** -- if first-round results don't meet needs, adjust query terms and retry (never abandon)
 
 ### Phase 3: Result Synthesis
@@ -228,7 +231,7 @@ Match confidence level to source quality:
 Use when you need multiple sources with full content from key URLs.
 
 ```text
-Step 1: web_search.py "<query>"
+Step 1: mcp__grok-search__web_search("<query>")
         → Returns structured results: titles, URLs, snippets
 
 Step 2: Identify 2-3 most relevant URLs from results
@@ -245,12 +248,12 @@ Step 4: Synthesize findings, cite all sources
 Use for architecture decisions or complex trade-offs requiring comprehensive analysis.
 
 ```text
-Step 1: web_search.py "<broad query>"
+Step 1: mcp__grok-search__web_search("<broad query>")
         → Returns initial results with URLs
 
 Step 2: web_fetch.py on key URLs for full content
 
-Step 3: web_search.py "<refined follow-up query>"
+Step 3: mcp__grok-search__web_search("<refined follow-up query>")
         → Fills gaps from initial round
 
 Step 4: web_fetch.py on additional URLs
@@ -263,7 +266,7 @@ Step 5: Synthesize into decision recommendation with evidence
 Use when searching for code examples on specific platforms.
 
 ```text
-Step 1: web_search.py "<query>" --platform github
+Step 1: mcp__grok-search__web_search("<query>", platform="GitHub")
         → Returns code-focused results from GitHub
 
 Step 2: web_fetch.py "<repo-url>" for full implementation details
@@ -279,23 +282,28 @@ Step 3: Adapt patterns to project context
 
 | Layer | Primary Tool | Fallback | When to Degrade |
 |-------|-------------|----------|-----------------|
-| 0 | Context7 | web_search.py | Library not in Context7 index, or no relevant results |
-| 1 | web_search.py | Agent's own knowledge (with caveat) | GROK_API_KEY not configured |
-| 2 | web_search.py + web_fetch.py | Context7 + agent knowledge | Both API keys missing |
+| 0 | Context7 | `mcp__grok-search__web_search` | Library not in Context7 index, or no relevant results |
+| 1 | `mcp__grok-search__web_search` | `web_search.py`, then agent knowledge (with caveat) | Grok Search MCP unavailable |
+| 2 | `mcp__grok-search__web_search` + `web_fetch.py` | `web_search.py` + `web_fetch.py` | Grok Search MCP unavailable |
 | — | web_fetch.py | (no equivalent) | Try all 5 tiers; anti-bot domains skip tier 1-2; MinerU as last resort; if all fail, ask user to provide content |
 
 ### Degradation Rules
 
-1. **Grok API key not configured** (GROK_API_KEY missing):
+1. **Grok Search MCP unavailable or not installed**:
+   - `mcp__grok-search__web_search` → fall back to `web_search.py`, then Context7 or agent knowledge with explicit caveat
+   - `web_fetch.py` still works (uses Jina/Cloudflare/Tavily/MinerU, not Grok Search MCP)
+   - `web_map.py` still works (uses Tavily API)
+
+2. **Grok API key not configured for scripts** (`GROK_API_KEY` missing):
    - `web_search.py` → fall back to Context7 for library queries, or agent knowledge with explicit caveat
    - `web_fetch.py` still works (uses Jina/Cloudflare/Tavily/MinerU, not Grok API)
    - `web_map.py` still works (uses Tavily API)
 
-2. **Context7 library not found**:
-   - `resolve-library-id` returns no match → `web_search.py` with library name + question
+3. **Context7 library not found**:
+   - `resolve-library-id` returns no match → `mcp__grok-search__web_search` with library name + question
    - Or target official docs site directly with `web_fetch.py`
 
-3. **All external tools unavailable**:
+4. **All external tools unavailable**:
    - Fall back to agent's own knowledge (with explicit caveat about knowledge cutoff)
    - Ask user to provide the needed information
 
@@ -305,8 +313,8 @@ Step 3: Adapt patterns to project context
 
 | Error Type | Affected Tool | Diagnosis | Recovery |
 |------------|--------------|-----------|----------|
-| Connection failure | Grok Scripts | Check if GROK_API_URL / GROK_API_KEY are set | Fall back to Context7 or agent knowledge |
-| Library not found | Context7 | `resolve-library-id` returns no match | Use web_search.py |
+| Connection failure | Grok Search MCP / Grok Scripts | Check MCP availability, then `GROK_API_URL` / `GROK_API_KEY` for scripts | Fall back to scripts, Context7, or agent knowledge |
+| Library not found | Context7 | `resolve-library-id` returns no match | Use `mcp__grok-search__web_search` |
 | No search results | Any | Query too specific or niche | Broaden search terms, try different layer |
 | Web fetch timeout | web_fetch.py | URL inaccessible or slow | Try alternative sources or ask user |
 | Anti-bot domain | web_fetch.py | Known anti-bot site (zhihu, weixin, etc.) | Tier 1-2 auto-skipped; MinerU (tier 5) as last resort; if all fail, ask user to provide content |
@@ -323,7 +331,7 @@ Step 3: Adapt patterns to project context
 | Assume web content without fetching | Must call `web_fetch.py` to verify critical information |
 | Ignore timeliness of search results | Time-sensitive information must include dates |
 | Use external search tools for project code | Use Grep / codebase-retrieval for project code |
-| Use Augment to search general web information | Use Grok Scripts for general web info |
+| Use Augment to search general web information | Use Grok Search MCP first; use Grok Scripts as fallback |
 | Jump to Layer 2 for a simple API question | Start at lowest sufficient layer (Layer 0 for library docs) |
 | Ignore Context7 for known library queries | Always try Context7 first for library/framework docs (free, fast) |
 
@@ -339,7 +347,7 @@ Step 3: Adapt patterns to project context
 ```text
 1. mcp__context7__resolve-library-id(libraryName="polars", query="group_by syntax")
 2. mcp__context7__query-docs(libraryId="<id>", query="group_by new syntax 0.20")
-3. If Context7 has no results → web_search.py "polars 0.20 group_by new syntax"
+3. If Context7 has no results → `mcp__grok-search__web_search` with query `"polars 0.20 group_by new syntax"`
 ```
 
 ### Example 2: Quick Fact Check (Layer 1)
@@ -348,7 +356,7 @@ Step 3: Adapt patterns to project context
 
 **Workflow**:
 ```text
-1. web_search.py "SQLite WAL mode WSL known issues"
+1. `mcp__grok-search__web_search` with query `"SQLite WAL mode WSL known issues"`
 2. If results reference specific discussions → web_fetch.py on key URLs for full content
 3. Output conclusion + source links
 ```
@@ -359,7 +367,7 @@ Step 3: Adapt patterns to project context
 
 **Workflow**:
 ```text
-1. web_search.py "polars vs pandas large CSV processing performance benchmarks"
+1. `mcp__grok-search__web_search` with query `"polars vs pandas large CSV processing performance benchmarks"`
 2. Pick 2-3 most relevant URLs from results (benchmark blog, official docs)
 3. web_fetch.py on each for full content
 4. Synthesize comparison table with citations
@@ -371,9 +379,9 @@ Step 3: Adapt patterns to project context
 
 **Workflow**:
 ```text
-1. web_search.py "SQLite vs DuckDB analytical queries 10M rows benchmarks"
+1. `mcp__grok-search__web_search` with query `"SQLite vs DuckDB analytical queries 10M rows benchmarks"`
 2. web_fetch.py on cited benchmark URLs for verification
-3. web_search.py "DuckDB Python polars integration" (follow-up)
+3. `mcp__grok-search__web_search` with query `"DuckDB Python polars integration"` (follow-up)
 4. Synthesize into decision recommendation
 ```
 
@@ -383,7 +391,7 @@ Step 3: Adapt patterns to project context
 
 **Workflow**:
 ```text
-1. web_search.py "FMEA failure mode effects analysis Python implementation" --platform github
+1. `mcp__grok-search__web_search` with query `"FMEA failure mode effects analysis Python implementation"` and `platform="GitHub"`
 2. web_fetch.py on promising repository URLs
 3. Analyze code patterns for adaptation
 ```
@@ -392,12 +400,12 @@ Step 3: Adapt patterns to project context
 
 ## Agent Tool Configuration (Current State)
 
-| Agent | Augment | Morph | Context7 | Grok Scripts | IDE | Recommended Layers |
+| Agent | Augment | Morph | Context7 | Grok Search MCP / Scripts | IDE | Recommended Layers |
 |-------|:---:|:---:|:---:|:---:|:---:|-----|
-| research | ✅ (fallback) | ✅ (warpgrep) | ✅ | ✅ (all) | — | All layers (0-2) |
-| implement | ✅ (fallback) | ✅ (warpgrep, edit_file) | ✅ | ✅ (search, fetch) | ✅ | Layer 0, Grok only |
+| research | ✅ (fallback) | ✅ (warpgrep) | ✅ | ✅ (MCP first, scripts fallback) | — | All layers (0-2) |
+| implement | ✅ (fallback) | ✅ (warpgrep, edit_file) | ✅ | ✅ (search, fetch fallback) | ✅ | Layer 0, Grok only |
 | check | ✅ (fallback) | ✅ (warpgrep, edit_file) | — | — | ✅ | Local only |
-| debug | ✅ (fallback) | ✅ (warpgrep, edit_file) | ✅ | ✅ (search, fetch) | ✅ | Layer 0, Grok only |
+| debug | ✅ (fallback) | ✅ (warpgrep, edit_file) | ✅ | ✅ (search, fetch fallback) | ✅ | Layer 0, Grok only |
 | dispatch | ✅ | — | — | — | — | Local only |
 | plan | ✅ (fallback) | ✅ (warpgrep) | ✅ | — | — | Layer 0 only |
 
@@ -405,7 +413,8 @@ Step 3: Adapt patterns to project context
 > - **Augment** (`codebase-retrieval`): Deep semantic understanding, use when `warpgrep` unavailable
 > - **Morph** (`warpgrep_codebase_search`): Broad semantic search, multi-turn parallel, preferred for large codebases
 > - **Morph** (`edit_file`): Fast partial file edits, preferred over Edit/Write
-> - Grok Scripts are called via the Bash tool; no MCP tool declaration needed. Any agent with Bash permission can use them.
+> - Grok Search MCP is the preferred live-search route when the `grok-search` server is installed.
+> - Grok Scripts are the fallback route for search and the preferred local route for robust page extraction / site mapping.
 > - Only the research agent has access to all layers. Other agents should escalate to research agent for Layer 1-2 needs when possible.
 
 ---
@@ -416,22 +425,22 @@ Step 3: Adapt patterns to project context
 Layer 0: Library Docs (free, fastest)
   Tools: Context7 (resolve-library-id → query-docs)
   Trigger: Query targets a specific library/framework API or usage
-  Fallback: web_search.py
+  Fallback: mcp__grok-search__web_search
 
 Layer 1: Web Search (low cost)
-  Tools: web_search.py
+  Tools: mcp__grok-search__web_search
   Trigger: Simple fact, concept explanation, quick lookup, news
-  Fallback: Agent knowledge (with caveat)
+  Fallback: web_search.py, then agent knowledge (with caveat)
 
 Layer 2: Deep Research (comprehensive)
-  Tools: web_search.py + web_fetch.py (search→fetch pipeline, multi-round)
+  Tools: mcp__grok-search__web_search + web_fetch.py (search→fetch pipeline, multi-round)
   Trigger: Multiple sources needed, comparison, architecture decisions, complex research
-  Fallback: Context7 + agent knowledge
+  Fallback: web_search.py + web_fetch.py, then Context7 + agent knowledge
 
-Irreplaceable Capabilities (Grok Scripts only):
+Irreplaceable Capabilities (project Grok Scripts):
   → web_fetch.py: URL content extraction (5-tier Markdown fallback + unified Result Contract)
   → web_map.py: Site structure discovery
-  → web_search.py --platform github: Platform-targeted code search
+  → web_search.py: CLI fallback when Grok Search MCP is unavailable
 ```
 
 ### Local Codebase Search (Separate from External)
@@ -455,7 +464,7 @@ Local Layer: Codebase Search
 
 ## Standalone Scripts
 
-Project-local scripts are located in `.trellis/scripts/search/`, invoked via Bash:
+Project-local scripts are located in `.trellis/scripts/search/`, invoked via Bash. Treat them as the fallback/CLI route for search and the preferred local route for fetch/map:
 
 ### web_fetch.py — 5-tier Markdown Fetcher
 
@@ -506,12 +515,12 @@ uv run .trellis/scripts/search/web_map.py "https://docs.example.com" --depth 2 -
 
 - **In the project** → Grep (exact) / warpgrep (semantic) / codebase-retrieval (fallback) / Read
 - **Library/framework docs** → Context7 (Layer 0, free and fast)
-- **Quick fact or concept** → web_search.py (Layer 1)
-- **Multiple sources / comparison** → web_search.py + web_fetch.py (Layer 2)
-- **Deep research** → Multiple web_search.py + web_fetch.py rounds (Layer 2)
-- **Code examples from GitHub** → `web_search.py --platform github`
+- **Quick fact or concept** → `mcp__grok-search__web_search` (Layer 1)
+- **Multiple sources / comparison** → `mcp__grok-search__web_search` + `web_fetch.py` (Layer 2)
+- **Deep research** → Multiple `mcp__grok-search__web_search` rounds + `web_fetch.py` (Layer 2)
+- **Code examples from GitHub** → `mcp__grok-search__web_search` or `web_search.py --platform github`
 - **Full content from a URL** → `web_fetch.py`
 
-**Default escalation**: Context7 → web_search.py → web_search.py + web_fetch.py (multi-round)
+**Default escalation**: Context7 → `mcp__grok-search__web_search` → `mcp__grok-search__web_search` + `web_fetch.py` (multi-round)
 
 > **Always cite sources with `[title](URL)` format.**

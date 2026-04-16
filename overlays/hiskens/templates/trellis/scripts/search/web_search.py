@@ -9,6 +9,7 @@ Requires: GROK_API_URL, GROK_API_KEY
 import json
 import os
 import sys
+import urllib.error
 import urllib.request
 from urllib.parse import urlparse
 
@@ -19,6 +20,48 @@ SEARCH_PROMPT = (
     "Search the web for the following query and return structured results "
     "with title, URL, snippet, and source for each result."
 )
+
+
+def _payload_without_tools(payload: dict) -> dict:
+    """Return a shallow copy of a Responses payload without explicit tools."""
+    stripped = dict(payload)
+    stripped.pop("tools", None)
+    return stripped
+
+
+def _looks_like_duplicate_web_search_tools_error(status: int, body_text: str) -> bool:
+    """Detect proxies that auto-enable web search and reject explicit tools."""
+    if status not in {400, 422}:
+        return False
+    lowered = body_text.lower()
+    return "multiple web search tools" in lowered and "not supported" in lowered
+
+
+def _post_responses(api_url: str, api_key: str, payload: dict) -> tuple[bool, str, dict | None]:
+    """POST a Responses payload and normalize HTTP / decode failures."""
+    req = urllib.request.Request(
+        _common.join_api_url(api_url.rstrip("/"), "/responses"),
+        data=json.dumps(payload).encode(),
+        headers=_common.bearer_headers(api_key),
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            if resp.status != 200:
+                return (False, f"Error: HTTP {resp.status}", None)
+            try:
+                data = json.loads(resp.read())
+            except json.JSONDecodeError:
+                return (False, "Error: malformed response payload", None)
+            if not isinstance(data, dict):
+                return (False, "Error: malformed response payload", None)
+            return (True, "", data)
+    except urllib.error.HTTPError as exc:
+        body_text = exc.read().decode("utf-8", errors="replace")
+        if _looks_like_duplicate_web_search_tools_error(exc.code, body_text):
+            return (False, "__duplicate_web_search_tools__", None)
+        return (False, f"Error: HTTP Error {exc.code}: {exc.reason}", None)
+    except Exception as exc:
+        return (False, f"Error: {exc}", None)
 
 
 def _has_web_search_evidence(data: dict) -> bool:
@@ -172,31 +215,20 @@ def _search_core(
     effective_model = model or os.environ.get("GROK_MODEL", "grok-4.20-multi-agent")
     full_query = f"{query} (platform: {platform})" if platform else query
 
-    payload = json.dumps(
-        {
-            "model": effective_model,
-            "instructions": SEARCH_PROMPT,
-            "input": [{"role": "user", "content": full_query}],
-            "tools": [{"type": "web_search"}],
-        }
-    ).encode()
-
-    endpoint = _common.join_api_url(api_url.rstrip("/"), "/responses")
-    req = urllib.request.Request(
-        endpoint,
-        data=payload,
-        headers=_common.bearer_headers(api_key),
-    )
-
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            if resp.status != 200:
-                return (False, f"Error: HTTP {resp.status}", False, "")
-            data = json.loads(resp.read())
-    except Exception as e:
-        return (False, f"Error: {e}", False, "")
-    if not isinstance(data, dict):
-        return (False, "Error: malformed response payload", False, "")
+    payload = {
+        "model": effective_model,
+        "instructions": SEARCH_PROMPT,
+        "input": [{"role": "user", "content": full_query}],
+        "tools": [{"type": "web_search"}],
+    }
+    ok, error_text, data = _post_responses(api_url, api_key, payload)
+    if error_text == "__duplicate_web_search_tools__":
+        ok, error_text, data = _post_responses(
+            api_url, api_key, _payload_without_tools(payload)
+        )
+    if not ok:
+        return (False, error_text, False, "")
+    assert data is not None
 
     output = data.get("output", [])
     if not isinstance(output, list) or not output:
