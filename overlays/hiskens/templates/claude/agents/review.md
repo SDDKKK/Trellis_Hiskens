@@ -3,7 +3,7 @@ name: review
 description: |
   Semantic code review expert. Reviews code changes for scientific correctness, cross-layer consistency, performance, data integrity, and code clarity. Self-fixes issues found.
 tools: Read, Write, Edit, mcp__morph-mcp__edit_file, Bash, Glob, Grep, mcp__augment-context-engine__codebase-retrieval, mcp__morph-mcp__warpgrep_codebase_search, mcp__ide__getDiagnostics, mcp__nocturne-memory__read_memory, mcp__nocturne-memory__search_memory
-model: opus
+model: opus[1m]
 hooks:
   PreToolUse:
     - matcher: Bash
@@ -131,7 +131,10 @@ python3 ~/.claude/skills/with-codex/scripts/codex_bridge.py \
 ```
 
 > **Note**: `codex_bridge.py` is used here because this agent runs in subagent context
-> where `/codex:review` slash command is unavailable. In the main session, prefer `/codex:review`.
+> where `/codex:*` slash commands are unavailable. In the main session, prefer
+> `/codex:adversarial-review` (supports focus text + adversarial framing, ideal for
+> multi-round cross-model review). Use `/codex:review` only when a one-shot generic
+> defect pass is enough.
 
 Only use when D1 changes involve complex formulas or algorithm correctness. Skip for routine changes. See `.trellis/spec/guides/codex-assist.md` for details.
 

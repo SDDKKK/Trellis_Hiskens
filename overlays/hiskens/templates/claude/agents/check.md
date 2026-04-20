@@ -3,7 +3,7 @@ name: check
 description: |
   Code standards check expert. Runs programmatic verification (ruff check, ruff format) and self-fixes issues.
 tools: Read, Write, Edit, mcp__morph-mcp__edit_file, Bash, Glob, Grep, mcp__augment-context-engine__codebase-retrieval, mcp__morph-mcp__warpgrep_codebase_search, mcp__ide__getDiagnostics, mcp__nocturne-memory__read_memory, mcp__nocturne-memory__search_memory
-model: opus
+model: opus[1m]
 hooks:
   PreToolUse:
     - matcher: Bash

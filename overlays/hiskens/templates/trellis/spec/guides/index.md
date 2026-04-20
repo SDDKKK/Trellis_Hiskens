@@ -37,6 +37,7 @@ These guides help you **ask the right questions before coding**.
 | [Thinking Framework](./thinking-framework.md) | Think/Plan/Reflect methodology for main agent | When starting new tasks (Premise Challenge, Temporal Walk-through, Session Reflection) |
 | [Review Checklist](./review-checklist.md) | Two-pass review (CRITICAL/INFORMATIONAL) with Fix-First heuristic | When reviewing code changes for correctness and quality |
 | [Debug Methodology](./debug-methodology.md) | Five-phase systematic debugging with 3-Strike Rule | When investigating bugs — root cause first, no guessing |
+| [Background Task Monitoring](./background-task-monitoring.md) | Supervise Trellis Multi-Agent background dispatch with Monitor (tight jq filter) + Health Watchdog | When running `multi_agent/start.py` and need event-driven supervision without flooding main session |
 
 ## Quick Reference: Thinking Triggers
 
@@ -126,7 +127,11 @@ These guides help you **ask the right questions before coding**.
 
 → Read [Codex Assist Guide](./codex-assist.md)
 
-**Quick Rule**: Codex is slow (300s timeout) and optional. Only use when cross-model validation adds real value. Skip for routine tasks. review uses `--mode review`; others use `--mode exec --ephemeral`.
+**Quick Rule**: Codex is slow (300s timeout) and optional. Only use when cross-model validation adds real value. Skip for routine tasks. In main session, pick the slash command by intent:
+- Iterative cross-model review (challenge design/assumptions, multi-round) → `/codex:adversarial-review` *(default for review work)*
+- One-shot defect pass on a diff → `/codex:review`
+- Fix / patch / rescue work → `/codex:rescue`
+In subagent context, use `codex_bridge.py`: review uses `--mode review`; others use `--mode exec --ephemeral`.
 
 ### When to Think About Cross-Platform Issues (WSL)
 
@@ -225,6 +230,16 @@ These guides help you **ask the right questions before coding**.
 → Read [Debug Methodology](./debug-methodology.md)
 
 **Quick Rule**: Iron Law — no fixes without root cause. 5 phases: investigate → pattern match → hypothesis test (3-strike) → minimal fix → verify. >5 files changed → confirm blast radius.
+
+### When to Think About Supervising Background Tasks
+
+- [ ] You launched a Multi-Agent Pipeline via `multi_agent/start.py`
+- [ ] User is AFK and you need status when they return
+- [ ] A long-running dispatch (30-120 min) needs passive supervision without burning main-session context
+
+→ Read [Background Task Monitoring](./background-task-monitoring.md)
+
+**Quick Rule**: Monitor (tight filter: `parent_tool_use_id == null` + keyword) + Health Watchdog (PID check + log idle >15min). Both `persistent: true`. Silence alone is not success — watchdog catches hangs.
 
 ### When to Think About Finishing a Branch
 

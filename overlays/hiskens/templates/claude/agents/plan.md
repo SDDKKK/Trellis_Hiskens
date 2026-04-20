@@ -3,7 +3,7 @@ name: plan
 description: |
   Multi-Agent Pipeline planner. Analyzes requirements and produces a fully configured task directory ready for dispatch.
 tools: Read, Bash, Glob, Grep, Task, mcp__augment-context-engine__codebase-retrieval, mcp__morph-mcp__warpgrep_codebase_search, mcp__context7__resolve-library-id, mcp__context7__query-docs
-model: opus
+model: opus[1m]
 hooks:
   PreToolUse:
     - matcher: Bash

@@ -18,9 +18,11 @@ There are two ways to use Codex in Claude Code:
 ```
 Are you in a subagent context?
 ├── YES → Use codex_bridge.py (subagents cannot access /codex:*)
-└── NO (main session) → Is this user-initiated?
-    ├── YES → Use /codex:rescue or /codex:review
-    └── NO (automation) → Use codex_bridge.py
+└── NO (main session) → What is the intent?
+    ├── Iterative cross-model review (challenge design, multi-round) → /codex:adversarial-review  (recommended default for review work)
+    ├── One-shot generic defect pass on a diff                       → /codex:review
+    ├── Fix / patch / rescue / investigation                          → /codex:rescue
+    └── Automation only (no user in loop)                             → codex_bridge.py
 ```
 
 ### Decision Table
@@ -29,8 +31,9 @@ Are you in a subagent context?
 |----------|-----------|---------------------|
 | Trellis subagent (codex-implement) | Yes (`--context-file`) | No (unavailable) |
 | Agent second opinion (`--inject-context`) | Yes | No |
-| Ad-hoc user request in main session | No | `/codex:rescue` |
-| User wants code review | No | `/codex:review` |
+| Ad-hoc fix / patch / rescue in main session | No | `/codex:rescue` |
+| User wants iterative cross-model review (challenge design/assumptions) | No | `/codex:adversarial-review` *(default for review)* |
+| User wants a one-shot generic review pass | No | `/codex:review` |
 | Checking job status | No | `/codex:status` |
 | Oracle/consultant mode from subagent | Yes (`--query-type`) | No |
 
@@ -69,7 +72,10 @@ Agents sometimes benefit from a second model's perspective -- reviewing scientif
 Script path: `~/.claude/skills/with-codex/scripts/codex_bridge.py`
 
 > **Context Guide**: The templates below are for **subagent and automation use**.
-> For ad-hoc tasks in the main session, use `/codex:rescue` instead.
+> For ad-hoc tasks in the main session, pick the plugin command by intent:
+> - Iterative cross-model review (design-challenge, multi-round) → `/codex:adversarial-review` *(default)*
+> - One-shot generic defect pass → `/codex:review`
+> - Fix / patch / rescue → `/codex:rescue`
 
 ### Exec Mode (general tasks)
 
@@ -84,7 +90,7 @@ python3 ~/.claude/skills/with-codex/scripts/codex_bridge.py \
 
 ### Review Mode (diff-aware code review)
 
-**Context**: Subagent cross-model review (main session: use `/codex:review`)
+**Context**: Subagent cross-model review (main session: prefer `/codex:adversarial-review` for iterative/challenge framing; use `/codex:review` only for a one-shot generic pass)
 ```bash
 python3 ~/.claude/skills/with-codex/scripts/codex_bridge.py \
   --mode review --cd "$(pwd)" --full-auto \
@@ -116,7 +122,10 @@ Parse `agent_messages` for the response content. Save `SESSION_ID` if you need f
 
 > **Note**: These patterns use `codex_bridge.py` because they run in **subagent context**
 > where `/codex:*` slash commands are unavailable. In the main session, prefer the
-> official plugin commands (`/codex:rescue`, `/codex:review`).
+> official plugin commands:
+> - `/codex:adversarial-review` — iterative cross-model review (design challenge, multi-round) — **default for review work**
+> - `/codex:review` — one-shot generic defect pass
+> - `/codex:rescue` — fix / patch / rescue / investigation
 
 ### review agent: Cross-Model Review
 
@@ -131,7 +140,10 @@ python3 ~/.claude/skills/with-codex/scripts/codex_bridge.py \
 
 Best for D1 (Scientific Correctness) verification on formula-heavy code.
 
-> **Main session alternative**: Use `/codex:review --uncommitted` instead.
+> **Main session alternative**: Prefer `/codex:adversarial-review` for iterative /
+> design-challenge review (supports focus text + adversarial framing, ideal for
+> multi-round cross-model review). Use `/codex:review --uncommitted` only for a
+> one-shot generic defect pass.
 
 ---
 
@@ -263,7 +275,9 @@ python3 ~/.claude/skills/with-codex/scripts/codex_bridge.py \
 | Forget `--ephemeral` on one-off queries | Always add `--ephemeral` unless you need multi-turn |
 | Ignore Codex timeout in tight loops | Use `--idle-timeout 60` for quick exec, `--timeout 600` for long tasks |
 | Block on Codex failure | Codex is optional; degrade gracefully |
-| Use `codex_bridge.py` for user-initiated tasks in main session | For user-initiated tasks in main session, use `/codex:rescue` |
+| Use `codex_bridge.py` for user-initiated tasks in main session | For user-initiated tasks in main session, pick the intent-matching slash command: `/codex:adversarial-review` (iterative review), `/codex:review` (one-shot pass), `/codex:rescue` (fix work) |
+| Use `/codex:rescue` for review work | `/codex:rescue` applies patches; for review-only work use `/codex:adversarial-review` (iterative, design-challenge) or `/codex:review` (one-shot pass) |
+| Use `/codex:review` for iterative cross-model review | `/codex:review` does not support focus text or adversarial framing — prefer `/codex:adversarial-review` when you plan to iterate on a specific concern across multiple rounds |
 
 ---
 
@@ -389,8 +403,9 @@ Available in the main Claude Code session only (not in subagents):
 
 | Command | Purpose | Key Flags |
 |---------|---------|-----------|
-| `/codex:rescue` | Delegate task to Codex | `--background`, `--wait`, `--resume`, `--fresh`, `--model`, `--effort` |
-| `/codex:review` | Review local git changes | `--wait`, `--background` |
+| `/codex:adversarial-review` | Iterative cross-model review — challenges implementation approach, design choices, tradeoffs, assumptions (supports focus text, default for review work) | `--wait`, `--background`, `--base <ref>`, `--scope auto\|working-tree\|branch`, trailing focus text |
+| `/codex:review` | One-shot generic defect pass over local git changes (no focus text, no adversarial framing) | `--wait`, `--background`, `--base <ref>`, `--scope auto\|working-tree\|branch` |
+| `/codex:rescue` | Delegate investigation / fix / patch work to Codex rescue subagent (executes changes, not review-only) | `--background`, `--wait`, `--resume`, `--fresh`, `--model`, `--effort` |
 | `/codex:status` | Show job progress | `[job-id]`, `--all`, `--wait` |
 | `/codex:result` | Show completed job output | `[job-id]` |
 | `/codex:cancel` | Cancel running job | `[job-id]` |
@@ -526,8 +541,12 @@ If omitted, the wrapper uses CCR's default route. Codex's model is always indepe
 
 **For subagent context**: Use `--inject-context` to automatically inject project specs via `codex_bridge.py`.
 
-**For main session ad-hoc tasks**: Prefer `/codex:rescue` over `codex_bridge.py` — it provides
-better UX with automatic context management, job tracking, and thread continuity.
+**For main session ad-hoc tasks**: Prefer the plugin slash commands over `codex_bridge.py` — they provide
+better UX with automatic context management, job tracking, and thread continuity. Pick by intent:
+
+- **Iterative cross-model review** (challenge design/assumptions, multi-round, focus text): `/codex:adversarial-review` — **default choice for review work**
+- **One-shot generic defect pass** on a diff: `/codex:review`
+- **Fix / patch / rescue / investigation** (executes changes): `/codex:rescue`
 
 ### Type Selection Guide (Subagent Context)
 
