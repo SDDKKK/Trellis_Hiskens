@@ -310,3 +310,90 @@ Completed Round 3 of task 04-15-downstream-sync-v0.4.0, synchronizing the latest
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: Sync hiskens overlay to Anhui_CIM + guide/skill updates
+
+**Date**: 2026-04-23
+**Task**: Sync hiskens overlay to Anhui_CIM + guide/skill updates
+**Package**: cli
+**Branch**: `main`
+
+### Summary
+
+(Add summary)
+
+### Main Changes
+
+## 本次会话做了什么
+
+用户发现 fork 有很多新改动需要同步到子项目（主要 Anhui），让我执行下游同步工作流。
+
+### 同步工作（Anhui_CIM）
+
+| 轮次 | Commit (in Anhui) | 触发源 | 主要内容 |
+|---|---|---|---|
+| 4 | `c0fbffb` | `ef56d94` + `3d3f875` | 7 个 agent → `model: opus[1m]`；statusline `SEP` 重命名 + ruff format；grok MCP 钩子；sub2api 钩子 |
+| 4b | `c2d9243` | `b8a4df7` (PR #1 merge) | 8 个 agent 迁移到 `rtk hook claude` 可移植命令（替代硬编码 `/home/hcx/...` 路径） |
+
+两轮都通过 `--create-new` 非破坏性冲突策略，保留本地 `worktree.yaml` / `.gitignore` / `settings.json`，accept overlay 的 agent/hook/skill/scripts。用户数据摘要 `cb4cbe52...` 两轮前后字节一致。
+
+Topo-Reliability 已通过自己平行提交（`ffa9a0b rtk hook claude`、`6dcbaf2 opus[1m]`）吸收所有变更，跳过。
+
+### 关键发现（本次最大的坑）
+
+**fork 本地 main 落后 origin/main 4 个提交** — 用户在 GitHub 上 merge 了 PR #1 `overlay/rtk-integration-refresh` 但没 `git pull`。如果直接从 stale 的 `ef56d94` 同步，会漏掉 `eab133f`（rtk 钩子迁移）和 `1eef0ea`（Python/MATLAB worktree.yaml）。Round 4 先从旧 HEAD 同步了一次，发现问题后 pull 到 `b8a4df7` 再做 Round 4b 补齐。
+
+由此沉淀成两条新 pitfall 写入 `fork-sync-guide.md`：
+- **P8**：下游同步前必须 `git pull --ff-only origin main` 验证 fork 在真实 tip
+- **P9**：同步后 `grep -HnE '^\s*command:' .claude/agents/*.md` 校验 hook 可移植性
+
+### 文档/工具更新（在 Hiskens 仓）
+
+**Updated Files**:
+- `.trellis/spec/guides/fork-sync-guide.md` — 新增 Pitfall 8 + Pitfall 9 + Anti-checklist 两条
+- `.trellis/tasks/04-23-downstream-sync-round4/` — 任务目录（PRD + 完整执行日志），本次会话末归档到 `archive/2026-04/`
+
+### 工具更新（在 `~/.claude/skills/`，不在 git 内）
+
+`trellis-upgrade` skill 完全重写：
+- 去掉已过时的 `~/.trellis/shared/` 符号链接 + `trellis-link.py` 架构描述（这套架构在当前机器根本不存在）
+- 改成基于 `overlays/hiskens/` + `trellis update --overlay hiskens --create-new` 的真实流程
+- 拆分"上游同步"（委托给 fork-sync-guide 的 Phase A/B/C）和"下游同步"（skill 主场）
+- 关键坑 P0/P0b/P3/P8/P9 全部纳入；consumer 项目清单固化到 skill
+- `references/checklist.md` 重写成 copy-paste 的下游同步验证清单
+- `references/upstream-docs.md` 版本号修到 v0.4.0
+
+### 遗留/待决定
+
+| 项目 | 状态 | 说明 |
+|---|---|---|
+| `baseline-main` | 未同步 | 还在用旧 `rtk-rewrite.sh` 路径 + `model: opus`（无 `[1m]`），工作区有未提交 benchmark CSVs，需先清理 |
+| `AutoResearchClawFork` | 不明 | 没有 `.trellis/.version`，`check.md` 无 `command:` 字段，overlay 状态不清晰 |
+
+## 为什么这次有两轮 commit
+
+Round 4 跑完才发现 fork main stale，补 pull 后补 Round 4b。两轮保留独立 commit（而不是 reset 重做）为的是留一份踩坑记录，便于后人看到"stale HEAD 同步会漏掉什么"。同时也是 P8 写进 guide 的实证。
+
+## Linter 小插曲
+
+Anhui 的 `pyproject.toml` 启用了 ruff 的 `N` (pep8-naming)，overlay 把 `sep` 改成 `SEP` 后在 Anhui 上触发 N806。fork 本仓 ruff 跑默认规则没 N，所以 overlay 源码是 lint-clean 的。本次策略是给 Anhui 的 statusline.py 加一行 `# noqa: N806 (overlay constant-style separator)` — 保留 overlay-fork 同名，同时满足 Anhui 较严的 lint，最小侵入。
+
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `f1ceb5e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
