@@ -9,7 +9,7 @@ hooks:
     - matcher: Bash
       hooks:
         - type: command
-          command: /home/hcx/.claude/hooks/rtk-rewrite.sh
+          command: rtk hook claude
 ---
 # Dispatch Agent
 
