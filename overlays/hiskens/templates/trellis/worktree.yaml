@@ -1,0 +1,78 @@
+# Hiskens Overlay Worktree Configuration
+# Overrides base `packages/cli/src/templates/trellis/worktree.yaml` for
+# scientific computing projects (Python/MATLAB). See RTK-INTEGRATION.md
+# for the rationale behind `rtk ruff` vs `uv run ruff`.
+#
+# All paths are relative to project root.
+
+#-------------------------------------------------------------------------------
+# Paths
+#-------------------------------------------------------------------------------
+
+# Worktree storage directory (relative to project root)
+worktree_dir: ../trellis-worktrees
+
+#-------------------------------------------------------------------------------
+# Files to Copy
+#-------------------------------------------------------------------------------
+
+# Files each worktree needs its own copy of. Hiskens defaults assume a
+# multi-agent workflow where worktrees run their own subagent pipeline, so
+# both `.trellis/*` workflow assets and `.claude/*` agent wiring are copied.
+copy:
+  # Environment variables (uncomment and customize as needed)
+  # - .env
+  # - .env.local
+
+  # Trellis workflow config and shared scripts
+  - .trellis/.developer
+  - .trellis/scripts
+  - .trellis/spec
+  - .trellis/templates
+  - .trellis/config.yaml
+  - .trellis/.link-state.json
+
+  # Claude Code subagent wiring (hooks + commands + agents + skills)
+  - .claude/hooks
+  - .claude/commands
+  - .claude/agents
+  - .claude/skills
+
+#-------------------------------------------------------------------------------
+# Post-Create Hooks
+#-------------------------------------------------------------------------------
+
+# Commands to run after creating a worktree (cwd = worktree root).
+# Executed in order; abort on first failure.
+post_create:
+  # Python projects: sync uv environment
+  # - uv sync
+
+  # MATLAB projects: no-op (MATLAB uses global toolbox install)
+
+#-------------------------------------------------------------------------------
+# Check Agent Verification (Ralph Loop)
+#-------------------------------------------------------------------------------
+
+# Commands to verify code quality before the check agent can finish.
+# Ralph Loop runs these; all must pass (exit 0) to allow completion.
+# Leave empty to trust the agent's own completion markers.
+#
+# RTK integration notes (see RTK-INTEGRATION.md for details):
+# - `rtk ruff` compresses ruff output through the RTK hook and works out of
+#   the box because ruff ships a global binary. Preferred for Hiskens projects.
+# - `rtk pytest` requires a global pytest binary; most Python projects only
+#   have pytest inside the uv-managed env. Keep `uv run pytest` until
+#   rtk-ai/rtk#1405 ("uv run support") lands and is released.
+verify:
+  # Python projects (uncomment):
+  # - rtk ruff check .
+  # - rtk ruff format --check .
+  # - uv run pytest -q
+
+  # MATLAB projects (uncomment):
+  # - matlab -nodesktop -nosplash -batch "run('tests/runtests.m')"
+
+  # Fallback if rtk is not installed:
+  # - uv run ruff check .
+  # - uv run ruff format --check .
