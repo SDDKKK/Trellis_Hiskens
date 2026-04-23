@@ -364,6 +364,56 @@ If the first command returns `0` but the second one fails only when `UV_CACHE_DI
 
 **Rule**: To verify PreToolUse task-context injection, use `implement`, `check`, `debug`, or `review`. Use `research` only for codebase discovery and optional extra search scope.
 
+### Pitfall 8: Syncing downstream from a stale fork `main`
+
+**Symptom**: Downstream sync runs cleanly, commits, merges — then days later you find agents still pointing at the old `rtk-rewrite.sh` path (or any other fix that lives on an already-merged PR), and re-running sync pulls in a second round of "unexpected" changes.
+
+**Cause**: You merged a PR on GitHub (e.g., `overlay/rtk-integration-refresh`) into `origin/main` but never `git pull`ed locally. `git log` on `main` tip shows the latest local commit (`ef56d94`), which looks like HEAD — but `origin/main` is actually 4+ commits ahead. `trellis update --overlay hiskens` reads overlay files from the working tree of the fork repo, so it silently ships the stale overlay state. The downstream sync "works" but delivers an outdated snapshot.
+
+**Measured**: 2026-04-23 Round 4 synced Anhui from `ef56d94` before a `git pull --ff-only` would have taken it to `b8a4df7`. Result: 7 agents' rtk hook migration (`eab133f`) was skipped. Required a Round 4b re-sync immediately after.
+
+**Rule**: Before any `trellis update --overlay hiskens` run, verify the fork is at the true tip:
+
+```bash
+cd /path/to/fork
+git fetch origin --prune
+git rev-parse HEAD
+git rev-parse origin/main
+# If different, FF-only pull before proceeding:
+git status --porcelain                # must be clean first
+git pull --ff-only origin main
+```
+
+Only AFTER this is HEAD == origin/main should you run the downstream sync.
+
+**Why this is load-bearing**: The overlay mechanism reads `overlays/<fork>/templates/**` from the filesystem of the fork repo at the moment `trellis update` runs. Git history / remote state is invisible to it. If the local tree is stale, the consumer gets a stale sync — with no warning.
+
+### Pitfall 9: Trusting `trellis update` reports without hook-command verification
+
+**Symptom**: `trellis update --overlay hiskens` completes cleanly. `.new` file triage shows nothing surprising. You commit. Later, in a real agent run, hooks still invoke the old hard-coded `/home/<user>/.claude/hooks/rtk-rewrite.sh` path — breaking portability on any other machine.
+
+**Cause**: Every agent file (`.claude/agents/*.md`) has its own `hooks.PreToolUse[].command` line. A stale `.template-hashes.json` can mark the agent as "Modified by you" even when HEAD already matches the overlay. `--create-new` then makes the human decide per file, and a `.new` that LF-normalizes to "identical" invites a `keep-local` decision — which silently preserves the OLD command. The sync reports "done" but the hook command field wasn't actually updated.
+
+**Rule**: After every downstream sync, run a 2-second sanity grep before committing:
+
+```bash
+cd /path/to/consumer-project
+grep -HnE '^\s*command:' .claude/agents/*.md
+```
+
+Expected: every agent shows the current portable form (e.g., `rtk hook claude`) or no `command:` line at all. If ANY agent still shows an absolute `/home/<user>/…` path, the sync is incomplete — that agent's `.new` was incorrectly rejected.
+
+This check also catches the inverse: agents that acquired a command line they shouldn't have (e.g., a test agent that was supposed to stay hook-free).
+
+Extend the same idea to other load-bearing single-line fields when relevant:
+
+```bash
+grep -HnE '^model:' .claude/agents/*.md       # opus / opus[1m] routing
+grep -HnE '^tools:' .claude/agents/*.md       # tool allowlist
+```
+
+**Why this pairs with Pitfall 0**: P0 catches false-positive `.new` files (content identical, hash drifted). P9 catches the opposite — a `.new` that you correctly classified as "keep local" based on byte-normalized comparison, but which actually needed to be accepted because a single load-bearing line changed semantically. Byte-identical after LF strip ≠ behaviorally equivalent when the file is 90% prose.
+
 ---
 
 ## Decision Heuristics
@@ -391,6 +441,8 @@ If the first command returns `0` but the second one fails only when `UV_CACHE_DI
 - ❌ Don't rewrite workflow files without listing their imperative directives first
 - ❌ Don't blindly copy upstream's new patterns into fork files that have their own protocol (e.g., JSON envelope vs plain print)
 - ❌ Don't `--force-push` the sync branch under any circumstances
+- ❌ Don't run `trellis update --overlay hiskens` without first `git pull --ff-only`-ing the fork (see Pitfall 8)
+- ❌ Don't ship a downstream sync commit without running `grep command: .claude/agents/*.md` to verify hook state (see Pitfall 9)
 
 ---
 
