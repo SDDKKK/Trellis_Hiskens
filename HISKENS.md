@@ -2,7 +2,7 @@
 
 **Fork source**: https://github.com/mindfold-ai/Trellis  
 **Hiskens fork**: https://github.com/SDDKKK/Trellis_Hiskens  
-**Upstream base**: `v0.5.0-beta.15` (`854fb455e9261f4f84f18351183f550e0fae7016`)  
+**Upstream base**: `v0.5.0-beta.16` (`c9e703bed63310db6805405c58e906b403415f9f`)  
 **Maintainer**: Hiskens / SDDKKK
 
 ## Purpose
@@ -68,7 +68,7 @@ Future upstream updates should be reviewed, not auto-merged blindly:
 
 ```bash
 git fetch upstream --tags
-scripts/upstream-diff.sh v0.5.0-beta.15 <new-upstream-tag>
+scripts/upstream-diff.sh v0.5.0-beta.16 <new-upstream-tag>
 ```
 
 When updating to a new upstream tag:
