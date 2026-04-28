@@ -44,6 +44,7 @@ import {
 import {
   ALL_MANAGED_DIRS,
   getConfiguredPlatforms,
+  collectWorkflowOverlayTemplates,
   collectPlatformTemplates,
   isManagedPath,
   isManagedRootDir,
@@ -56,6 +57,7 @@ export interface UpdateOptions {
   createNew?: boolean;
   allowDowngrade?: boolean;
   migrate?: boolean;
+  overlay?: string;
 }
 
 interface FileChange {
@@ -393,7 +395,8 @@ function preserveExistingClaudeStatusLine(
   }
 }
 
-function collectTemplateFiles(
+/** @internal Exported for tests. */
+export function collectTemplateFiles(
   cwd: string,
   extraPlatforms?: Set<AITool>,
   /**
@@ -405,6 +408,7 @@ function collectTemplateFiles(
    * "Modified by you" conflict prompt — they can skip per-file there.
    */
   bypassUpdateSkip = false,
+  overlayName?: string,
 ): Map<string, string> {
   const files = new Map<string, string>();
   const platforms = getConfiguredPlatforms(cwd);
@@ -432,9 +436,17 @@ function collectTemplateFiles(
   // workspace/index.md stays excluded — it's runtime-appended by add_session.py
   // (journal index) and has no script-parsed structure.
 
+  for (const [filePath, content] of collectWorkflowOverlayTemplates(
+    overlayName,
+  )) {
+    if (!isProtectedPath(filePath)) {
+      files.set(filePath, content);
+    }
+  }
+
   // Platform-specific templates (only for configured platforms)
   for (const platformId of platforms) {
-    const platformFiles = collectPlatformTemplates(platformId);
+    const platformFiles = collectPlatformTemplates(platformId, overlayName);
     if (platformFiles) {
       for (const [filePath, content] of platformFiles) {
         files.set(filePath, content);
@@ -1549,6 +1561,7 @@ export async function update(options: UpdateOptions): Promise<void> {
     cwd,
     codexUpgradeNeeded ? new Set<AITool>(["codex"]) : undefined,
     breakingBypass,
+    options.overlay,
   );
 
   // Load update.skip paths (used for both safe-file-delete and template collection)

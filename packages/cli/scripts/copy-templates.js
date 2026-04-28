@@ -22,7 +22,7 @@
  * because those may be customized for the Trellis project itself.
  */
 
-import { cpSync, readdirSync, statSync, mkdirSync } from "node:fs";
+import { cpSync, existsSync, readdirSync, statSync, mkdirSync } from "node:fs";
 import { join, extname } from "node:path";
 
 const EXCLUDED_TEMPLATE_ENTRIES = new Set(["__pycache__", ".DS_Store"]);
@@ -71,5 +71,14 @@ console.log("Copied src/templates/ to dist/templates/");
 // Copy src/migrations/manifests to dist/migrations/manifests
 copyDir("src/migrations/manifests", "dist/migrations/manifests");
 console.log("Copied src/migrations/manifests/ to dist/migrations/manifests/");
+
+// Copy repo-level built-in overlays to dist/overlays so published packages can
+// resolve overlays such as `--overlay hiskens` without depending on a source
+// checkout layout.
+const repoOverlaysDir = join("..", "..", "overlays");
+if (existsSync(repoOverlaysDir)) {
+  copyDir(repoOverlaysDir, "dist/overlays");
+  console.log("Copied ../../overlays/ to dist/overlays/");
+}
 
 console.log("Template copy complete.");

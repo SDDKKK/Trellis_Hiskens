@@ -7,6 +7,8 @@ import figlet from "figlet";
 import inquirer from "inquirer";
 import { createWorkflowStructure } from "../configurators/workflow.js";
 import {
+  applyPlatformOverlay,
+  applyWorkflowOverlay,
   getInitToolChoices,
   resolveCliFlag,
   configurePlatform,
@@ -14,7 +16,7 @@ import {
   getPlatformsWithPythonHooks,
 } from "../configurators/index.js";
 import { getPythonCommandForPlatform } from "../configurators/shared.js";
-import { AI_TOOLS, type CliFlag } from "../types/ai-tools.js";
+import { AI_TOOLS, type AITool, type CliFlag } from "../types/ai-tools.js";
 import { DIR_NAMES, FILE_NAMES, PATHS } from "../constants/paths.js";
 import { VERSION } from "../constants/version.js";
 import { agentsMdContent } from "../templates/markdown/index.js";
@@ -626,8 +628,50 @@ async function handleReinit(
   let doAddDeveloper = !!options.user;
   let platformsToAdd: string[] = explicitTools;
 
+  const applyRequestedWorkflowOverlay = async (): Promise<void> => {
+    if (!options.overlay) {
+      return;
+    }
+    console.log(
+      chalk.blue(`📝 Applying ${options.overlay} workflow overlay...`),
+    );
+    await applyWorkflowOverlay(cwd, options.overlay);
+    const hashedCount = initializeHashes(cwd);
+    if (hashedCount > 0) {
+      console.log(
+        chalk.gray(`📋 Tracking ${hashedCount} template files for updates`),
+      );
+    }
+  };
+
+  const applyRequestedPlatformOverlay = async (
+    platformId: AITool,
+  ): Promise<void> => {
+    if (!options.overlay) {
+      return;
+    }
+    console.log(
+      chalk.blue(
+        `📝 Applying ${options.overlay} overlay for ${AI_TOOLS[platformId].name}...`,
+      ),
+    );
+    await applyPlatformOverlay(cwd, platformId, options.overlay);
+  };
+
+  const applyRequestedConfiguredPlatformOverlays = async (): Promise<void> => {
+    for (const platformId of configuredPlatforms) {
+      await applyRequestedPlatformOverlay(platformId);
+    }
+  };
+
   // No explicit flags → show menu
   if (!doAddPlatforms && !doAddDeveloper) {
+    if (options.overlay) {
+      await applyRequestedWorkflowOverlay();
+      await applyRequestedConfiguredPlatformOverlays();
+      return true;
+    }
+
     if (options.yes) {
       console.log(chalk.gray(`Already initialized with: ${configuredNames}`));
       console.log(
@@ -703,11 +747,12 @@ async function handleReinit(
               `  ○ ${AI_TOOLS[platformId].name} already configured, skipping`,
             ),
           );
+          await applyRequestedPlatformOverlay(platformId);
         } else {
           console.log(
             chalk.blue(`📝 Configuring ${AI_TOOLS[platformId].name}...`),
           );
-          await configurePlatform(platformId, cwd);
+          await configurePlatform(platformId, cwd, options.overlay);
         }
       }
     }
@@ -776,6 +821,8 @@ async function handleReinit(
     }
   }
 
+  await applyRequestedWorkflowOverlay();
+
   return true;
 }
 
@@ -803,6 +850,7 @@ interface InitOptions {
   append?: boolean;
   registry?: string;
   monorepo?: boolean;
+  overlay?: string;
 }
 
 // Compile-time check: every CliFlag must be a key of InitOptions.
@@ -1586,6 +1634,7 @@ export async function init(options: InitOptions): Promise<void> {
     packages: monorepoPackages,
     remoteSpecPackages,
   });
+  await applyWorkflowOverlay(cwd, options.overlay);
 
   // Write monorepo packages to config.yaml (non-destructive patch)
   if (monorepoPackages) {
@@ -1602,7 +1651,7 @@ export async function init(options: InitOptions): Promise<void> {
     const platformId = resolveCliFlag(tool);
     if (platformId) {
       console.log(chalk.blue(`📝 Configuring ${AI_TOOLS[platformId].name}...`));
-      await configurePlatform(platformId, cwd);
+      await configurePlatform(platformId, cwd, options.overlay);
     }
   }
 
