@@ -1,0 +1,8 @@
+{
+  "trellis-implement": "opus[1m]",
+  "trellis-check": "opus[1m]",
+  "trellis-research": "sonnet[1m]",
+  "implement": "opus[1m]",
+  "check": "opus[1m]",
+  "research": "sonnet[1m]"
+}

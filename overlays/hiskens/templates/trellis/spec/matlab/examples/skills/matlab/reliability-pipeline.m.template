@@ -1,0 +1,35 @@
+% reliability-pipeline.m
+% Typical reliability index calculation pipeline.
+%
+% Demonstrates: readtable, vectorized computation, writetable.
+
+% Load data
+lineData = readtable('data/line_params.csv');
+busData = readmatrix('data/bus_data.csv');
+
+% Vectorized failure rate calculation
+failureRate = lineData.length_km .* lineData.rate_per_km;
+repairTime = lineData.repair_time_h;
+outageHours = failureRate .* repairTime;
+
+% SAIDI/SAIFI per feeder
+totalUsers = sum(busData(:, 3));  % column 3 = user count
+affectedUsers = lineData.downstream_users;
+
+saidi_contribution = (outageHours .* affectedUsers) / totalUsers;
+saifi_contribution = (failureRate .* affectedUsers) / totalUsers;
+
+% Build result table
+resultTable = table( ...
+    lineData.name, failureRate, outageHours, ...
+    saidi_contribution, saifi_contribution, ...
+    'VariableNames', {'LineName', 'FailureRate', 'OutageHours', ...
+                      'SAIDI_Contribution', 'SAIFI_Contribution'});
+
+% Sort by impact
+resultTable = sortrows(resultTable, 'SAIDI_Contribution', 'descend');
+
+% Export
+writetable(resultTable, 'output/reliability_index.csv');
+fprintf('Total SAIDI: %.4f h/customer\n', sum(saidi_contribution));
+fprintf('Total SAIFI: %.4f events/customer\n', sum(saifi_contribution));
