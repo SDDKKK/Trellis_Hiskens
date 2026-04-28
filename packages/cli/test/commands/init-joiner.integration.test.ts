@@ -304,4 +304,48 @@ describe("init() joiner onboarding", () => {
       fs.existsSync(path.join(tmpDir, PATHS.TASKS, "00-bootstrap-guidelines")),
     ).toBe(false);
   });
+
+  it("#9 handleReinit path: existing .trellis/ + --overlay applies workflow overlay", async () => {
+    simulateExistingCheckout();
+
+    await init({ yes: true, overlay: "hiskens" });
+
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".trellis/spec/guides/review-checklist.md"),
+      ),
+    ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".trellis/spec/guides/trellis-check-hiskens.md"),
+      ),
+    ).toBe(true);
+    expect(
+      fs.existsSync(path.join(tmpDir, PATHS.TASKS, "00-bootstrap-guidelines")),
+    ).toBe(false);
+  });
+
+  it("#10 handleReinit path: existing .trellis/ + configured Claude + --overlay merges platform settings", async () => {
+    simulateExistingCheckout();
+    const claudeDir = path.join(tmpDir, ".claude");
+    fs.mkdirSync(claudeDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(claudeDir, "settings.json"),
+      JSON.stringify({ env: { EXISTING_SETTING: "kept" } }, null, 2),
+      "utf-8",
+    );
+
+    await init({ yes: true, overlay: "hiskens" });
+
+    const settings = fs.readFileSync(
+      path.join(claudeDir, "settings.json"),
+      "utf-8",
+    );
+    expect(settings).toContain("rtk hook claude");
+    expect(settings).toContain("EXISTING_SETTING");
+    expect(settings).toContain("CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS");
+    expect(
+      fs.existsSync(path.join(claudeDir, "hooks/inject-subagent-context.py")),
+    ).toBe(true);
+  });
 });
