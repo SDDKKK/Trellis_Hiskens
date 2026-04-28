@@ -10,6 +10,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import chalk from "chalk";
 import {
   AI_TOOLS,
   getManagedPaths,
@@ -87,6 +88,7 @@ import {
   getSharedHookScriptsForPlatform,
   type SharedHookPlatform,
 } from "../templates/shared-hooks/index.js";
+import crypto from "node:crypto";
 import {
   getOverlayTemplatePath,
   loadExcludeList,
@@ -702,6 +704,45 @@ async function applyOverlayToProject(
 
       const fullPath = assertNoSymlinkInOverlayPath(cwd, projectPath);
       fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+
+      if (fs.existsSync(fullPath)) {
+        const existing = fs.readFileSync(fullPath, "utf-8");
+        if (existing === content) {
+          continue;
+        }
+        const hashPath = path.join(cwd, ".trellis", ".template-hashes.json");
+        if (fs.existsSync(hashPath)) {
+          let userModified = false;
+          try {
+            const raw = JSON.parse(fs.readFileSync(hashPath, "utf-8"));
+            const hashes: Record<string, string> =
+              raw?.hashes ?? (raw?.__version ? {} : (raw ?? {}));
+            const posixKey = projectPath.replace(/\\/g, "/");
+            const storedHash = hashes[posixKey];
+            if (storedHash) {
+              const currentHash = crypto
+                .createHash("sha256")
+                .update(existing.replace(/\r\n/g, "\n"))
+                .digest("hex");
+              userModified = currentHash !== storedHash;
+            } else {
+              userModified = true;
+            }
+          } catch {
+            userModified = true;
+          }
+          if (userModified) {
+            fs.writeFileSync(fullPath + ".new", content);
+            console.log(
+              chalk.yellow(
+                `  ⚠ ${projectPath} modified — overlay saved as ${projectPath}.new`,
+              ),
+            );
+            continue;
+          }
+        }
+      }
+
       fs.writeFileSync(fullPath, content);
       if (isExecutableTemplate(projectPath)) {
         fs.chmodSync(fullPath, "755");
