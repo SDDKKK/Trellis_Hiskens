@@ -1,7 +1,7 @@
 name: hiskens
 version: 1.0.0
 description: Scientific computing overlay (Python/MATLAB) with Nocturne, RTK, CCR, and Codex integration for Trellis v0.5 common templates/shared hooks
-compatible_upstream: ">=0.5.0-beta.16 <0.6.0"
+compatible_upstream: ">=0.5.0-beta.17 <0.6.0"
 author: Hiskens
 
 settings_merge:
