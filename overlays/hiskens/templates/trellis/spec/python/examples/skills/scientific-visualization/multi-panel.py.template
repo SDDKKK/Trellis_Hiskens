@@ -1,0 +1,58 @@
+"""Multi-panel figure with panel labels.
+
+Demonstrates: GridSpec, panel labels, consistent styling.
+"""
+
+import matplotlib.pyplot as plt
+import numpy as np
+from string import ascii_uppercase
+
+# Apply publication style (from publication-defaults.py.template)
+# apply_publication_style()
+
+fig = plt.figure(figsize=(7, 5))
+gs = fig.add_gridspec(2, 2, hspace=0.4, wspace=0.4)
+
+ax_a = fig.add_subplot(gs[0, 0])
+ax_b = fig.add_subplot(gs[0, 1])
+ax_c = fig.add_subplot(gs[1, 0])
+ax_d = fig.add_subplot(gs[1, 1])
+
+axes = [ax_a, ax_b, ax_c, ax_d]
+
+# Panel A: SAIDI trend line
+years = np.arange(2019, 2025)
+saidi = [4.2, 3.8, 3.5, 3.1, 2.9, 2.6]
+ax_a.plot(years, saidi, "o-", color="#0072B2")
+ax_a.set_xlabel("Year")
+ax_a.set_ylabel("SAIDI (h/customer)")
+
+# Panel B: Outage cause distribution
+causes = ["Weather", "Equipment", "Human", "Other"]
+counts = [35, 28, 15, 12]
+ax_b.barh(causes, counts, color="#E69F00")
+ax_b.set_xlabel("Event Count")
+
+# Panel C: Duration distribution
+durations = np.random.lognormal(1, 0.8, 200)
+ax_c.hist(durations, bins=30, color="#009E73", edgecolor="white")
+ax_c.set_xlabel("Duration (h)")
+ax_c.set_ylabel("Frequency")
+
+# Panel D: Scatter (failure rate vs age)
+ages = np.random.uniform(5, 30, 50)
+rates = 0.01 * ages + np.random.normal(0, 0.05, 50)
+ax_d.scatter(ages, rates, s=20, color="#D55E00", alpha=0.7)
+ax_d.set_xlabel("Equipment Age (years)")
+ax_d.set_ylabel("Failure Rate")
+
+# Add panel labels
+for i, ax in enumerate(axes):
+    ax.text(
+        -0.15, 1.05, ascii_uppercase[i],
+        transform=ax.transAxes,
+        fontsize=10, fontweight="bold", va="top",
+    )
+
+fig.savefig("figures/multi_panel_example.pdf", bbox_inches="tight")
+fig.savefig("figures/multi_panel_example.png", dpi=300, bbox_inches="tight")
