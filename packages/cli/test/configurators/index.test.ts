@@ -1,10 +1,16 @@
-import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   ALL_MANAGED_DIRS,
   CONFIG_DIRS,
   PLATFORM_IDS,
   PLATFORM_MANAGED_DIRS,
   collectPlatformTemplates,
+  collectWorkflowOverlayTemplates,
+  applyWorkflowOverlay,
+  configurePlatform,
   getInitToolChoices,
   getPlatformManagedPaths,
   getPlatformsWithPythonHooks,
@@ -23,6 +29,11 @@ describe("PLATFORM_IDS", () => {
     const aiToolKeys = Object.keys(AI_TOOLS);
     expect(PLATFORM_IDS).toEqual(expect.arrayContaining(aiToolKeys));
     expect(PLATFORM_IDS).toHaveLength(aiToolKeys.length);
+  });
+
+  it("uses the v0.5 platform set: includes pi and excludes legacy iflow", () => {
+    expect(PLATFORM_IDS).toContain("pi");
+    expect(PLATFORM_IDS as string[]).not.toContain("iflow");
   });
 });
 
@@ -300,6 +311,14 @@ describe("getPlatformsWithPythonHooks", () => {
 // =============================================================================
 
 describe("collectPlatformTemplates", () => {
+  const tmpDirs: string[] = [];
+
+  afterEach(() => {
+    for (const tmpDir of tmpDirs.splice(0)) {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   it("does not throw for any platform", () => {
     for (const id of PLATFORM_IDS) {
       expect(() => collectPlatformTemplates(id)).not.toThrow();
@@ -360,4 +379,139 @@ describe("collectPlatformTemplates", () => {
     expect(result?.has(".pi/extensions/trellis/index.ts")).toBe(true);
     expect(result?.has(".pi/settings.json")).toBe(true);
   });
+
+  it("applies hiskens platform overlays for Claude Code CCR hook templates", () => {
+    const result = collectPlatformTemplates("claude-code", "hiskens");
+    expect(result).toBeInstanceOf(Map);
+    const hook = result?.get(".claude/hooks/inject-subagent-context.py") ?? "";
+    expect(hook).toContain("get_ccr_model_tag");
+    expect(hook).toContain("CCR-SUBAGENT-MODEL");
+    expect(hook).toContain("trellis-check");
+    expect(result?.has(".claude/agents/review.md")).toBe(false);
+  });
+
+  it("merges settings.overlay.json into .claude/settings.json without outputting the overlay file", () => {
+    const result = collectPlatformTemplates("claude-code", "hiskens");
+    expect(result).toBeInstanceOf(Map);
+    expect(result?.has(".claude/settings.json")).toBe(true);
+    expect(result?.has(".claude/settings.overlay.json")).toBe(false);
+
+    const settings = JSON.parse(result?.get(".claude/settings.json") ?? "{}");
+    expect(settings.env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS).toBe("1");
+    expect(settings.enabledPlugins["github@claude-plugins-official"]).toBe(true);
+    expect(settings.model).toBe("opus[1m]");
+  });
+
+  it("applies exclude.yaml by removing mapped target paths from the generated map", () => {
+    const overlayPath = fs.mkdtempSync(path.join(os.tmpdir(), "trellis-overlay-"));
+    tmpDirs.push(overlayPath);
+    fs.writeFileSync(
+      path.join(overlayPath, "exclude.yaml"),
+      "exclude:\n  - claude/settings.json\n",
+    );
+
+    const result = collectPlatformTemplates("claude-code", overlayPath);
+    expect(result).toBeInstanceOf(Map);
+    expect(result?.has(".claude/settings.json")).toBe(false);
+  });
+
+  it("ignores unsafe overlay exclude paths and does not delete outside cwd", async () => {
+    const overlayPath = fs.mkdtempSync(path.join(os.tmpdir(), "trellis-overlay-"));
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "trellis-project-"));
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "trellis-outside-"));
+    tmpDirs.push(overlayPath, projectDir, outsideDir);
+    const outsideMarker = path.join(outsideDir, "marker.txt");
+    fs.writeFileSync(outsideMarker, "keep");
+    fs.writeFileSync(
+      path.join(overlayPath, "exclude.yaml"),
+      "exclude:\n  - claude/../../outside/marker.txt\n",
+    );
+
+    await configurePlatform("claude-code", projectDir, overlayPath);
+
+    expect(fs.existsSync(outsideMarker)).toBe(true);
+    expect(fs.existsSync(path.join(projectDir, ".claude"))).toBe(true);
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "rejects platform overlays when a managed output root is a symlink",
+    async () => {
+      const overlayPath = fs.mkdtempSync(path.join(os.tmpdir(), "trellis-overlay-"));
+      const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "trellis-project-"));
+      const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "trellis-outside-"));
+      tmpDirs.push(overlayPath, projectDir, outsideDir);
+
+      const hookDir = path.join(overlayPath, "templates", "claude", "hooks");
+      fs.mkdirSync(hookDir, { recursive: true });
+      fs.writeFileSync(path.join(hookDir, "escape.py"), "print('escape')\n");
+      fs.symlinkSync(outsideDir, path.join(projectDir, ".claude"), "dir");
+
+      await expect(
+        configurePlatform("claude-code", projectDir, overlayPath),
+      ).rejects.toThrow(/symlink/i);
+      expect(fs.existsSync(path.join(outsideDir, "hooks", "escape.py"))).toBe(
+        false,
+      );
+    },
+  );
+
+  it("supports overlays for pi without a legacy iflow mapping", () => {
+    expect(() => collectPlatformTemplates("pi", "hiskens")).not.toThrow();
+    expect(collectPlatformTemplates("pi", "hiskens")).toBeInstanceOf(Map);
+    expect(PLATFORM_IDS as string[]).not.toContain("iflow");
+  });
+});
+
+// =============================================================================
+// collectWorkflowOverlayTemplates
+// =============================================================================
+
+describe("collectWorkflowOverlayTemplates", () => {
+  const tmpDirs: string[] = [];
+
+  afterEach(() => {
+    for (const tmpDir of tmpDirs.splice(0)) {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("maps hiskens trellis overlay templates into .trellis paths", () => {
+    const result = collectWorkflowOverlayTemplates("hiskens");
+
+    expect(result.has(".trellis/spec/guides/review-checklist.md")).toBe(true);
+    expect(result.has(".trellis/spec/guides/trellis-check-hiskens.md")).toBe(true);
+    expect(result.has(".trellis/config/agent-models.example.json")).toBe(true);
+    expect(result.has(".trellis/worktree.yaml")).toBe(false);
+    expect(result.get(".trellis/spec/guides/review-checklist.md")).toContain(
+      "Review",
+    );
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "rejects workflow overlays when .trellis is a symlink",
+    async () => {
+      const overlayPath = fs.mkdtempSync(path.join(os.tmpdir(), "trellis-overlay-"));
+      const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "trellis-project-"));
+      const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "trellis-outside-"));
+      tmpDirs.push(overlayPath, projectDir, outsideDir);
+
+      const guideDir = path.join(
+        overlayPath,
+        "templates",
+        "trellis",
+        "spec",
+        "guides",
+      );
+      fs.mkdirSync(guideDir, { recursive: true });
+      fs.writeFileSync(path.join(guideDir, "escape.md"), "escape\n");
+      fs.symlinkSync(outsideDir, path.join(projectDir, ".trellis"), "dir");
+
+      await expect(applyWorkflowOverlay(projectDir, overlayPath)).rejects.toThrow(
+        /symlink/i,
+      );
+      expect(
+        fs.existsSync(path.join(outsideDir, "spec", "guides", "escape.md")),
+      ).toBe(false);
+    },
+  );
 });

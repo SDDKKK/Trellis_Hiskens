@@ -12,6 +12,7 @@ import path from "node:path";
 
 import {
   cleanupEmptyDirs,
+  collectTemplateFiles,
   loadUpdateSkipPaths,
   shouldExcludeFromBackup,
   sortMigrationsForExecution,
@@ -141,6 +142,52 @@ describe("loadUpdateSkipPaths", () => {
   it("returns empty array when no config exists", () => {
     const paths = loadUpdateSkipPaths(tmpDir);
     expect(paths).toEqual([]);
+  });
+});
+
+// =============================================================================
+// collectTemplateFiles — overlay wiring
+// =============================================================================
+
+describe("collectTemplateFiles overlay wiring", () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trellis-update-"));
+    fs.mkdirSync(path.join(tmpDir, ".trellis"), { recursive: true });
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("includes workflow overlay templates only when overlay is provided", () => {
+    const withoutOverlay = collectTemplateFiles(tmpDir);
+    const withOverlay = collectTemplateFiles(tmpDir, undefined, false, "hiskens");
+
+    expect(withoutOverlay.has(".trellis/scripts/sync-trellis-to-nocturne.py")).toBe(
+      false,
+    );
+    expect(withOverlay.has(".trellis/scripts/sync-trellis-to-nocturne.py")).toBe(
+      true,
+    );
+  });
+
+  it("preserves update.skip filtering and bypass behavior for overlay templates", () => {
+    fs.writeFileSync(
+      path.join(tmpDir, ".trellis", "config.yaml"),
+      "update:\n  skip:\n    - .trellis/scripts/sync-trellis-to-nocturne.py\n",
+    );
+
+    const skipped = collectTemplateFiles(tmpDir, undefined, false, "hiskens");
+    const bypassed = collectTemplateFiles(tmpDir, undefined, true, "hiskens");
+
+    expect(skipped.has(".trellis/scripts/sync-trellis-to-nocturne.py")).toBe(
+      false,
+    );
+    expect(bypassed.has(".trellis/scripts/sync-trellis-to-nocturne.py")).toBe(
+      true,
+    );
   });
 });
 
