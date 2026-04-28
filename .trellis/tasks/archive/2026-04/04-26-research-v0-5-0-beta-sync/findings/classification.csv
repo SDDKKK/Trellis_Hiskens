@@ -1,0 +1,174 @@
+overlay_path|upstream_path|upstream_exists_v5|upstream_status|upstream_changed_v4_to_v5|overlay_vs_v4_identical|classification|risk|recommended_action
+agents/skills/before-matlab-dev/SKILL.md|packages/cli/src/templates/agents/skills/before-matlab-dev/SKILL.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/before-python-dev/SKILL.md|packages/cli/src/templates/agents/skills/before-python-dev/SKILL.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/brainstorm/SKILL.md|packages/cli/src/templates/agents/skills/brainstorm/SKILL.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/check-matlab/SKILL.md|packages/cli/src/templates/agents/skills/check-matlab/SKILL.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/check-python/SKILL.md|packages/cli/src/templates/agents/skills/check-python/SKILL.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/finish-work/SKILL.md|packages/cli/src/templates/agents/skills/finish-work/SKILL.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/improve-ut/SKILL.md|packages/cli/src/templates/agents/skills/improve-ut/SKILL.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/parallel/SKILL.md|packages/cli/src/templates/agents/skills/parallel/SKILL.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/record-session/SKILL.md|packages/cli/src/templates/agents/skills/record-session/SKILL.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/retro/SKILL.md|packages/cli/src/templates/agents/skills/retro/SKILL.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/claude-code/agents.md|packages/cli/src/templates/agents/skills/trellis-meta/references/claude-code/agents.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/claude-code/hooks.md|packages/cli/src/templates/agents/skills/trellis-meta/references/claude-code/hooks.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/claude-code/multi-session.md|packages/cli/src/templates/agents/skills/trellis-meta/references/claude-code/multi-session.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/claude-code/overview.md|packages/cli/src/templates/agents/skills/trellis-meta/references/claude-code/overview.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/claude-code/ralph-loop.md|packages/cli/src/templates/agents/skills/trellis-meta/references/claude-code/ralph-loop.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/claude-code/scripts.md|packages/cli/src/templates/agents/skills/trellis-meta/references/claude-code/scripts.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/claude-code/worktree-config.md|packages/cli/src/templates/agents/skills/trellis-meta/references/claude-code/worktree-config.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/core/files.md|packages/cli/src/templates/agents/skills/trellis-meta/references/core/files.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/core/overview.md|packages/cli/src/templates/agents/skills/trellis-meta/references/core/overview.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/core/scripts.md|packages/cli/src/templates/agents/skills/trellis-meta/references/core/scripts.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/core/specs.md|packages/cli/src/templates/agents/skills/trellis-meta/references/core/specs.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/core/tasks.md|packages/cli/src/templates/agents/skills/trellis-meta/references/core/tasks.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/core/workspace.md|packages/cli/src/templates/agents/skills/trellis-meta/references/core/workspace.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/how-to-modify/add-agent.md|packages/cli/src/templates/agents/skills/trellis-meta/references/how-to-modify/add-agent.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/how-to-modify/add-command.md|packages/cli/src/templates/agents/skills/trellis-meta/references/how-to-modify/add-command.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/how-to-modify/add-phase.md|packages/cli/src/templates/agents/skills/trellis-meta/references/how-to-modify/add-phase.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/how-to-modify/add-spec.md|packages/cli/src/templates/agents/skills/trellis-meta/references/how-to-modify/add-spec.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/how-to-modify/change-verify.md|packages/cli/src/templates/agents/skills/trellis-meta/references/how-to-modify/change-verify.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/how-to-modify/modify-hook.md|packages/cli/src/templates/agents/skills/trellis-meta/references/how-to-modify/modify-hook.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/how-to-modify/overview.md|packages/cli/src/templates/agents/skills/trellis-meta/references/how-to-modify/overview.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/meta/platform-compatibility.md|packages/cli/src/templates/agents/skills/trellis-meta/references/meta/platform-compatibility.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/meta/self-iteration-guide.md|packages/cli/src/templates/agents/skills/trellis-meta/references/meta/self-iteration-guide.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/references/meta/trellis-local-template.md|packages/cli/src/templates/agents/skills/trellis-meta/references/meta/trellis-local-template.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+agents/skills/trellis-meta/SKILL.md|packages/cli/src/templates/agents/skills/trellis-meta/SKILL.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+claude/agents/check.md|packages/cli/src/templates/claude/agents/check.md|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/agents/codex-implement.md|packages/cli/src/templates/claude/agents/codex-implement.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+claude/agents/debug.md|packages/cli/src/templates/claude/agents/debug.md|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/agents/dispatch.md|packages/cli/src/templates/claude/agents/dispatch.md|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/agents/implement.md|packages/cli/src/templates/claude/agents/implement.md|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/agents/plan.md|packages/cli/src/templates/claude/agents/plan.md|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/agents/research.md|packages/cli/src/templates/claude/agents/research.md|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/agents/review.md|packages/cli/src/templates/claude/agents/review.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+claude/commands/trellis/before-matlab-dev.md|packages/cli/src/templates/claude/commands/trellis/before-matlab-dev.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+claude/commands/trellis/before-python-dev.md|packages/cli/src/templates/claude/commands/trellis/before-python-dev.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+claude/commands/trellis/brainstorm-base.md|packages/cli/src/templates/claude/commands/trellis/brainstorm-base.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+claude/commands/trellis/brainstorm.md|packages/cli/src/templates/claude/commands/trellis/brainstorm.md|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/commands/trellis/break-loop-base.md|packages/cli/src/templates/claude/commands/trellis/break-loop-base.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+claude/commands/trellis/break-loop.md|packages/cli/src/templates/claude/commands/trellis/break-loop.md|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/commands/trellis/check-cross-layer-base.md|packages/cli/src/templates/claude/commands/trellis/check-cross-layer-base.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+claude/commands/trellis/check-cross-layer.md|packages/cli/src/templates/claude/commands/trellis/check-cross-layer.md|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/commands/trellis/check-matlab.md|packages/cli/src/templates/claude/commands/trellis/check-matlab.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+claude/commands/trellis/check-python.md|packages/cli/src/templates/claude/commands/trellis/check-python.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+claude/commands/trellis/create-command.md|packages/cli/src/templates/claude/commands/trellis/create-command.md|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/commands/trellis/finish-work.md|packages/cli/src/templates/claude/commands/trellis/finish-work.md|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/commands/trellis/improve-ut.md|packages/cli/src/templates/claude/commands/trellis/improve-ut.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+claude/commands/trellis/integrate-skill.md|packages/cli/src/templates/claude/commands/trellis/integrate-skill.md|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/commands/trellis/onboard.md|packages/cli/src/templates/claude/commands/trellis/onboard.md|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/commands/trellis/parallel.md|packages/cli/src/templates/claude/commands/trellis/parallel.md|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/commands/trellis/record-session.md|packages/cli/src/templates/claude/commands/trellis/record-session.md|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/commands/trellis/retro.md|packages/cli/src/templates/claude/commands/trellis/retro.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+claude/commands/trellis/start.md|packages/cli/src/templates/claude/commands/trellis/start.md|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/commands/trellis/update-spec.md|packages/cli/src/templates/claude/commands/trellis/update-spec.md|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/hooks/context-monitor.py|packages/cli/src/templates/claude/hooks/context-monitor.py|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+claude/hooks/inject-subagent-context.py|packages/cli/src/templates/claude/hooks/inject-subagent-context.py|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/hooks/intent-gate.py|packages/cli/src/templates/claude/hooks/intent-gate.py|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+claude/hooks/parse_sub2api_usage.py|packages/cli/src/templates/claude/hooks/parse_sub2api_usage.py|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+claude/hooks/ralph-loop.py|packages/cli/src/templates/claude/hooks/ralph-loop.py|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/hooks/session-start.py|packages/cli/src/templates/claude/hooks/session-start.py|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/hooks/statusline-bridge.py|packages/cli/src/templates/claude/hooks/statusline-bridge.py|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+claude/hooks/statusline.py|packages/cli/src/templates/claude/hooks/statusline.py|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+claude/hooks/todo-enforcer.py|packages/cli/src/templates/claude/hooks/todo-enforcer.py|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+claude/settings.overlay.json|packages/cli/src/templates/claude/settings.overlay.json|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+claude/skills/github-explorer/SKILL.md|packages/cli/src/templates/claude/skills/github-explorer/SKILL.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+claude/skills/grok-search/SKILL.md|packages/cli/src/templates/claude/skills/grok-search/SKILL.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+claude/skills/with-codex/SKILL.md|packages/cli/src/templates/claude/skills/with-codex/SKILL.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+codex/agents/check.toml|packages/cli/src/templates/codex/agents/check.toml|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+codex/agents/debug.toml|packages/cli/src/templates/codex/agents/debug.toml|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+codex/agents/implement.toml|packages/cli/src/templates/codex/agents/implement.toml|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+codex/agents/plan.toml|packages/cli/src/templates/codex/agents/plan.toml|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+codex/agents/research.toml|packages/cli/src/templates/codex/agents/research.toml|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+codex/agents/review.toml|packages/cli/src/templates/codex/agents/review.toml|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+codex/hooks.json|packages/cli/src/templates/codex/hooks.json|YES|PRESENT|YES|DIVERGED|APPEND|HIGH|Manual port required: merge upstream changes while preserving overlay additions
+codex/hooks/post-tool-use.py|packages/cli/src/templates/codex/hooks/post-tool-use.py|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+codex/hooks/session-start.py|packages/cli/src/templates/codex/hooks/session-start.py|YES|PRESENT|YES|DIVERGED|APPEND|HIGH|Manual port required: merge upstream changes while preserving overlay additions
+codex/scripts/load-trellis-context.py|packages/cli/src/templates/codex/scripts/load-trellis-context.py|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/config.yaml|packages/cli/src/templates/trellis/config.yaml|YES|PRESENT|YES|DIVERGED|APPEND|HIGH|Manual port required: merge upstream changes while preserving overlay additions
+trellis/scripts/add_session.py|packages/cli/src/templates/trellis/scripts/add_session.py|YES|PRESENT|NO|DIVERGED|APPEND|MEDIUM|Review: upstream unchanged, overlay diverges - verify overlay still needed
+trellis/scripts/common/cli_adapter.py|packages/cli/src/templates/trellis/scripts/common/cli_adapter.py|YES|PRESENT|YES|DIVERGED|APPEND|HIGH|Manual port required: merge upstream changes while preserving overlay additions
+trellis/scripts/common/config.py|packages/cli/src/templates/trellis/scripts/common/config.py|YES|PRESENT|YES|DIVERGED|APPEND|HIGH|Manual port required: merge upstream changes while preserving overlay additions
+trellis/scripts/common/context_assembly.py|packages/cli/src/templates/trellis/scripts/common/context_assembly.py|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/scripts/common/developer.py|packages/cli/src/templates/trellis/scripts/common/developer.py|YES|PRESENT|NO|DIVERGED|APPEND|MEDIUM|Review: upstream unchanged, overlay diverges - verify overlay still needed
+trellis/scripts/common/git_context.py|packages/cli/src/templates/trellis/scripts/common/git_context.py|YES|PRESENT|YES|DIVERGED|APPEND|HIGH|Manual port required: merge upstream changes while preserving overlay additions
+trellis/scripts/common/git.py|packages/cli/src/templates/trellis/scripts/common/git.py|YES|PRESENT|NO|DIVERGED|APPEND|MEDIUM|Review: upstream unchanged, overlay diverges - verify overlay still needed
+trellis/scripts/common/__init__.py|packages/cli/src/templates/trellis/scripts/common/__init__.py|YES|PRESENT|NO|DIVERGED|APPEND|MEDIUM|Review: upstream unchanged, overlay diverges - verify overlay still needed
+trellis/scripts/common/io.py|packages/cli/src/templates/trellis/scripts/common/io.py|YES|PRESENT|NO|DIVERGED|APPEND|MEDIUM|Review: upstream unchanged, overlay diverges - verify overlay still needed
+trellis/scripts/common/log.py|packages/cli/src/templates/trellis/scripts/common/log.py|YES|PRESENT|NO|DIVERGED|APPEND|MEDIUM|Review: upstream unchanged, overlay diverges - verify overlay still needed
+trellis/scripts/common/packages_context.py|packages/cli/src/templates/trellis/scripts/common/packages_context.py|YES|PRESENT|NO|DIVERGED|APPEND|MEDIUM|Review: upstream unchanged, overlay diverges - verify overlay still needed
+trellis/scripts/common/paths.py|packages/cli/src/templates/trellis/scripts/common/paths.py|YES|PRESENT|NO|DIVERGED|APPEND|MEDIUM|Review: upstream unchanged, overlay diverges - verify overlay still needed
+trellis/scripts/common/phase.py|packages/cli/src/templates/trellis/scripts/common/phase.py|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+trellis/scripts/common/registry.py|packages/cli/src/templates/trellis/scripts/common/registry.py|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+trellis/scripts/common/session_context.py|packages/cli/src/templates/trellis/scripts/common/session_context.py|YES|PRESENT|NO|DIVERGED|APPEND|MEDIUM|Review: upstream unchanged, overlay diverges - verify overlay still needed
+trellis/scripts/common/task_context.py|packages/cli/src/templates/trellis/scripts/common/task_context.py|YES|PRESENT|YES|DIVERGED|APPEND|HIGH|Manual port required: merge upstream changes while preserving overlay additions
+trellis/scripts/common/task_queue.py|packages/cli/src/templates/trellis/scripts/common/task_queue.py|YES|PRESENT|NO|DIVERGED|APPEND|MEDIUM|Review: upstream unchanged, overlay diverges - verify overlay still needed
+trellis/scripts/common/tasks.py|packages/cli/src/templates/trellis/scripts/common/tasks.py|YES|PRESENT|NO|DIVERGED|APPEND|MEDIUM|Review: upstream unchanged, overlay diverges - verify overlay still needed
+trellis/scripts/common/task_store.py|packages/cli/src/templates/trellis/scripts/common/task_store.py|YES|PRESENT|YES|DIVERGED|APPEND|HIGH|Manual port required: merge upstream changes while preserving overlay additions
+trellis/scripts/common/task_utils.py|packages/cli/src/templates/trellis/scripts/common/task_utils.py|YES|PRESENT|NO|DIVERGED|APPEND|MEDIUM|Review: upstream unchanged, overlay diverges - verify overlay still needed
+trellis/scripts/common/types.py|packages/cli/src/templates/trellis/scripts/common/types.py|YES|PRESENT|YES|DIVERGED|APPEND|HIGH|Manual port required: merge upstream changes while preserving overlay additions
+trellis/scripts/common/worktree.py|packages/cli/src/templates/trellis/scripts/common/worktree.py|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+trellis/scripts/create_bootstrap.py|packages/cli/src/templates/trellis/scripts/create_bootstrap.py|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+trellis/scripts/get_context.py|packages/cli/src/templates/trellis/scripts/get_context.py|YES|PRESENT|NO|DIVERGED|APPEND|MEDIUM|Review: upstream unchanged, overlay diverges - verify overlay still needed
+trellis/scripts/get_developer.py|packages/cli/src/templates/trellis/scripts/get_developer.py|YES|PRESENT|NO|IDENTICAL|BASELINE|LOW|Consider removing from overlay to reduce maintenance burden
+trellis/scripts/init_developer.py|packages/cli/src/templates/trellis/scripts/init_developer.py|YES|PRESENT|NO|DIVERGED|APPEND|MEDIUM|Review: upstream unchanged, overlay diverges - verify overlay still needed
+trellis/scripts/init-nocturne-namespace.py|packages/cli/src/templates/trellis/scripts/init-nocturne-namespace.py|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/scripts/__init__.py|packages/cli/src/templates/trellis/scripts/__init__.py|YES|PRESENT|NO|IDENTICAL|BASELINE|LOW|Consider removing from overlay to reduce maintenance burden
+trellis/scripts/multi_agent/cleanup.py|packages/cli/src/templates/trellis/scripts/multi_agent/cleanup.py|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+trellis/scripts/multi_agent/create_pr.py|packages/cli/src/templates/trellis/scripts/multi_agent/create_pr.py|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+trellis/scripts/multi_agent/__init__.py|packages/cli/src/templates/trellis/scripts/multi_agent/__init__.py|NO|RENAMED|NO|IDENTICAL|BASELINE|CRITICAL|Review manually
+trellis/scripts/multi_agent/plan.py|packages/cli/src/templates/trellis/scripts/multi_agent/plan.py|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+trellis/scripts/multi_agent/start.py|packages/cli/src/templates/trellis/scripts/multi_agent/start.py|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+trellis/scripts/multi_agent/status.py|packages/cli/src/templates/trellis/scripts/multi_agent/status.py|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually
+trellis/scripts/nocturne_client.py|packages/cli/src/templates/trellis/scripts/nocturne_client.py|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/scripts/promote-to-nocturne.py|packages/cli/src/templates/trellis/scripts/promote-to-nocturne.py|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/scripts/search/API_CONFIG.md|packages/cli/src/templates/trellis/scripts/search/API_CONFIG.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/scripts/search/_common.py|packages/cli/src/templates/trellis/scripts/search/_common.py|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/scripts/search/web_fetch.py|packages/cli/src/templates/trellis/scripts/search/web_fetch.py|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/scripts/search/web_map.py|packages/cli/src/templates/trellis/scripts/search/web_map.py|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/scripts/search/web_search.py|packages/cli/src/templates/trellis/scripts/search/web_search.py|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/scripts/sync-trellis-to-nocturne.py|packages/cli/src/templates/trellis/scripts/sync-trellis-to-nocturne.py|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/scripts/task.py|packages/cli/src/templates/trellis/scripts/task.py|YES|PRESENT|YES|DIVERGED|APPEND|HIGH|Manual port required: merge upstream changes while preserving overlay additions
+trellis/spec/guides/agent-design-principles.md|packages/cli/src/templates/trellis/spec/guides/agent-design-principles.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/agent-large-file-strategy.md|packages/cli/src/templates/trellis/spec/guides/agent-large-file-strategy.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/background-task-monitoring.md|packages/cli/src/templates/trellis/spec/guides/background-task-monitoring.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/codebase-search-guide.md|packages/cli/src/templates/trellis/spec/guides/codebase-search-guide.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/code-reuse-base.md|packages/cli/src/templates/trellis/spec/guides/code-reuse-base.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/code-reuse-thinking-guide.md|packages/cli/src/templates/trellis/spec/guides/code-reuse-thinking-guide.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/codex-assist.md|packages/cli/src/templates/trellis/spec/guides/codex-assist.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/cross-language-translation-guide.md|packages/cli/src/templates/trellis/spec/guides/cross-language-translation-guide.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/cross-platform-base.md|packages/cli/src/templates/trellis/spec/guides/cross-platform-base.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/cross-platform-thinking-guide.md|packages/cli/src/templates/trellis/spec/guides/cross-platform-thinking-guide.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/debug-methodology.md|packages/cli/src/templates/trellis/spec/guides/debug-methodology.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/excel-reading-strategy.md|packages/cli/src/templates/trellis/spec/guides/excel-reading-strategy.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/finishing-branch.md|packages/cli/src/templates/trellis/spec/guides/finishing-branch.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/github-analysis-guide.md|packages/cli/src/templates/trellis/spec/guides/github-analysis-guide.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/index-base.md|packages/cli/src/templates/trellis/spec/guides/index-base.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/index.md|packages/cli/src/templates/trellis/spec/guides/index.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/new-agent-wiring.md|packages/cli/src/templates/trellis/spec/guides/new-agent-wiring.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/receiving-review.md|packages/cli/src/templates/trellis/spec/guides/receiving-review.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/review-checklist.md|packages/cli/src/templates/trellis/spec/guides/review-checklist.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/search-guide.md|packages/cli/src/templates/trellis/spec/guides/search-guide.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/spec-integration-checklist.md|packages/cli/src/templates/trellis/spec/guides/spec-integration-checklist.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/tdd-guide.md|packages/cli/src/templates/trellis/spec/guides/tdd-guide.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/thinking-framework.md|packages/cli/src/templates/trellis/spec/guides/thinking-framework.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/trellis-link-guide.md|packages/cli/src/templates/trellis/spec/guides/trellis-link-guide.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/guides/verification-before-completion.md|packages/cli/src/templates/trellis/spec/guides/verification-before-completion.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/matlab/code-style.md|packages/cli/src/templates/trellis/spec/matlab/code-style.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/matlab/docstring.md|packages/cli/src/templates/trellis/spec/matlab/docstring.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/matlab/examples/skills/matlab/publication-plot.m.template|packages/cli/src/templates/trellis/spec/matlab/examples/skills/matlab/publication-plot.m.template|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/matlab/examples/skills/matlab/reliability-pipeline.m.template|packages/cli/src/templates/trellis/spec/matlab/examples/skills/matlab/reliability-pipeline.m.template|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/matlab/index.md|packages/cli/src/templates/trellis/spec/matlab/index.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/matlab/quality-guidelines.md|packages/cli/src/templates/trellis/spec/matlab/quality-guidelines.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/python/code-style.md|packages/cli/src/templates/trellis/spec/python/code-style.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/python/data-processing.md|packages/cli/src/templates/trellis/spec/python/data-processing.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/python/directory-structure.md|packages/cli/src/templates/trellis/spec/python/directory-structure.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/python/docstring.md|packages/cli/src/templates/trellis/spec/python/docstring.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/python/examples/skills/markitdown/batch-convert.py.template|packages/cli/src/templates/trellis/spec/python/examples/skills/markitdown/batch-convert.py.template|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/python/examples/skills/polars/lazy-pipeline.py.template|packages/cli/src/templates/trellis/spec/python/examples/skills/polars/lazy-pipeline.py.template|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/python/examples/skills/polars/pandas-migration.py.template|packages/cli/src/templates/trellis/spec/python/examples/skills/polars/pandas-migration.py.template|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/python/examples/skills/scientific-visualization/multi-panel.py.template|packages/cli/src/templates/trellis/spec/python/examples/skills/scientific-visualization/multi-panel.py.template|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/python/index.md|packages/cli/src/templates/trellis/spec/python/index.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/python/markitdown.md|packages/cli/src/templates/trellis/spec/python/markitdown.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/spec/python/quality-guidelines.md|packages/cli/src/templates/trellis/spec/python/quality-guidelines.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/templates/prd-template.md|packages/cli/src/templates/trellis/templates/prd-template.md|NO|REMOVED|NO|NOT_IN_UPSTREAM|OVERLAY-ONLY|CRITICAL|Review manually
+trellis/worktree.yaml|packages/cli/src/templates/trellis/worktree.yaml|NO|RENAMED|NO|DIVERGED|APPEND|CRITICAL|Review manually

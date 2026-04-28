@@ -1,0 +1,2278 @@
+diff --git a/packages/cli/src/configurators/antigravity.ts b/packages/cli/src/configurators/antigravity.ts
+index ba4fc13..a049fe2 100644
+--- a/packages/cli/src/configurators/antigravity.ts
++++ b/packages/cli/src/configurators/antigravity.ts
+@@ -1,19 +1,27 @@
+ import path from "node:path";
+-import { getAllWorkflows } from "../templates/antigravity/index.js";
++import { AI_TOOLS } from "../types/ai-tools.js";
+ import { ensureDir, writeFile } from "../utils/file-writer.js";
++import { resolveCommands, resolveSkills } from "./shared.js";
+ 
+ /**
+- * Configure Antigravity by writing workflow templates.
+- *
+- * Output:
+- * - .agent/workflows/<workflow-name>.md
++ * Configure Antigravity:
++ * - workflows/ — start + finish-work as slash commands
++ * - skills/trellis-{name}/SKILL.md — other 5 as auto-triggered skills
+  */
+ export async function configureAntigravity(cwd: string): Promise<void> {
+-  const workflowRoot = path.join(cwd, ".agent", "workflows");
+-  ensureDir(workflowRoot);
++  const ctx = AI_TOOLS.antigravity.templateContext;
+ 
+-  for (const workflow of getAllWorkflows()) {
+-    const targetPath = path.join(workflowRoot, `${workflow.name}.md`);
+-    await writeFile(targetPath, workflow.content);
++  const workflowsDir = path.join(cwd, ".agent", "workflows");
++  ensureDir(workflowsDir);
++  for (const cmd of resolveCommands(ctx)) {
++    await writeFile(path.join(workflowsDir, `${cmd.name}.md`), cmd.content);
++  }
++
++  const skillsDir = path.join(cwd, ".agent", "skills");
++  ensureDir(skillsDir);
++  for (const skill of resolveSkills(ctx)) {
++    const skillDir = path.join(skillsDir, skill.name);
++    ensureDir(skillDir);
++    await writeFile(path.join(skillDir, "SKILL.md"), skill.content);
+   }
+ }
+diff --git a/packages/cli/src/configurators/claude.ts b/packages/cli/src/configurators/claude.ts
+index 4cdb437..19772ef 100644
+--- a/packages/cli/src/configurators/claude.ts
++++ b/packages/cli/src/configurators/claude.ts
+@@ -1,13 +1,15 @@
+ import { readFileSync, readdirSync, statSync } from "node:fs";
+ import path from "node:path";
++import { AI_TOOLS } from "../types/ai-tools.js";
+ import { getClaudeTemplatePath } from "../templates/extract.js";
+ import { ensureDir, writeFile } from "../utils/file-writer.js";
+-import { resolvePlaceholders } from "./shared.js";
++import {
++  resolvePlaceholders,
++  resolveCommands,
++  resolveSkills,
++  writeSharedHooks,
++} from "./shared.js";
+ 
+-/**
+- * Files to exclude when copying templates
+- * These are TypeScript compilation artifacts
+- */
+ const EXCLUDE_PATTERNS = [
+   ".d.ts",
+   ".d.ts.map",
+@@ -16,9 +18,6 @@ const EXCLUDE_PATTERNS = [
+   "__pycache__",
+ ];
+ 
+-/**
+- * Check if a file should be excluded
+- */
+ function shouldExclude(filename: string): boolean {
+   for (const pattern of EXCLUDE_PATTERNS) {
+     if (filename.endsWith(pattern) || filename === pattern) {
+@@ -29,14 +28,18 @@ function shouldExclude(filename: string): boolean {
+ }
+ 
+ /**
+- * Recursively copy directory, excluding build artifacts
+- * Uses writeFile to handle file conflicts with the global writeMode setting
++ * Recursively copy directory, excluding build artifacts and the commands/ dir
++ * (commands are now written from common templates).
+  */
+-async function copyDirFiltered(src: string, dest: string): Promise<void> {
++async function copyDirFiltered(
++  src: string,
++  dest: string,
++  skipDirs: string[] = [],
++): Promise<void> {
+   ensureDir(dest);
+ 
+   for (const entry of readdirSync(src)) {
+-    if (shouldExclude(entry)) {
++    if (shouldExclude(entry) || skipDirs.includes(entry)) {
+       continue;
+     }
+ 
+@@ -48,7 +51,6 @@ async function copyDirFiltered(src: string, dest: string): Promise<void> {
+       await copyDirFiltered(srcPath, destPath);
+     } else {
+       let content = readFileSync(srcPath, "utf-8");
+-      // Replace placeholders in settings.json
+       if (entry === "settings.json") {
+         content = resolvePlaceholders(content);
+       }
+@@ -58,50 +60,36 @@ async function copyDirFiltered(src: string, dest: string): Promise<void> {
+ }
+ 
+ /**
+- * Configure Claude Code by copying from templates
+- *
+- * The claude templates include:
+- * - commands/ - Slash commands
+- * - agents/ - Multi-agent pipeline configurations
+- * - hooks/ - Context injection hooks
+- * - settings.json - Hook and tool configurations
++ * Configure Claude Code:
++ * - agents/, settings.json from platform-specific templates
++ * - hooks/ from shared-hooks/ (unified with other platforms)
++ * - commands/trellis/ — start + finish-work as slash commands
++ * - skills/trellis-{name}/SKILL.md — other 5 as auto-triggered skills
+  */
+ export async function configureClaude(cwd: string): Promise<void> {
+   const sourcePath = getClaudeTemplatePath();
+   const destPath = path.join(cwd, ".claude");
++  const ctx = AI_TOOLS["claude-code"].templateContext;
+ 
+-  // Copy templates, excluding build artifacts
+-  await copyDirFiltered(sourcePath, destPath);
+-}
++  // Copy platform-specific files (agents, settings) — hooks come from shared-hooks
++  await copyDirFiltered(sourcePath, destPath, ["commands", "hooks"]);
+ 
+-/**
+- * Configure Claude Code agents for Multi-Agent Pipeline
+- *
+- * @deprecated Agents are now included in the main .claude directory copy.
+- * This function is kept for backwards compatibility but does nothing.
+- */
+-export async function configureClaudeAgents(_cwd: string): Promise<void> {
+-  // Agents are now copied as part of configureClaude
+-  // This function is kept for API compatibility
+-}
++  // Shared hook scripts (same source as 7 other platforms)
++  await writeSharedHooks(path.join(destPath, "hooks"));
+ 
+-/**
+- * Configure Claude Code hooks for context injection
+- *
+- * @deprecated Hooks are now included in the main .claude directory copy.
+- * This function is kept for backwards compatibility but does nothing.
+- */
+-export async function configureClaudeHooks(_cwd: string): Promise<void> {
+-  // Hooks are now copied as part of configureClaude
+-  // This function is kept for API compatibility
+-}
++  // start + finish-work as slash commands
++  const commandsDir = path.join(destPath, "commands", "trellis");
++  ensureDir(commandsDir);
++  for (const cmd of resolveCommands(ctx)) {
++    await writeFile(path.join(commandsDir, `${cmd.name}.md`), cmd.content);
++  }
+ 
+-/**
+- * Configure Claude Code with full Multi-Agent Pipeline support
+- *
+- * This is now equivalent to just calling configureClaude since the entire
+- * .claude directory is copied at once.
+- */
+-export async function configureClaudeFull(cwd: string): Promise<void> {
+-  await configureClaude(cwd);
++  // Other 5 as skills with trellis- prefix
++  const skillsDir = path.join(destPath, "skills");
++  ensureDir(skillsDir);
++  for (const skill of resolveSkills(ctx)) {
++    const skillDir = path.join(skillsDir, skill.name);
++    ensureDir(skillDir);
++    await writeFile(path.join(skillDir, "SKILL.md"), skill.content);
++  }
+ }
+diff --git a/packages/cli/src/configurators/codebuddy.ts b/packages/cli/src/configurators/codebuddy.ts
+index dc512b1..685ff2c 100644
+--- a/packages/cli/src/configurators/codebuddy.ts
++++ b/packages/cli/src/configurators/codebuddy.ts
+@@ -1,65 +1,46 @@
+-/**
+- * CodeBuddy configurator
+- *
+- * Configures CodeBuddy by copying templates from src/templates/codebuddy/.
+- * CodeBuddy uses nested directories: .codebuddy/commands/trellis/<name>.md
+- */
+-
+-import { readFileSync, readdirSync, statSync } from "node:fs";
+ import path from "node:path";
+-import { getCodebuddyTemplatePath } from "../templates/extract.js";
++import { AI_TOOLS } from "../types/ai-tools.js";
+ import { ensureDir, writeFile } from "../utils/file-writer.js";
++import {
++  resolvePlaceholders,
++  resolveCommands,
++  resolveSkills,
++  writeSkills,
++  writeAgents,
++  writeSharedHooks,
++} from "./shared.js";
++import {
++  getAllAgents,
++  getSettingsTemplate,
++} from "../templates/codebuddy/index.js";
+ 
+ /**
+- * Files to exclude when copying templates
+- * These are TypeScript compilation artifacts
+- */
+-const EXCLUDE_PATTERNS = [".d.ts", ".d.ts.map", ".js", ".js.map"];
+-
+-/**
+- * Check if a file should be excluded
++ * Configure CodeBuddy:
++ * - commands/trellis/ — start + finish-work as slash commands
++ * - skills/trellis-{name}/SKILL.md — other 5 as auto-triggered skills
++ * - agents/{name}.md — sub-agent definitions
++ * - hooks/*.py — shared hook scripts
++ * - settings.json — hook configuration
+  */
+-function shouldExclude(filename: string): boolean {
+-  for (const pattern of EXCLUDE_PATTERNS) {
+-    if (filename.endsWith(pattern)) {
+-      return true;
+-    }
+-  }
+-  return false;
+-}
+-
+-/**
+- * Recursively copy directory, excluding build artifacts
+- * Uses writeFile to handle file conflicts with the global writeMode setting
+- */
+-async function copyDirFiltered(src: string, dest: string): Promise<void> {
+-  ensureDir(dest);
+-
+-  for (const entry of readdirSync(src)) {
+-    if (shouldExclude(entry)) {
+-      continue;
+-    }
+-
+-    const srcPath = path.join(src, entry);
+-    const destPath = path.join(dest, entry);
+-    const stat = statSync(srcPath);
+-
+-    if (stat.isDirectory()) {
+-      await copyDirFiltered(srcPath, destPath);
+-    } else {
+-      const content = readFileSync(srcPath, "utf-8");
+-      await writeFile(destPath, content);
+-    }
++export async function configureCodebuddy(cwd: string): Promise<void> {
++  const config = AI_TOOLS.codebuddy;
++  const ctx = config.templateContext;
++  const configRoot = path.join(cwd, config.configDir);
++
++  // Commands
++  const commandsDir = path.join(configRoot, "commands", "trellis");
++  ensureDir(commandsDir);
++  for (const cmd of resolveCommands(ctx)) {
++    await writeFile(path.join(commandsDir, `${cmd.name}.md`), cmd.content);
+   }
+-}
+ 
+-/**
+- * Configure CodeBuddy by copying from templates
+- */
+-export async function configureCodebuddy(cwd: string): Promise<void> {
+-  const sourcePath = getCodebuddyTemplatePath();
+-  const destPath = path.join(cwd, ".codebuddy");
++  await writeSkills(path.join(configRoot, "skills"), resolveSkills(ctx));
++  await writeAgents(path.join(configRoot, "agents"), getAllAgents());
++  await writeSharedHooks(path.join(configRoot, "hooks"));
+ 
+-  // Copy templates, excluding build artifacts
+-  await copyDirFiltered(sourcePath, destPath);
++  const settings = getSettingsTemplate();
++  await writeFile(
++    path.join(configRoot, settings.targetPath),
++    resolvePlaceholders(settings.content),
++  );
+ }
+diff --git a/packages/cli/src/configurators/codex.ts b/packages/cli/src/configurators/codex.ts
+index 706f0ec..416dbca 100644
+--- a/packages/cli/src/configurators/codex.ts
++++ b/packages/cli/src/configurators/codex.ts
+@@ -1,30 +1,32 @@
+ import path from "node:path";
++import { AI_TOOLS } from "../types/ai-tools.js";
+ import {
+   getAllAgents,
+   getAllCodexSkills,
+   getAllHooks,
+-  getAllSkills,
+   getConfigTemplate,
+   getHooksConfig,
+ } from "../templates/codex/index.js";
+ import { ensureDir, writeFile } from "../utils/file-writer.js";
+-import { resolvePlaceholders } from "./shared.js";
++import {
++  resolvePlaceholders,
++  resolveAllAsSkills,
++  applyPullBasedPreludeToml,
++  writeSharedHooks,
++} from "./shared.js";
+ 
+ /**
+  * Configure Codex by writing:
+- * - .agents/skills/<skill-name>/SKILL.md   (shared, cross-platform)
+- * - .codex/skills/<skill-name>/SKILL.md    (Codex-specific)
+- * - .codex/agents/<agent-name>.toml
+- * - .codex/hooks/session-start.py
+- * - .codex/hooks.json
+- * - .codex/config.toml
++ * - .agents/skills/ — shared skills from common source
++ * - .codex/skills/ — Codex-specific skills (platform-specific templates)
++ * - .codex/agents/, hooks/, hooks.json, config.toml — platform-specific
+  */
+ export async function configureCodex(cwd: string): Promise<void> {
+-  // Shared skills → .agents/skills/
++  // Shared skills from common source → .agents/skills/
+   const sharedSkillsRoot = path.join(cwd, ".agents", "skills");
+   ensureDir(sharedSkillsRoot);
+ 
+-  for (const skill of getAllSkills()) {
++  for (const skill of resolveAllAsSkills(AI_TOOLS.codex.templateContext)) {
+     const skillDir = path.join(sharedSkillsRoot, skill.name);
+     ensureDir(skillDir);
+     await writeFile(path.join(skillDir, "SKILL.md"), skill.content);
+@@ -32,7 +34,7 @@ export async function configureCodex(cwd: string): Promise<void> {
+ 
+   const codexRoot = path.join(cwd, ".codex");
+ 
+-  // Codex-specific skills → .codex/skills/
++  // Codex-specific skills (platform-specific) → .codex/skills/
+   const codexSkillsRoot = path.join(codexRoot, "skills");
+   ensureDir(codexSkillsRoot);
+ 
+@@ -46,7 +48,10 @@ export async function configureCodex(cwd: string): Promise<void> {
+   const codexAgentsRoot = path.join(codexRoot, "agents");
+   ensureDir(codexAgentsRoot);
+ 
+-  for (const agent of getAllAgents()) {
++  // Codex is a class-2 (pull-based) platform: PreToolUse only fires for Bash
++  // and CollabAgentSpawn hook is not implemented (#15486). Sub-agents must
++  // load Trellis context themselves via the prelude injected here.
++  for (const agent of applyPullBasedPreludeToml(getAllAgents())) {
+     await writeFile(
+       path.join(codexAgentsRoot, `${agent.name}.toml`),
+       agent.content,
+@@ -57,16 +62,36 @@ export async function configureCodex(cwd: string): Promise<void> {
+   const hooksDir = path.join(codexRoot, "hooks");
+   ensureDir(hooksDir);
+ 
++  // Codex-specific hooks (e.g., session-start.py tailored for Codex)
+   for (const hook of getAllHooks()) {
+     await writeFile(path.join(hooksDir, hook.name), hook.content);
+   }
+ 
++  // Shared hooks (inject-workflow-state.py etc.) — Codex hooks.json references
++  // these paths. inject-subagent-context.py is skipped because Codex sub-agents
++  // can't reliably receive hook-modified prompts (class-2 pull-based).
++  await writeSharedHooks(hooksDir, {
++    exclude: ["session-start.py", "inject-subagent-context.py"],
++  });
++
+   // Hooks config → .codex/hooks.json
+   await writeFile(
+     path.join(codexRoot, "hooks.json"),
+     resolvePlaceholders(getHooksConfig()),
+   );
+ 
++  // NOTE: Codex hooks require `features.codex_hooks = true` in the user's
++  // ~/.codex/config.toml. Without this flag the hooks.json is ignored and
++  // inject-workflow-state.py will never fire. This prerequisite is documented
++  // in spec/cli/backend/platform-integration.md.
++  if (!process.env.VITEST && !process.env.TRELLIS_QUIET) {
++    process.stderr.write(
++      "⚠️  Codex hooks require `features.codex_hooks = true` in your " +
++        "~/.codex/config.toml. Without it the Trellis workflow breadcrumb " +
++        "won't fire. See Trellis docs for details.\n",
++    );
++  }
++
+   // Config → .codex/config.toml
+   const config = getConfigTemplate();
+   await writeFile(path.join(codexRoot, config.targetPath), config.content);
+diff --git a/packages/cli/src/configurators/copilot.ts b/packages/cli/src/configurators/copilot.ts
+index d349e23..7b386b8 100644
+--- a/packages/cli/src/configurators/copilot.ts
++++ b/packages/cli/src/configurators/copilot.ts
+@@ -1,46 +1,78 @@
+ import path from "node:path";
+-import {
+-  getAllHooks,
+-  getAllPrompts,
+-  getHooksConfig,
+-} from "../templates/copilot/index.js";
++import { AI_TOOLS } from "../types/ai-tools.js";
++import { getAllHooks, getHooksConfig } from "../templates/copilot/index.js";
+ import { ensureDir, writeFile } from "../utils/file-writer.js";
+-import { resolvePlaceholders } from "./shared.js";
++import {
++  resolvePlaceholders,
++  resolveCommands,
++  resolveSkills,
++  applyPullBasedPreludeMarkdown,
++} from "./shared.js";
++import { getSharedHookScripts } from "../templates/shared-hooks/index.js";
+ 
+ /**
+- * Configure GitHub Copilot by writing:
+- * - .github/prompts/*.prompt.md            (slash command prompt files, e.g. /start)
+- * - .github/copilot/hooks/session-start.py   (hook scripts)
+- * - .github/copilot/hooks.json               (hooks config, tracked by trellis update)
+- * - .github/hooks/trellis.json               (hooks config for VS Code Copilot discovery)
++ * Configure GitHub Copilot:
++ * - prompts/ — start + finish-work as prompt files
++ * - skills/trellis-{name}/SKILL.md — other 5 as auto-triggered skills
++ * - agents/{name}.agent.md — sub-agent definitions (note .agent.md suffix)
++ * - copilot/hooks/ — platform-specific + shared hook scripts
++ * - hooks config — hooks.json
+  */
+ export async function configureCopilot(cwd: string): Promise<void> {
++  const config = AI_TOOLS.copilot;
++  const ctx = config.templateContext;
+   const copilotRoot = path.join(cwd, ".github", "copilot");
+ 
+-  // Prompt files → .github/prompts/*.prompt.md
+   const promptsDir = path.join(cwd, ".github", "prompts");
+   ensureDir(promptsDir);
++  for (const cmd of resolveCommands(ctx)) {
++    await writeFile(
++      path.join(promptsDir, `${cmd.name}.prompt.md`),
++      cmd.content,
++    );
++  }
++
++  // Skills
++  const skillsDir = path.join(cwd, ".github", "skills");
++  ensureDir(skillsDir);
++  for (const skill of resolveSkills(ctx)) {
++    const skillDir = path.join(skillsDir, skill.name);
++    ensureDir(skillDir);
++    await writeFile(path.join(skillDir, "SKILL.md"), skill.content);
++  }
+ 
+-  for (const prompt of getAllPrompts()) {
++  const agentsDir = path.join(cwd, ".github", "agents");
++  ensureDir(agentsDir);
++  // Copilot is a class-2 (pull-based) platform: hook events don't reliably
++  // fire for sub-agents (#2392/#2540). Reuse Cursor's agent content and
++  // prepend the pull-based prelude so sub-agents Read Trellis context themselves.
++  const { getAllAgents: getCursorAgents } =
++    await import("../templates/cursor/index.js");
++  for (const agent of applyPullBasedPreludeMarkdown(getCursorAgents())) {
+     await writeFile(
+-      path.join(promptsDir, `${prompt.name}.prompt.md`),
+-      prompt.content,
++      path.join(agentsDir, `${agent.name}.agent.md`),
++      agent.content,
+     );
+   }
+ 
+-  // Hook scripts → .github/copilot/hooks/
++  // Platform-specific hook scripts (Copilot's own session-start.py)
+   const hooksDir = path.join(copilotRoot, "hooks");
+   ensureDir(hooksDir);
+-
+   for (const hook of getAllHooks()) {
+     await writeFile(path.join(hooksDir, hook.name), hook.content);
+   }
+ 
+-  // Hooks config → .github/copilot/hooks.json (tracked copy)
++  // Shared hook scripts: skip session-start (Copilot has its own) and
++  // inject-subagent-context (Copilot is pull-based, hook can't reach sub-agents)
++  for (const hook of getSharedHookScripts()) {
++    if (hook.name === "session-start.py") continue;
++    if (hook.name === "inject-subagent-context.py") continue;
++    await writeFile(path.join(hooksDir, hook.name), hook.content);
++  }
++
++  // Hooks config
+   const resolvedConfig = resolvePlaceholders(getHooksConfig());
+   await writeFile(path.join(copilotRoot, "hooks.json"), resolvedConfig);
+-
+-  // Hooks config → .github/hooks/trellis.json (VS Code Copilot discovery)
+   const githubHooksDir = path.join(cwd, ".github", "hooks");
+   ensureDir(githubHooksDir);
+   await writeFile(path.join(githubHooksDir, "trellis.json"), resolvedConfig);
+diff --git a/packages/cli/src/configurators/cursor.ts b/packages/cli/src/configurators/cursor.ts
+index 95b26ed..d6b0ecb 100644
+--- a/packages/cli/src/configurators/cursor.ts
++++ b/packages/cli/src/configurators/cursor.ts
+@@ -1,58 +1,45 @@
+-import { readFileSync, readdirSync, statSync } from "node:fs";
+ import path from "node:path";
+-import { getCursorTemplatePath } from "../templates/extract.js";
++import { AI_TOOLS } from "../types/ai-tools.js";
+ import { ensureDir, writeFile } from "../utils/file-writer.js";
++import {
++  resolvePlaceholders,
++  resolveCommands,
++  resolveSkills,
++  writeSkills,
++  writeAgents,
++  writeSharedHooks,
++} from "./shared.js";
++import { getAllAgents, getHooksConfig } from "../templates/cursor/index.js";
+ 
+ /**
+- * Files to exclude when copying templates
+- * These are TypeScript compilation artifacts
++ * Configure Cursor:
++ * - commands/ — start + finish-work as slash commands (trellis- prefix, flat)
++ * - skills/trellis-{name}/SKILL.md — other 5 as auto-triggered skills
++ * - agents/{name}.md — sub-agent definitions
++ * - hooks/*.py — shared hook scripts
++ * - hooks.json — hook configuration (separate file, not settings.json)
+  */
+-const EXCLUDE_PATTERNS = [".d.ts", ".d.ts.map", ".js", ".js.map"];
+-
+-/**
+- * Check if a file should be excluded
+- */
+-function shouldExclude(filename: string): boolean {
+-  for (const pattern of EXCLUDE_PATTERNS) {
+-    if (filename.endsWith(pattern)) {
+-      return true;
+-    }
+-  }
+-  return false;
+-}
+-
+-/**
+- * Recursively copy directory, excluding build artifacts
+- * Uses writeFile to handle file conflicts with the global writeMode setting
+- */
+-async function copyDirFiltered(src: string, dest: string): Promise<void> {
+-  ensureDir(dest);
+-
+-  for (const entry of readdirSync(src)) {
+-    if (shouldExclude(entry)) {
+-      continue;
+-    }
+-
+-    const srcPath = path.join(src, entry);
+-    const destPath = path.join(dest, entry);
+-    const stat = statSync(srcPath);
+-
+-    if (stat.isDirectory()) {
+-      await copyDirFiltered(srcPath, destPath);
+-    } else {
+-      const content = readFileSync(srcPath, "utf-8");
+-      await writeFile(destPath, content);
+-    }
++export async function configureCursor(cwd: string): Promise<void> {
++  const config = AI_TOOLS.cursor;
++  const ctx = config.templateContext;
++  const configRoot = path.join(cwd, config.configDir);
++
++  const commandsDir = path.join(configRoot, "commands");
++  ensureDir(commandsDir);
++  for (const cmd of resolveCommands(ctx)) {
++    await writeFile(
++      path.join(commandsDir, `trellis-${cmd.name}.md`),
++      cmd.content,
++    );
+   }
+-}
+ 
+-/**
+- * Configure Cursor by copying from templates
+- */
+-export async function configureCursor(cwd: string): Promise<void> {
+-  const sourcePath = getCursorTemplatePath();
+-  const destPath = path.join(cwd, ".cursor");
++  await writeSkills(path.join(configRoot, "skills"), resolveSkills(ctx));
++  await writeAgents(path.join(configRoot, "agents"), getAllAgents());
++  await writeSharedHooks(path.join(configRoot, "hooks"));
+ 
+-  // Copy templates, excluding build artifacts
+-  await copyDirFiltered(sourcePath, destPath);
++  // Hooks config (separate file, not settings.json)
++  await writeFile(
++    path.join(configRoot, "hooks.json"),
++    resolvePlaceholders(getHooksConfig()),
++  );
+ }
+diff --git a/packages/cli/src/configurators/droid.ts b/packages/cli/src/configurators/droid.ts
+new file mode 100644
+index 0000000..27c984b
+--- /dev/null
++++ b/packages/cli/src/configurators/droid.ts
+@@ -0,0 +1,43 @@
++import path from "node:path";
++import { AI_TOOLS } from "../types/ai-tools.js";
++import { ensureDir, writeFile } from "../utils/file-writer.js";
++import {
++  resolvePlaceholders,
++  resolveCommands,
++  resolveSkills,
++  writeSkills,
++  writeAgents,
++  writeSharedHooks,
++} from "./shared.js";
++import { getAllDroids, getSettingsTemplate } from "../templates/droid/index.js";
++
++/**
++ * Configure Factory Droid:
++ * - commands/trellis/ — start + finish-work as slash commands
++ * - skills/trellis-{name}/SKILL.md — other 5 as auto-triggered skills
++ * - droids/{name}.md — sub-agent definitions (Droid calls them "droids")
++ * - hooks/*.py — shared hook scripts
++ * - settings.json — hook configuration
++ */
++export async function configureDroid(cwd: string): Promise<void> {
++  const config = AI_TOOLS.droid;
++  const ctx = config.templateContext;
++  const configRoot = path.join(cwd, config.configDir);
++
++  // Commands
++  const commandsDir = path.join(configRoot, "commands", "trellis");
++  ensureDir(commandsDir);
++  for (const cmd of resolveCommands(ctx)) {
++    await writeFile(path.join(commandsDir, `${cmd.name}.md`), cmd.content);
++  }
++
++  await writeSkills(path.join(configRoot, "skills"), resolveSkills(ctx));
++  await writeAgents(path.join(configRoot, "droids"), getAllDroids());
++  await writeSharedHooks(path.join(configRoot, "hooks"));
++
++  const settings = getSettingsTemplate();
++  await writeFile(
++    path.join(configRoot, settings.targetPath),
++    resolvePlaceholders(settings.content),
++  );
++}
+diff --git a/packages/cli/src/configurators/gemini.ts b/packages/cli/src/configurators/gemini.ts
+index 71b65c0..80ab9d8 100644
+--- a/packages/cli/src/configurators/gemini.ts
++++ b/packages/cli/src/configurators/gemini.ts
+@@ -1,59 +1,53 @@
+-/**
+- * Gemini CLI configurator
+- *
+- * Configures Gemini CLI by copying templates from src/templates/gemini/.
+- * Gemini CLI uses TOML commands, no hooks/agents/settings.
+- */
+-
+-import { readFileSync, readdirSync, statSync } from "node:fs";
+ import path from "node:path";
+-import { getGeminiTemplatePath } from "../templates/extract.js";
++import { AI_TOOLS } from "../types/ai-tools.js";
+ import { ensureDir, writeFile } from "../utils/file-writer.js";
++import {
++  resolvePlaceholders,
++  resolveCommands,
++  resolveSkills,
++  writeSkills,
++  writeAgents,
++  writeSharedHooks,
++  applyPullBasedPreludeMarkdown,
++} from "./shared.js";
++import {
++  getAllAgents,
++  getSettingsTemplate,
++} from "../templates/gemini/index.js";
+ 
+-const EXCLUDE_PATTERNS = [
+-  ".d.ts",
+-  ".d.ts.map",
+-  ".js",
+-  ".js.map",
+-  "__pycache__",
+-  "node_modules",
+-  "bun.lock",
+-  ".gitignore",
+-];
+-
+-function shouldExclude(filename: string): boolean {
+-  for (const pattern of EXCLUDE_PATTERNS) {
+-    if (filename.endsWith(pattern) || filename === pattern) {
+-      return true;
+-    }
+-  }
+-  return false;
+-}
+-
+-async function copyDirFiltered(src: string, dest: string): Promise<void> {
+-  ensureDir(dest);
+-
+-  for (const entry of readdirSync(src)) {
+-    if (shouldExclude(entry)) {
+-      continue;
+-    }
+-
+-    const srcPath = path.join(src, entry);
+-    const destPath = path.join(dest, entry);
+-    const stat = statSync(srcPath);
+-
+-    if (stat.isDirectory()) {
+-      await copyDirFiltered(srcPath, destPath);
+-    } else {
+-      const content = readFileSync(srcPath, "utf-8");
+-      await writeFile(destPath, content);
+-    }
+-  }
+-}
+-
++/**
++ * Configure Gemini CLI (pull-based class-2 platform):
++ * - commands/trellis/ — start + finish-work as TOML slash commands
++ * - skills/trellis-{name}/SKILL.md — other 5 as auto-triggered skills
++ * - agents/{name}.md — sub-agent definitions, with pull-based prelude
++ * - hooks/*.py — session-start only (no inject-subagent-context.py — Gemini
++ *   BeforeTool can fire but #18128 limits chain-of-thought visibility; sub-agents
++ *   Read jsonl/prd themselves)
++ * - settings.json — hook configuration (SessionStart only)
++ */
+ export async function configureGemini(cwd: string): Promise<void> {
+-  const sourcePath = getGeminiTemplatePath();
+-  const destPath = path.join(cwd, ".gemini");
++  const config = AI_TOOLS.gemini;
++  const ctx = config.templateContext;
++  const configRoot = path.join(cwd, config.configDir);
++
++  const commandsDir = path.join(configRoot, "commands", "trellis");
++  ensureDir(commandsDir);
++  for (const cmd of resolveCommands(ctx)) {
++    const toml = `description = "Trellis: ${cmd.name}"\n\nprompt = """\n${cmd.content}\n"""\n`;
++    await writeFile(path.join(commandsDir, `${cmd.name}.toml`), toml);
++  }
+ 
+-  await copyDirFiltered(sourcePath, destPath);
++  await writeSkills(path.join(configRoot, "skills"), resolveSkills(ctx));
++  await writeAgents(
++    path.join(configRoot, "agents"),
++    applyPullBasedPreludeMarkdown(getAllAgents()),
++  );
++  await writeSharedHooks(path.join(configRoot, "hooks"), {
++    exclude: ["inject-subagent-context.py"],
++  });
++
++  await writeFile(
++    path.join(configRoot, "settings.json"),
++    resolvePlaceholders(getSettingsTemplate()),
++  );
+ }
+diff --git a/packages/cli/src/configurators/iflow.ts b/packages/cli/src/configurators/iflow.ts
+deleted file mode 100644
+index 3368f69..0000000
+--- a/packages/cli/src/configurators/iflow.ts
++++ /dev/null
+@@ -1,108 +0,0 @@
+-import { readFileSync, readdirSync, statSync } from "node:fs";
+-import path from "node:path";
+-import { getIflowTemplatePath } from "../templates/extract.js";
+-import { ensureDir, writeFile } from "../utils/file-writer.js";
+-import { resolvePlaceholders } from "./shared.js";
+-
+-/**
+- * Files to exclude when copying templates
+- * These are TypeScript compilation artifacts
+- */
+-const EXCLUDE_PATTERNS = [
+-  ".d.ts",
+-  ".d.ts.map",
+-  ".js",
+-  ".js.map",
+-  "__pycache__",
+-];
+-
+-/**
+- * Check if a file should be excluded
+- */
+-function shouldExclude(filename: string): boolean {
+-  for (const pattern of EXCLUDE_PATTERNS) {
+-    if (filename.endsWith(pattern) || filename === pattern) {
+-      return true;
+-    }
+-  }
+-  return false;
+-}
+-
+-/**
+- * Recursively copy directory, excluding build artifacts
+- * Uses writeFile to handle file conflicts with the global writeMode setting
+- */
+-async function copyDirFiltered(src: string, dest: string): Promise<void> {
+-  ensureDir(dest);
+-
+-  for (const entry of readdirSync(src)) {
+-    if (shouldExclude(entry)) {
+-      continue;
+-    }
+-
+-    const srcPath = path.join(src, entry);
+-    const destPath = path.join(dest, entry);
+-    const stat = statSync(srcPath);
+-
+-    if (stat.isDirectory()) {
+-      await copyDirFiltered(srcPath, destPath);
+-    } else {
+-      let content = readFileSync(srcPath, "utf-8");
+-      // Replace placeholders in settings.json
+-      if (entry === "settings.json") {
+-        content = resolvePlaceholders(content);
+-      }
+-      await writeFile(destPath, content);
+-    }
+-  }
+-}
+-
+-/**
+- * Configure iFlow CLI by copying from templates
+- *
+- * The iflow templates include:
+- * - commands/ - Slash commands
+- * - agents/ - Multi-agent pipeline configurations
+- * - hooks/ - Context injection hooks
+- * - settings.json - Hook and tool configurations
+- * - AGENTS.md - Agent documentation
+- */
+-export async function configureIflow(cwd: string): Promise<void> {
+-  const sourcePath = getIflowTemplatePath();
+-  const destPath = path.join(cwd, ".iflow");
+-
+-  // Copy templates, excluding build artifacts
+-  await copyDirFiltered(sourcePath, destPath);
+-}
+-
+-/**
+- * Configure iFlow CLI agents for Multi-Agent Pipeline
+- *
+- * @deprecated Agents are now included in the main .iflow directory copy.
+- * This function is kept for backwards compatibility but does nothing.
+- */
+-export async function configureIflowAgents(_cwd: string): Promise<void> {
+-  // Agents are now copied as part of configureIflow
+-  // This function is kept for API compatibility
+-}
+-
+-/**
+- * Configure iFlow CLI hooks for context injection
+- *
+- * @deprecated Hooks are now included in the main .iflow directory copy.
+- * This function is kept for backwards compatibility but does nothing.
+- */
+-export async function configureIflowHooks(_cwd: string): Promise<void> {
+-  // Hooks are now copied as part of configureIflow
+-  // This function is kept for API compatibility
+-}
+-
+-/**
+- * Configure iFlow CLI with full Multi-Agent Pipeline support
+- *
+- * This is now equivalent to just calling configureIflow since the entire
+- * .iflow directory is copied at once.
+- */
+-export async function configureIflowFull(cwd: string): Promise<void> {
+-  await configureIflow(cwd);
+-}
+diff --git a/packages/cli/src/configurators/index.ts b/packages/cli/src/configurators/index.ts
+index e1408f7..b7eb580 100644
+--- a/packages/cli/src/configurators/index.ts
++++ b/packages/cli/src/configurators/index.ts
+@@ -20,8 +20,7 @@ import {
+ // Platform configurators
+ import { configureClaude } from "./claude.js";
+ import { configureCursor } from "./cursor.js";
+-import { configureIflow } from "./iflow.js";
+-import { configureOpenCode } from "./opencode.js";
++import { configureOpenCode, collectOpenCodeTemplates } from "./opencode.js";
+ import { configureCodex } from "./codex.js";
+ import { configureKilo } from "./kilo.js";
+ import { configureKiro } from "./kiro.js";
+@@ -31,44 +30,57 @@ import { configureWindsurf } from "./windsurf.js";
+ import { configureQoder } from "./qoder.js";
+ import { configureCodebuddy } from "./codebuddy.js";
+ import { configureCopilot } from "./copilot.js";
++import { configureDroid } from "./droid.js";
+ 
+ // Shared utilities
+-import { resolvePlaceholders } from "./shared.js";
++import {
++  resolvePlaceholders,
++  resolveAllAsSkills,
++  resolveCommands,
++  resolveSkills,
++  wrapWithCommandFrontmatter,
++  applyPullBasedPreludeMarkdown,
++  applyPullBasedPreludeToml,
++} from "./shared.js";
+ 
+-// Template content for update tracking
++// Platform-specific template content (hooks, agents, settings — NOT commands/skills)
+ import {
+   getAllAgents as getClaudeAgents,
+-  getAllCommands as getClaudeCommands,
+-  getAllHooks as getClaudeHooks,
+   getSettingsTemplate as getClaudeSettings,
+ } from "../templates/claude/index.js";
+-import { getAllCommands as getCursorCommands } from "../templates/cursor/index.js";
+-import {
+-  getAllAgents as getIflowAgents,
+-  getAllCommands as getIflowCommands,
+-  getAllHooks as getIflowHooks,
+-  getSettingsTemplate as getIflowSettings,
+-} from "../templates/iflow/index.js";
+ import {
+   getAllAgents as getCodexAgents,
+   getAllCodexSkills as getCodexPlatformSkills,
+   getAllHooks as getCodexHooks,
+-  getAllSkills as getCodexSkills,
+   getConfigTemplate as getCodexConfigTemplate,
+   getHooksConfig as getCodexHooksConfig,
+ } from "../templates/codex/index.js";
+-import { getAllWorkflows as getKiloWorkflows } from "../templates/kilo/index.js";
+-import { getAllSkills as getKiroSkills } from "../templates/kiro/index.js";
+-import { getAllCommands as getGeminiCommands } from "../templates/gemini/index.js";
+-import { getAllWorkflows as getAntigravityWorkflows } from "../templates/antigravity/index.js";
+-import { getAllWorkflows as getAllWindsurfWorkflows } from "../templates/windsurf/index.js";
+-import { getAllSkills as getQoderSkills } from "../templates/qoder/index.js";
+-import { getAllCommands as getCodebuddyCommands } from "../templates/codebuddy/index.js";
+ import {
+   getAllHooks as getCopilotHooks,
+-  getAllPrompts as getCopilotPrompts,
+   getHooksConfig as getCopilotHooksConfig,
+ } from "../templates/copilot/index.js";
++import {
++  getAllAgents as getQoderAgents,
++  getSettingsTemplate as getQoderSettings,
++} from "../templates/qoder/index.js";
++import {
++  getAllAgents as getCodebuddyAgents,
++  getSettingsTemplate as getCodebuddySettings,
++} from "../templates/codebuddy/index.js";
++import {
++  getAllDroids as getDroidDroids,
++  getSettingsTemplate as getDroidSettings,
++} from "../templates/droid/index.js";
++import {
++  getAllAgents as getCursorAgents,
++  getHooksConfig as getCursorHooksConfig,
++} from "../templates/cursor/index.js";
++import {
++  getAllAgents as getGeminiAgents,
++  getSettingsTemplate as getGeminiSettings,
++} from "../templates/gemini/index.js";
++import { getAllAgents as getKiroAgents } from "../templates/kiro/index.js";
++import { getSharedHookScripts } from "../templates/shared-hooks/index.js";
+ 
+ // =============================================================================
+ // Platform Functions Registry
+@@ -85,24 +97,64 @@ interface PlatformFunctions {
+  * Platform functions registry — maps each AITool to its behavior.
+  * When adding a new platform, add an entry here.
+  */
++/** Helper: collect shared hook scripts for a platform.
++ *  `exclude` omits specific hooks (e.g. class-2 platforms skip
++ *  inject-subagent-context.py because their platform hooks can't inject
++ *  sub-agent prompts — sub-agents pull context via prelude instead).
++ */
++function collectSharedHooks(
++  hooksPath: string,
++  options: { exclude?: readonly string[] } = {},
++): Map<string, string> {
++  const files = new Map<string, string>();
++  const exclude = new Set(options.exclude ?? []);
++  for (const hook of getSharedHookScripts()) {
++    if (exclude.has(hook.name)) continue;
++    files.set(`${hooksPath}/${hook.name}`, hook.content);
++  }
++  return files;
++}
++
++/** Class-2 (pull-based) platforms: hooks that should NOT be installed
++ *  because their platform hook can't inject sub-agent prompts — sub-agents
++ *  pull task context themselves via the prelude written into agent defs.
++ */
++const PULL_BASED_HOOK_EXCLUDE = ["inject-subagent-context.py"] as const;
++
++/** Helper: collect commands + skills for "both" platforms */
++function collectBothTemplates(
++  ctx: import("../types/ai-tools.js").TemplateContext,
++  cmdPath: (name: string) => string,
++  skillRoot: string,
++  wrapCmd?: (filePath: string, content: string) => string,
++): Map<string, string> {
++  const files = new Map<string, string>();
++  for (const cmd of resolveCommands(ctx)) {
++    const filePath = cmdPath(cmd.name);
++    files.set(filePath, wrapCmd ? wrapCmd(filePath, cmd.content) : cmd.content);
++  }
++  for (const skill of resolveSkills(ctx)) {
++    files.set(`${skillRoot}/${skill.name}/SKILL.md`, skill.content);
++  }
++  return files;
++}
++
+ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
+   "claude-code": {
+     configure: configureClaude,
+     collectTemplates: () => {
+-      const files = new Map<string, string>();
+-      // Commands (in trellis/ subdirectory for namespace)
+-      for (const cmd of getClaudeCommands()) {
+-        files.set(`.claude/commands/trellis/${cmd.name}.md`, cmd.content);
+-      }
+-      // Agents
++      const ctx = AI_TOOLS["claude-code"].templateContext;
++      const files = collectBothTemplates(
++        ctx,
++        (n) => `.claude/commands/trellis/${n}.md`,
++        ".claude/skills",
++      );
+       for (const agent of getClaudeAgents()) {
+         files.set(`.claude/agents/${agent.name}.md`, agent.content);
+       }
+-      // Hooks
+-      for (const hook of getClaudeHooks()) {
+-        files.set(`.claude/${hook.targetPath}`, hook.content);
++      for (const [k, v] of collectSharedHooks(".claude/hooks")) {
++        files.set(k, v);
+       }
+-      // Settings (resolve {{PYTHON_CMD}} to match what configure() writes)
+       const settings = getClaudeSettings();
+       files.set(
+         `.claude/${settings.targetPath}`,
+@@ -114,59 +166,50 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
+   cursor: {
+     configure: configureCursor,
+     collectTemplates: () => {
+-      const files = new Map<string, string>();
+-      // Commands (flat structure with trellis- prefix, Cursor doesn't support subdirs)
+-      for (const cmd of getCursorCommands()) {
+-        files.set(`.cursor/commands/${cmd.name}.md`, cmd.content);
+-      }
+-      return files;
+-    },
+-  },
+-  opencode: {
+-    configure: configureOpenCode,
+-    // OpenCode uses plugin system, templates handled separately during init
+-  },
+-  iflow: {
+-    configure: configureIflow,
+-    collectTemplates: () => {
+-      const files = new Map<string, string>();
+-      // Commands
+-      for (const cmd of getIflowCommands()) {
+-        files.set(`.iflow/commands/trellis/${cmd.name}.md`, cmd.content);
+-      }
+-      // Agents
+-      for (const agent of getIflowAgents()) {
+-        files.set(`.iflow/agents/${agent.name}.md`, agent.content);
++      const files = collectBothTemplates(
++        AI_TOOLS.cursor.templateContext,
++        (n) => `.cursor/commands/trellis-${n}.md`,
++        ".cursor/skills",
++      );
++      for (const agent of getCursorAgents()) {
++        files.set(`.cursor/agents/${agent.name}.md`, agent.content);
+       }
+-      // Hooks
+-      for (const hook of getIflowHooks()) {
+-        files.set(`.iflow/${hook.targetPath}`, hook.content);
++      for (const [k, v] of collectSharedHooks(".cursor/hooks")) {
++        files.set(k, v);
+       }
+-      // Settings (resolve {{PYTHON_CMD}} to match what configure() writes)
+-      const settings = getIflowSettings();
+       files.set(
+-        `.iflow/${settings.targetPath}`,
+-        resolvePlaceholders(settings.content),
++        ".cursor/hooks.json",
++        resolvePlaceholders(getCursorHooksConfig()),
+       );
+       return files;
+     },
+   },
++  opencode: {
++    configure: configureOpenCode,
++    collectTemplates: () => collectOpenCodeTemplates(),
++  },
+   codex: {
+     configure: configureCodex,
+     collectTemplates: () => {
+       const files = new Map<string, string>();
+-      for (const skill of getCodexSkills()) {
+-        files.set(`.agents/skills/${skill.name}/SKILL.md`, skill.content);
++      for (const s of resolveAllAsSkills(AI_TOOLS.codex.templateContext)) {
++        files.set(`.agents/skills/${s.name}/SKILL.md`, s.content);
+       }
+       for (const skill of getCodexPlatformSkills()) {
+         files.set(`.codex/skills/${skill.name}/SKILL.md`, skill.content);
+       }
+-      for (const agent of getCodexAgents()) {
++      for (const agent of applyPullBasedPreludeToml(getCodexAgents())) {
+         files.set(`.codex/agents/${agent.name}.toml`, agent.content);
+       }
+       for (const hook of getCodexHooks()) {
+         files.set(`.codex/hooks/${hook.name}`, hook.content);
+       }
++      // Shared hooks (inject-workflow-state.py etc.) — mirror configureCodex
++      for (const [k, v] of collectSharedHooks(".codex/hooks", {
++        exclude: ["session-start.py", "inject-subagent-context.py"],
++      })) {
++        files.set(k, v);
++      }
+       files.set(
+         ".codex/hooks.json",
+         resolvePlaceholders(getCodexHooksConfig()),
+@@ -178,20 +221,28 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
+   },
+   kilo: {
+     configure: configureKilo,
+-    collectTemplates: () => {
+-      const files = new Map<string, string>();
+-      for (const wf of getKiloWorkflows()) {
+-        files.set(`.kilocode/workflows/${wf.name}.md`, wf.content);
+-      }
+-      return files;
+-    },
++    collectTemplates: () =>
++      collectBothTemplates(
++        AI_TOOLS.kilo.templateContext,
++        (n) => `.kilocode/workflows/${n}.md`,
++        ".kilocode/skills",
++      ),
+   },
+   kiro: {
+     configure: configureKiro,
+     collectTemplates: () => {
+       const files = new Map<string, string>();
+-      for (const skill of getKiroSkills()) {
+-        files.set(`.kiro/skills/${skill.name}/SKILL.md`, skill.content);
++      for (const s of resolveAllAsSkills(AI_TOOLS.kiro.templateContext)) {
++        files.set(`.kiro/skills/${s.name}/SKILL.md`, s.content);
++      }
++      for (const agent of getKiroAgents()) {
++        files.set(
++          `.kiro/agents/${agent.name}.json`,
++          resolvePlaceholders(agent.content),
++        );
++      }
++      for (const [k, v] of collectSharedHooks(".kiro/hooks")) {
++        files.set(k, v);
+       }
+       return files;
+     },
+@@ -199,73 +250,148 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
+   gemini: {
+     configure: configureGemini,
+     collectTemplates: () => {
++      const ctx = AI_TOOLS.gemini.templateContext;
+       const files = new Map<string, string>();
+-      for (const cmd of getGeminiCommands()) {
+-        files.set(`.gemini/commands/trellis/${cmd.name}.toml`, cmd.content);
++      for (const cmd of resolveCommands(ctx)) {
++        const toml = `description = "Trellis: ${cmd.name}"\n\nprompt = """\n${cmd.content}\n"""\n`;
++        files.set(`.gemini/commands/trellis/${cmd.name}.toml`, toml);
++      }
++      for (const skill of resolveSkills(ctx)) {
++        files.set(`.gemini/skills/${skill.name}/SKILL.md`, skill.content);
+       }
++      for (const agent of applyPullBasedPreludeMarkdown(getGeminiAgents())) {
++        files.set(`.gemini/agents/${agent.name}.md`, agent.content);
++      }
++      for (const [k, v] of collectSharedHooks(".gemini/hooks", {
++        exclude: PULL_BASED_HOOK_EXCLUDE,
++      })) {
++        files.set(k, v);
++      }
++      files.set(
++        ".gemini/settings.json",
++        resolvePlaceholders(getGeminiSettings()),
++      );
+       return files;
+     },
+   },
+   antigravity: {
+     configure: configureAntigravity,
+-    collectTemplates: () => {
+-      const files = new Map<string, string>();
+-      for (const workflow of getAntigravityWorkflows()) {
+-        files.set(`.agent/workflows/${workflow.name}.md`, workflow.content);
+-      }
+-      return files;
+-    },
++    collectTemplates: () =>
++      collectBothTemplates(
++        AI_TOOLS.antigravity.templateContext,
++        (n) => `.agent/workflows/${n}.md`,
++        ".agent/skills",
++      ),
+   },
+   windsurf: {
+     configure: configureWindsurf,
+-    collectTemplates: () => {
+-      const files = new Map<string, string>();
+-      for (const workflow of getAllWindsurfWorkflows()) {
+-        files.set(`.windsurf/workflows/${workflow.name}.md`, workflow.content);
+-      }
+-      return files;
+-    },
++    collectTemplates: () =>
++      collectBothTemplates(
++        AI_TOOLS.windsurf.templateContext,
++        (n) => `.windsurf/workflows/trellis-${n}.md`,
++        ".windsurf/skills",
++      ),
+   },
+   qoder: {
+     configure: configureQoder,
+     collectTemplates: () => {
+-      const files = new Map<string, string>();
+-      for (const skill of getQoderSkills()) {
+-        files.set(`.qoder/skills/${skill.name}/SKILL.md`, skill.content);
++      const files = collectBothTemplates(
++        AI_TOOLS.qoder.templateContext,
++        (n) => `.qoder/commands/trellis-${n}.md`,
++        ".qoder/skills",
++        (filePath, content) => {
++          const name = path.basename(filePath, ".md");
++          return wrapWithCommandFrontmatter(name, content);
++        },
++      );
++      for (const agent of applyPullBasedPreludeMarkdown(getQoderAgents())) {
++        files.set(`.qoder/agents/${agent.name}.md`, agent.content);
+       }
++      for (const [k, v] of collectSharedHooks(".qoder/hooks", {
++        exclude: PULL_BASED_HOOK_EXCLUDE,
++      })) {
++        files.set(k, v);
++      }
++      const settings = getQoderSettings();
++      files.set(
++        `.qoder/${settings.targetPath}`,
++        resolvePlaceholders(settings.content),
++      );
+       return files;
+     },
+   },
+   codebuddy: {
+     configure: configureCodebuddy,
+     collectTemplates: () => {
+-      const files = new Map<string, string>();
+-      // Commands in trellis/ subdirectory (CodeBuddy supports nested dirs)
+-      for (const cmd of getCodebuddyCommands()) {
+-        files.set(`.codebuddy/commands/trellis/${cmd.name}.md`, cmd.content);
++      const files = collectBothTemplates(
++        AI_TOOLS.codebuddy.templateContext,
++        (n) => `.codebuddy/commands/trellis/${n}.md`,
++        ".codebuddy/skills",
++      );
++      for (const agent of getCodebuddyAgents()) {
++        files.set(`.codebuddy/agents/${agent.name}.md`, agent.content);
++      }
++      for (const [k, v] of collectSharedHooks(".codebuddy/hooks")) {
++        files.set(k, v);
+       }
++      const settings = getCodebuddySettings();
++      files.set(
++        `.codebuddy/${settings.targetPath}`,
++        resolvePlaceholders(settings.content),
++      );
+       return files;
+     },
+   },
+   copilot: {
+     configure: configureCopilot,
+     collectTemplates: () => {
++      const ctx = AI_TOOLS.copilot.templateContext;
+       const files = new Map<string, string>();
+-      for (const prompt of getCopilotPrompts()) {
+-        files.set(`.github/prompts/${prompt.name}.prompt.md`, prompt.content);
++      for (const cmd of resolveCommands(ctx)) {
++        files.set(`.github/prompts/${cmd.name}.prompt.md`, cmd.content);
+       }
++      for (const skill of resolveSkills(ctx)) {
++        files.set(`.github/skills/${skill.name}/SKILL.md`, skill.content);
++      }
++      // Copilot's own session-start hook
+       for (const hook of getCopilotHooks()) {
+         files.set(`.github/copilot/hooks/${hook.name}`, hook.content);
+       }
+-      // Tracked copy under platform config directory
+-      files.set(
+-        ".github/copilot/hooks.json",
+-        resolvePlaceholders(getCopilotHooksConfig()),
++      // Shared hooks: skip session-start (Copilot has its own) and
++      // inject-subagent-context (Copilot is class-2 / pull-based).
++      for (const hook of getSharedHookScripts()) {
++        if (hook.name === "session-start.py") continue;
++        if (hook.name === "inject-subagent-context.py") continue;
++        files.set(`.github/copilot/hooks/${hook.name}`, hook.content);
++      }
++      // Agents: reuse Cursor content + prepend pull-based prelude
++      for (const agent of applyPullBasedPreludeMarkdown(getCursorAgents())) {
++        files.set(`.github/agents/${agent.name}.agent.md`, agent.content);
++      }
++      const hooksConfig = resolvePlaceholders(getCopilotHooksConfig());
++      files.set(".github/copilot/hooks.json", hooksConfig);
++      files.set(".github/hooks/trellis.json", hooksConfig);
++      return files;
++    },
++  },
++  droid: {
++    configure: configureDroid,
++    collectTemplates: () => {
++      const files = collectBothTemplates(
++        AI_TOOLS.droid.templateContext,
++        (n) => `.factory/commands/trellis/${n}.md`,
++        ".factory/skills",
+       );
+-      // VS Code Copilot discovery entry written by configureCopilot
++      for (const droid of getDroidDroids()) {
++        files.set(`.factory/droids/${droid.name}.md`, droid.content);
++      }
++      for (const [k, v] of collectSharedHooks(".factory/hooks")) {
++        files.set(k, v);
++      }
++      const settings = getDroidSettings();
+       files.set(
+-        ".github/hooks/trellis.json",
+-        resolvePlaceholders(getCopilotHooksConfig()),
++        `.factory/${settings.targetPath}`,
++        resolvePlaceholders(settings.content),
+       );
+       return files;
+     },
+@@ -279,7 +405,7 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
+ /** All platform IDs */
+ export const PLATFORM_IDS = Object.keys(AI_TOOLS) as AITool[];
+ 
+-/** All platform config directory names (e.g., [".claude", ".cursor", ".iflow", ".opencode"]) */
++/** All platform config directory names (e.g., [".claude", ".cursor", ".opencode"]) */
+ export const CONFIG_DIRS = PLATFORM_IDS.map((id) => AI_TOOLS[id].configDir);
+ 
+ /** All managed paths for every platform (primary configDir + extra managed paths). */
+diff --git a/packages/cli/src/configurators/kilo.ts b/packages/cli/src/configurators/kilo.ts
+index 9d5c0d4..78ea319 100644
+--- a/packages/cli/src/configurators/kilo.ts
++++ b/packages/cli/src/configurators/kilo.ts
+@@ -1,59 +1,27 @@
+-/**
+- * Kilo CLI configurator
+- *
+- * Configures Kilo CLI by copying templates from src/templates/kilo/.
+- * Kilo CLI does not support hooks, so only workflows are copied.
+- */
+-
+-import { readFileSync, readdirSync, statSync } from "node:fs";
+ import path from "node:path";
+-import { getKiloTemplatePath } from "../templates/extract.js";
++import { AI_TOOLS } from "../types/ai-tools.js";
+ import { ensureDir, writeFile } from "../utils/file-writer.js";
++import { resolveCommands, resolveSkills } from "./shared.js";
+ 
+-const EXCLUDE_PATTERNS = [
+-  ".d.ts",
+-  ".d.ts.map",
+-  ".js",
+-  ".js.map",
+-  "__pycache__",
+-  "node_modules",
+-  "bun.lock",
+-  ".gitignore",
+-];
++/**
++ * Configure Kilo CLI:
++ * - workflows/ — start + finish-work as slash commands
++ * - skills/trellis-{name}/SKILL.md — other 5 as auto-triggered skills
++ */
++export async function configureKilo(cwd: string): Promise<void> {
++  const ctx = AI_TOOLS.kilo.templateContext;
+ 
+-function shouldExclude(filename: string): boolean {
+-  for (const pattern of EXCLUDE_PATTERNS) {
+-    if (filename.endsWith(pattern) || filename === pattern) {
+-      return true;
+-    }
++  const workflowsDir = path.join(cwd, ".kilocode", "workflows");
++  ensureDir(workflowsDir);
++  for (const cmd of resolveCommands(ctx)) {
++    await writeFile(path.join(workflowsDir, `${cmd.name}.md`), cmd.content);
+   }
+-  return false;
+-}
+ 
+-async function copyDirFiltered(src: string, dest: string): Promise<void> {
+-  ensureDir(dest);
+-
+-  for (const entry of readdirSync(src)) {
+-    if (shouldExclude(entry)) {
+-      continue;
+-    }
+-
+-    const srcPath = path.join(src, entry);
+-    const destPath = path.join(dest, entry);
+-    const stat = statSync(srcPath);
+-
+-    if (stat.isDirectory()) {
+-      await copyDirFiltered(srcPath, destPath);
+-    } else {
+-      const content = readFileSync(srcPath, "utf-8");
+-      await writeFile(destPath, content);
+-    }
++  const skillsDir = path.join(cwd, ".kilocode", "skills");
++  ensureDir(skillsDir);
++  for (const skill of resolveSkills(ctx)) {
++    const skillDir = path.join(skillsDir, skill.name);
++    ensureDir(skillDir);
++    await writeFile(path.join(skillDir, "SKILL.md"), skill.content);
+   }
+ }
+-
+-export async function configureKilo(cwd: string): Promise<void> {
+-  const sourcePath = getKiloTemplatePath();
+-  const destPath = path.join(cwd, ".kilocode");
+-
+-  await copyDirFiltered(sourcePath, destPath);
+-}
+diff --git a/packages/cli/src/configurators/kiro.ts b/packages/cli/src/configurators/kiro.ts
+index 24c692d..ea0b125 100644
+--- a/packages/cli/src/configurators/kiro.ts
++++ b/packages/cli/src/configurators/kiro.ts
+@@ -1,21 +1,36 @@
+ import path from "node:path";
+-import { getAllSkills } from "../templates/kiro/index.js";
+-import { ensureDir, writeFile } from "../utils/file-writer.js";
++import { AI_TOOLS } from "../types/ai-tools.js";
++import {
++  resolvePlaceholders,
++  resolveAllAsSkills,
++  writeSkills,
++  writeAgents,
++  writeSharedHooks,
++} from "./shared.js";
++import { getAllAgents } from "../templates/kiro/index.js";
+ 
+ /**
+- * Configure Kiro Code by writing skill templates.
+- *
+- * Output:
+- * - .kiro/skills/<skill-name>/SKILL.md
++ * Configure Kiro Code:
++ * - skills/trellis-{name}/SKILL.md — all templates as auto-triggered skills
++ * - agents/{name}.json — sub-agent definitions (JSON, with hooks embedded)
++ * - hooks/*.py — shared hook scripts (referenced by agent JSON hooks)
+  */
+ export async function configureKiro(cwd: string): Promise<void> {
+-  const skillsRoot = path.join(cwd, ".kiro", "skills");
+-  ensureDir(skillsRoot);
++  const config = AI_TOOLS.kiro;
++  // Kiro configDir is ".kiro/skills" — agents and hooks go under ".kiro/"
++  const kiroRoot = path.join(cwd, ".kiro");
+ 
+-  for (const skill of getAllSkills()) {
+-    const skillDir = path.join(skillsRoot, skill.name);
+-    ensureDir(skillDir);
+-    const targetPath = path.join(skillDir, "SKILL.md");
+-    await writeFile(targetPath, skill.content);
+-  }
++  await writeSkills(
++    path.join(kiroRoot, "skills"),
++    resolveAllAsSkills(config.templateContext),
++  );
++
++  // Agents (JSON format, with {{PYTHON_CMD}} resolved)
++  const agents = getAllAgents().map((a) => ({
++    ...a,
++    content: resolvePlaceholders(a.content),
++  }));
++  await writeAgents(path.join(kiroRoot, "agents"), agents, ".json");
++
++  await writeSharedHooks(path.join(kiroRoot, "hooks"));
+ }
+diff --git a/packages/cli/src/configurators/opencode.ts b/packages/cli/src/configurators/opencode.ts
+index db88be7..369900c 100644
+--- a/packages/cli/src/configurators/opencode.ts
++++ b/packages/cli/src/configurators/opencode.ts
+@@ -1,18 +1,15 @@
+-/**
+- * OpenCode configurator
+- *
+- * Configures OpenCode by copying templates from src/templates/opencode/.
+- * This uses the dogfooding pattern - the same files used by Trellis project itself.
+- */
+-
+ import { readFileSync, readdirSync, statSync } from "node:fs";
+ import path from "node:path";
++import { AI_TOOLS } from "../types/ai-tools.js";
+ import { getOpenCodeTemplatePath } from "../templates/extract.js";
+ import { ensureDir, writeFile } from "../utils/file-writer.js";
++import { resolveCommands, resolveSkills } from "./shared.js";
+ 
+ /**
+- * Files to exclude when copying templates
+- * These are build artifacts or platform-specific files
++ * Files under packages/cli/src/templates/opencode/ that are NOT user-facing
++ * assets (build artifacts, runtime caches, etc.). The template dir has a
++ * real package.json that declares the @opencode-ai/plugin dep — that one
++ * IS user-facing and must be shipped.
+  */
+ const EXCLUDE_PATTERNS = [
+   ".d.ts",
+@@ -24,9 +21,6 @@ const EXCLUDE_PATTERNS = [
+   ".gitignore",
+ ];
+ 
+-/**
+- * Check if a file should be excluded
+- */
+ function shouldExclude(filename: string): boolean {
+   for (const pattern of EXCLUDE_PATTERNS) {
+     if (filename.endsWith(pattern) || filename === pattern) {
+@@ -37,65 +31,66 @@ function shouldExclude(filename: string): boolean {
+ }
+ 
+ /**
+- * Recursively copy directory, excluding build artifacts
+- * Uses writeFile to handle file conflicts with the global writeMode setting
++ * Walk the opencode template directory and produce a `Map<relPath, content>`
++ * rooted at `.opencode/`. Shared by both `configureOpenCode` (init-time write)
++ * and `collectOpenCodeTemplates` (update-time hash tracking) so the two paths
++ * always agree on the exact file set. `commands/` is handled separately (sourced
++ * from common template context, not from this directory tree).
+  */
+-async function copyDirFiltered(src: string, dest: string): Promise<void> {
+-  ensureDir(dest);
+-
+-  for (const entry of readdirSync(src)) {
+-    if (shouldExclude(entry)) {
+-      continue;
+-    }
+-
+-    const srcPath = path.join(src, entry);
+-    const destPath = path.join(dest, entry);
+-    const stat = statSync(srcPath);
++function walkOpenCodeTemplateDir(): Map<string, string> {
++  const files = new Map<string, string>();
++  const sourcePath = getOpenCodeTemplatePath();
+ 
+-    if (stat.isDirectory()) {
+-      await copyDirFiltered(srcPath, destPath);
+-    } else {
+-      const content = readFileSync(srcPath, "utf-8");
+-      await writeFile(destPath, content);
++  function walk(relDir: string): void {
++    const absDir = path.join(sourcePath, relDir);
++    for (const entry of readdirSync(absDir)) {
++      if (shouldExclude(entry)) continue;
++      const absEntry = path.join(absDir, entry);
++      const relEntry = relDir ? path.join(relDir, entry) : entry;
++      const stat = statSync(absEntry);
++      if (stat.isDirectory()) {
++        // Skip commands/ — that's sourced from common/ templates, not the
++        // opencode/ dir. Including both paths would double-write.
++        if (relEntry === "commands") continue;
++        walk(relEntry);
++      } else {
++        const content = readFileSync(absEntry, "utf-8");
++        files.set(path.join(".opencode", relEntry), content);
++      }
+     }
+   }
+-}
+ 
+-/**
+- * Configure OpenCode by copying from templates
+- *
+- * The opencode templates include:
+- * - commands/ - Slash commands
+- * - agents/ - Multi-agent pipeline configurations
+- * - plugins/ - Context injection plugins
+- * - lib/ - Shared JavaScript utilities
+- * - package.json - Plugin dependencies
+- */
+-export async function configureOpenCode(cwd: string): Promise<void> {
+-  const sourcePath = getOpenCodeTemplatePath();
+-  const destPath = path.join(cwd, ".opencode");
+-
+-  // Copy templates, excluding build artifacts
+-  await copyDirFiltered(sourcePath, destPath);
++  walk("");
++  return files;
+ }
+ 
+ /**
+- * Configure OpenCode agents for Multi-Agent Pipeline
++ * Collect all opencode template files that `trellis update` should track.
+  *
+- * @deprecated Agents are now included in the main .opencode directory copy.
+- * This function is kept for backwards compatibility but does nothing.
++ * Must stay in sync with `configureOpenCode`: both paths produce the same
++ * `Map<relPath, content>`. If they drift, update will spuriously flag newly
++ * init'd files as modifications on the next run.
+  */
+-export async function configureOpenCodeAgents(_cwd: string): Promise<void> {
+-  // Agents are now copied as part of configureOpenCode
+-  // This function is kept for API compatibility
++export function collectOpenCodeTemplates(): Map<string, string> {
++  const files = walkOpenCodeTemplateDir();
++  const ctx = AI_TOOLS.opencode.templateContext;
++  for (const cmd of resolveCommands(ctx)) {
++    files.set(`.opencode/commands/trellis/${cmd.name}.md`, cmd.content);
++  }
++  for (const skill of resolveSkills(ctx)) {
++    files.set(`.opencode/skills/${skill.name}/SKILL.md`, skill.content);
++  }
++  return files;
+ }
+ 
+ /**
+- * Configure OpenCode with full Multi-Agent Pipeline support
+- *
+- * This is now equivalent to just calling configureOpenCode since the entire
+- * .opencode directory is copied at once.
++ * Configure OpenCode at init time by writing the same file set enumerated
++ * by `collectOpenCodeTemplates`.
+  */
+-export async function configureOpenCodeFull(cwd: string): Promise<void> {
+-  await configureOpenCode(cwd);
++export async function configureOpenCode(cwd: string): Promise<void> {
++  for (const [relPath, content] of collectOpenCodeTemplates()) {
++    const absPath = path.join(cwd, relPath);
++    ensureDir(path.dirname(absPath));
++    await writeFile(absPath, content);
++  }
+ }
+diff --git a/packages/cli/src/configurators/qoder.ts b/packages/cli/src/configurators/qoder.ts
+index b616941..76d7140 100644
+--- a/packages/cli/src/configurators/qoder.ts
++++ b/packages/cli/src/configurators/qoder.ts
+@@ -1,59 +1,54 @@
+-/**
+- * Qoder configurator
+- *
+- * Configures Qoder by copying templates from src/templates/qoder/.
+- * Qoder uses skills (SKILL.md), no hooks or agents.
+- */
+-
+-import { readFileSync, readdirSync, statSync } from "node:fs";
+ import path from "node:path";
+-import { getQoderTemplatePath } from "../templates/extract.js";
++import { AI_TOOLS } from "../types/ai-tools.js";
+ import { ensureDir, writeFile } from "../utils/file-writer.js";
++import {
++  resolvePlaceholders,
++  resolveCommands,
++  resolveSkills,
++  wrapWithCommandFrontmatter,
++  writeSkills,
++  writeAgents,
++  writeSharedHooks,
++  applyPullBasedPreludeMarkdown,
++} from "./shared.js";
++import { getAllAgents, getSettingsTemplate } from "../templates/qoder/index.js";
+ 
+-const EXCLUDE_PATTERNS = [
+-  ".d.ts",
+-  ".d.ts.map",
+-  ".js",
+-  ".js.map",
+-  "__pycache__",
+-  "node_modules",
+-  "bun.lock",
+-  ".gitignore",
+-];
+-
+-function shouldExclude(filename: string): boolean {
+-  for (const pattern of EXCLUDE_PATTERNS) {
+-    if (filename.endsWith(pattern) || filename === pattern) {
+-      return true;
+-    }
+-  }
+-  return false;
+-}
+-
+-async function copyDirFiltered(src: string, dest: string): Promise<void> {
+-  ensureDir(dest);
+-
+-  for (const entry of readdirSync(src)) {
+-    if (shouldExclude(entry)) {
+-      continue;
+-    }
+-
+-    const srcPath = path.join(src, entry);
+-    const destPath = path.join(dest, entry);
+-    const stat = statSync(srcPath);
+-
+-    if (stat.isDirectory()) {
+-      await copyDirFiltered(srcPath, destPath);
+-    } else {
+-      const content = readFileSync(srcPath, "utf-8");
+-      await writeFile(destPath, content);
+-    }
+-  }
+-}
+-
++/**
++ * Configure Qoder (pull-based class-2 platform).
++ *
++ * Qoder Custom Commands require YAML frontmatter with `name` + `description`
++ * and use a flat layout, so session-boundary commands get wrapped via
++ * `wrapWithCommandFrontmatter`; auto-trigger workflows stay as plain skills.
++ * `inject-subagent-context.py` is excluded because Qoder's hook can't inject
++ * sub-agent prompts — sub-agents pull task context themselves.
++ */
+ export async function configureQoder(cwd: string): Promise<void> {
+-  const sourcePath = getQoderTemplatePath();
+-  const destPath = path.join(cwd, ".qoder");
++  const config = AI_TOOLS.qoder;
++  const ctx = config.templateContext;
++  const configRoot = path.join(cwd, config.configDir);
++
++  const commandsDir = path.join(configRoot, "commands");
++  ensureDir(commandsDir);
++  for (const cmd of resolveCommands(ctx)) {
++    const name = `trellis-${cmd.name}`;
++    await writeFile(
++      path.join(commandsDir, `${name}.md`),
++      wrapWithCommandFrontmatter(name, cmd.content),
++    );
++  }
+ 
+-  await copyDirFiltered(sourcePath, destPath);
++  await writeSkills(path.join(configRoot, "skills"), resolveSkills(ctx));
++  await writeAgents(
++    path.join(configRoot, "agents"),
++    applyPullBasedPreludeMarkdown(getAllAgents()),
++  );
++  await writeSharedHooks(path.join(configRoot, "hooks"), {
++    exclude: ["inject-subagent-context.py"],
++  });
++
++  const settings = getSettingsTemplate();
++  await writeFile(
++    path.join(configRoot, settings.targetPath),
++    resolvePlaceholders(settings.content),
++  );
+ }
+diff --git a/packages/cli/src/configurators/shared.ts b/packages/cli/src/configurators/shared.ts
+index 553787a..845864a 100644
+--- a/packages/cli/src/configurators/shared.ts
++++ b/packages/cli/src/configurators/shared.ts
+@@ -5,18 +5,418 @@
+  * configurators cannot import from index.ts).
+  */
+ 
++import type { TemplateContext } from "../types/ai-tools.js";
++
+ /**
+  * Get the Python command based on platform.
+  * Windows uses 'python', macOS/Linux use 'python3'.
+  */
+-function getPythonCommand(): string {
+-  return process.platform === "win32" ? "python" : "python3";
++export function getPythonCommandForPlatform(
++  platform: NodeJS.Platform = process.platform,
++): "python" | "python3" {
++  return platform === "win32" ? "python" : "python3";
+ }
+ 
+ /**
+  * Resolve platform-specific placeholders in template content.
+- * Used by both init (configurators) and update (collectTemplates in index.ts).
++ *
++ * When called without a context, only resolves {{PYTHON_CMD}} (legacy behavior
++ * for settings.json, hooks.json, etc.).
++ *
++ * When called with a TemplateContext, additionally resolves:
++ * - {{CMD_REF:name}}         → platform-specific command reference
++ * - {{EXECUTOR_AI}}          → AI executor description
++ * - {{USER_ACTION_LABEL}}    → user action label
++ * - {{CLI_FLAG}}             → platform cli flag (e.g. "claude", "codex")
++ * - {{#FLAG}}...{{/FLAG}}    → conditional include (when FLAG is true)
++ * - {{^FLAG}}...{{/FLAG}}    → negated conditional (when FLAG is false)
++ *
++ * Supported conditional flags: AGENT_CAPABLE, HAS_HOOKS
++ */
++// Pre-compiled regexes for placeholder resolution
++const RE_PYTHON_CMD = /\{\{PYTHON_CMD\}\}/g;
++const RE_CMD_REF = /\{\{CMD_REF:([\w][\w-]*)\}\}/g;
++const RE_EXECUTOR_AI = /\{\{EXECUTOR_AI\}\}/g;
++const RE_USER_ACTION_LABEL = /\{\{USER_ACTION_LABEL\}\}/g;
++const RE_CLI_FLAG = /\{\{CLI_FLAG\}\}/g;
++const RE_BLANK_LINES = /\n{3,}/g;
++
++const CONDITIONAL_FLAGS = ["AGENT_CAPABLE", "HAS_HOOKS"] as const;
++const CONDITIONAL_REGEXES = Object.fromEntries(
++  CONDITIONAL_FLAGS.map((flag) => [
++    flag,
++    {
++      pos: new RegExp(
++        `\\{\\{#${flag}\\}\\}([\\s\\S]*?)\\{\\{/${flag}\\}\\}`,
++        "g",
++      ),
++      neg: new RegExp(
++        `\\{\\{\\^${flag}\\}\\}([\\s\\S]*?)\\{\\{/${flag}\\}\\}`,
++        "g",
++      ),
++    },
++  ]),
++) as Record<(typeof CONDITIONAL_FLAGS)[number], { pos: RegExp; neg: RegExp }>;
++
++export function resolvePlaceholders(
++  content: string,
++  context?: TemplateContext,
++): string {
++  let result = content.replace(RE_PYTHON_CMD, getPythonCommandForPlatform());
++
++  if (!context) return result;
++
++  // Simple substitutions
++  result = result.replace(
++    RE_CMD_REF,
++    (_match, name: string) => `${context.cmdRefPrefix}${name}`,
++  );
++  result = result.replace(RE_EXECUTOR_AI, context.executorAI);
++  result = result.replace(RE_USER_ACTION_LABEL, context.userActionLabel);
++  result = result.replace(RE_CLI_FLAG, context.cliFlag);
++
++  // Conditional blocks
++  const flagValues: Record<(typeof CONDITIONAL_FLAGS)[number], boolean> = {
++    AGENT_CAPABLE: context.agentCapable,
++    HAS_HOOKS: context.hasHooks,
++  };
++
++  for (const flag of CONDITIONAL_FLAGS) {
++    const value = flagValues[flag];
++    const { pos, neg } = CONDITIONAL_REGEXES[flag];
++    // Reset lastIndex for global regexes reused across calls
++    pos.lastIndex = 0;
++    neg.lastIndex = 0;
++    result = result.replace(pos, value ? "$1" : "");
++    result = result.replace(neg, value ? "" : "$1");
++  }
++
++  // Clean up blank lines left by removed conditional blocks
++  result = result.replace(RE_BLANK_LINES, "\n\n");
++
++  return result;
++}
++
++// ---------------------------------------------------------------------------
++// Template wrapping utilities
++// ---------------------------------------------------------------------------
++
++/** Skill description registry — maps template name to auto-trigger description. */
++const SKILL_DESCRIPTIONS: Record<string, string> = {
++  start:
++    "Initializes an AI development session by reading workflow guides, developer identity, git status, active tasks, and project guidelines from .trellis/. Classifies incoming tasks and routes to brainstorm, direct edit, or task workflow. Use when beginning a new coding session, resuming work, starting a new task, or re-establishing project context.",
++  continue:
++    "Resume work on the current task. Loads the workflow Phase Index, figures out which phase/step to pick up at, then pulls the step-level detail via get_context.py --mode phase. Use when coming back to an in-progress task and you need to know what to do next.",
++  "finish-work":
++    "Wrap up the current session: verify quality gate passed, remind user to commit, archive completed tasks, and record session progress to the developer journal. Use when done coding and ready to end the session.",
++  "before-dev":
++    "Discovers and injects project-specific coding guidelines from .trellis/spec/ before implementation begins. Reads spec indexes, pre-development checklists, and shared thinking guides for the target package. Use when starting a new coding task, before writing any code, switching to a different package, or needing to refresh project conventions and standards.",
++  brainstorm:
++    "Guides collaborative requirements discovery before implementation. Creates task directory, seeds PRD, asks high-value questions one at a time, researches technical choices, and converges on MVP scope. Use when requirements are unclear, there are multiple valid approaches, or the user describes a new feature or complex task.",
++  check:
++    "Comprehensive quality verification: spec compliance, lint, type-check, tests, cross-layer data flow, code reuse, and consistency checks. Use when code is written and needs quality verification, before committing changes, or to catch context drift during long sessions.",
++  "break-loop":
++    "Deep bug analysis to break the fix-forget-repeat cycle. Analyzes root cause category, why fixes failed, prevention mechanisms, and captures knowledge into specs. Use after fixing a bug to prevent the same class of bugs.",
++  "update-spec":
++    "Captures executable contracts and coding conventions into .trellis/spec/ documents. Use when learning something valuable from debugging, implementing, or discussion that should be preserved for future sessions.",
++};
++
++/**
++ * Wrap resolved template content with YAML frontmatter for skill format.
++ * Used by platforms that use SKILL.md (Codex, Kiro, Qoder, etc.).
++ */
++export function wrapWithSkillFrontmatter(
++  name: string,
++  content: string,
++): string {
++  // Look up description by base name (without trellis- prefix)
++  const baseName = name.replace(/^trellis-/, "");
++  const description = SKILL_DESCRIPTIONS[baseName];
++  if (!description) {
++    throw new Error(
++      `Missing skill description for "${baseName}". Add it to SKILL_DESCRIPTIONS in shared.ts.`,
++    );
++  }
++  return `---\nname: ${name}\ndescription: "${description}"\n---\n\n${content}`;
++}
++
++/**
++ * One-line blurbs shown in a `/` command palette — kept separate from
++ * SKILL_DESCRIPTIONS, which is long prose aimed at the skill matcher.
++ */
++const COMMAND_DESCRIPTIONS: Record<string, string> = {
++  start: "Initialize a Trellis development session.",
++  continue: "Resume work on the current task at the correct phase.",
++  "finish-work":
++    "Wrap up the current session: quality gate, commit reminder, archive, journal.",
++};
++
++/** Wrap resolved command content with YAML frontmatter (name + description). */
++export function wrapWithCommandFrontmatter(
++  name: string,
++  content: string,
++): string {
++  const baseName = name.replace(/^trellis-/, "");
++  const description = COMMAND_DESCRIPTIONS[baseName];
++  if (!description) {
++    throw new Error(
++      `Missing command description for "${baseName}". Add it to COMMAND_DESCRIPTIONS in shared.ts.`,
++    );
++  }
++  return `---\nname: ${name}\ndescription: ${description}\n---\n\n${content}`;
++}
++
++// ---------------------------------------------------------------------------
++// Shared configurator helpers
++// ---------------------------------------------------------------------------
++
++import path from "node:path";
++import { ensureDir, writeFile } from "../utils/file-writer.js";
++import {
++  type CommonTemplate,
++  getCommandTemplates,
++  getSkillTemplates,
++} from "../templates/common/index.js";
++
++/** A resolved template ready to be written to disk. */
++export interface ResolvedTemplate {
++  name: string;
++  content: string;
++}
++
++/**
++ * Filter command templates based on platform capabilities.
++ *
++ * `start.md` is only emitted for agent-less platforms (kilo, antigravity,
++ * windsurf). On agent-capable platforms, the session-start hook / plugin
++ * already injects the workflow overview, so a user-facing `start` command
++ * would be redundant.
++ */
++function filterCommands(
++  templates: CommonTemplate[],
++  ctx: TemplateContext,
++): CommonTemplate[] {
++  if (ctx.agentCapable) {
++    return templates.filter((t) => t.name !== "start");
++  }
++  return templates;
++}
++
++/**
++ * Resolve ALL templates as skills with trellis- prefix.
++ * Used by skill-only platforms (Kiro, Qoder, Codex) where everything is a skill.
++ *
++ * `start` is filtered out on agent-capable platforms — the session-start hook
++ * injects the workflow overview instead.
+  */
+-export function resolvePlaceholders(content: string): string {
+-  return content.replace(/\{\{PYTHON_CMD\}\}/g, getPythonCommand());
++export function resolveAllAsSkills(ctx: TemplateContext): ResolvedTemplate[] {
++  const templates = [
++    ...filterCommands(getCommandTemplates(), ctx),
++    ...getSkillTemplates(),
++  ];
++  return templates.map((tmpl) => ({
++    name: `trellis-${tmpl.name}`,
++    content: wrapWithSkillFrontmatter(
++      `trellis-${tmpl.name}`,
++      resolvePlaceholders(tmpl.content, ctx),
++    ),
++  }));
++}
++
++/**
++ * Resolve command templates as plain commands (no wrapping).
++ * Used by "both" platforms for the user-ritual commands.
++ *
++ * `start` is filtered out on agent-capable platforms.
++ */
++export function resolveCommands(ctx: TemplateContext): ResolvedTemplate[] {
++  return filterCommands(getCommandTemplates(), ctx).map((tmpl) => ({
++    name: tmpl.name,
++    content: resolvePlaceholders(tmpl.content, ctx),
++  }));
++}
++
++/**
++ * Resolve only the 5 skill templates with trellis- prefix + SKILL.md frontmatter.
++ * Used by "both" platforms for the auto-triggered skills.
++ */
++export function resolveSkills(ctx: TemplateContext): ResolvedTemplate[] {
++  return getSkillTemplates().map((tmpl) => ({
++    name: `trellis-${tmpl.name}`,
++    content: wrapWithSkillFrontmatter(
++      `trellis-${tmpl.name}`,
++      resolvePlaceholders(tmpl.content, ctx),
++    ),
++  }));
++}
++
++// ---------------------------------------------------------------------------
++// Shared configurator write helpers
++// ---------------------------------------------------------------------------
++
++/** Write skill directories from resolved templates */
++export async function writeSkills(
++  skillsRoot: string,
++  skills: { name: string; content: string }[],
++): Promise<void> {
++  ensureDir(skillsRoot);
++  for (const skill of skills) {
++    const skillDir = path.join(skillsRoot, skill.name);
++    ensureDir(skillDir);
++    await writeFile(path.join(skillDir, "SKILL.md"), skill.content);
++  }
++}
++
++/** Write agent/droid definition files */
++export async function writeAgents(
++  agentsDir: string,
++  agents: { name: string; content: string }[],
++  ext = ".md",
++): Promise<void> {
++  ensureDir(agentsDir);
++  for (const agent of agents) {
++    await writeFile(path.join(agentsDir, `${agent.name}${ext}`), agent.content);
++  }
++}
++
++/** Write shared hook scripts to a hooks directory */
++export async function writeSharedHooks(
++  hooksDir: string,
++  options: { exclude?: readonly string[] } = {},
++): Promise<void> {
++  const { getSharedHookScripts } =
++    await import("../templates/shared-hooks/index.js");
++  const exclude = new Set(options.exclude ?? []);
++  ensureDir(hooksDir);
++  for (const hook of getSharedHookScripts()) {
++    if (exclude.has(hook.name)) continue;
++    await writeFile(path.join(hooksDir, hook.name), hook.content);
++  }
++}
++
++// ---------------------------------------------------------------------------
++// Pull-based sub-agent prelude (for class-2 platforms whose hook can't
++// inject sub-agent prompts: gemini, qoder, codex, copilot)
++//
++// Only implement & check need task-level context (prd + jsonl specs).
++// research is orthogonal: it searches the spec tree and doesn't depend on an
++// active task. Hook-based platforms mirror this (their `get_research_context`
++// injects a spec-tree overview, not prd/jsonl). We leave research untouched.
++// ---------------------------------------------------------------------------
++
++export type SubAgentType = "implement" | "check";
++
++/** Build the standard "load Trellis context first" prelude block. */
++export function buildPullBasedPrelude(agentType: SubAgentType): string {
++  // JSONL filenames stay as implement.jsonl / check.jsonl — they are internal
++  // context buckets keyed by role (not by platform-visible agent name).
++  const jsonl = agentType === "check" ? "check.jsonl" : "implement.jsonl";
++
++  return `## Required: Load Trellis Context First
++
++This platform does NOT auto-inject task context via hook. Before doing anything else, you MUST load context yourself:
++
++1. Read \`.trellis/.current-task\` to find the current task path (e.g. \`.trellis/tasks/04-17-foo/\`).
++2. Read the task's \`prd.md\` (requirements) and \`info.md\` if it exists (technical design).
++3. Read \`<task-path>/${jsonl}\` — JSONL list of dev spec files relevant to this agent.
++4. For each entry in the JSONL, Read its \`file\` path — these are the dev specs you must follow.
++   **Skip rows without a \`"file"\` field** (e.g. \`{"_example": "..."}\` seed rows left over from \`task.py create\` before the curator ran).
++
++If \`${jsonl}\` has no curated entries (only a seed row, or the file is missing), fall back to: read \`prd.md\`, list available specs with \`python3 ./.trellis/scripts/get_context.py --mode packages\`, and pick the specs that match the task domain yourself. Do NOT block on the missing jsonl — proceed with prd-only context plus your spec judgment.
++
++If \`.current-task\` is missing or the task has no \`prd.md\`, ask the user what to work on; do NOT proceed without context.
++
++---
++
++`;
++}
++
++/** Insert prelude into a markdown agent definition (after YAML frontmatter). */
++export function injectPullBasedPreludeMarkdown(
++  content: string,
++  agentType: SubAgentType,
++): string {
++  const prelude = buildPullBasedPrelude(agentType);
++  const lines = content.split("\n");
++
++  if (lines[0] !== "---") {
++    return prelude + content;
++  }
++  // Find closing frontmatter
++  let close = -1;
++  for (let i = 1; i < lines.length; i++) {
++    if (lines[i] === "---") {
++      close = i;
++      break;
++    }
++  }
++  if (close === -1) {
++    return prelude + content;
++  }
++  const head = lines.slice(0, close + 1).join("\n");
++  const tail = lines.slice(close + 1).join("\n");
++  // Skip leading blank lines in tail to keep things tidy
++  const tailTrimmed = tail.replace(/^\n+/, "");
++  return `${head}\n\n${prelude}${tailTrimmed}`;
++}
++
++/** Insert prelude into a TOML agent (codex `developer_instructions`). */
++export function injectPullBasedPreludeToml(
++  content: string,
++  agentType: SubAgentType,
++): string {
++  const prelude = buildPullBasedPrelude(agentType);
++  // Match: developer_instructions = """  followed by newline
++  const re = /(developer_instructions\s*=\s*""")(\r?\n)/;
++  if (!re.test(content)) {
++    return content;
++  }
++  return content.replace(re, `$1$2${prelude}`);
++}
++
++/** Best-effort detect agent type from filename ("trellis-implement.md" → "implement").
++ *  Returns null for research and unknown names — they skip the prelude.
++ */
++export function detectSubAgentType(name: string): SubAgentType | null {
++  const base = name.replace(/\.(md|toml|prompt\.md)$/, "");
++  if (base === "trellis-implement" || base === "trellis-check") {
++    return base === "trellis-implement" ? "implement" : "check";
++  }
++  return null;
++}
++
++/** Shared transform: given a list of agents, prepend pull-based prelude to
++ *  implement/check definitions. Used by both configurator (init-time write)
++ *  and collectPlatformTemplates (update-time hash comparison) so the two
++ *  code paths always agree on what's on disk.
++ */
++export interface AgentContent {
++  name: string;
++  content: string;
++}
++
++export function applyPullBasedPreludeMarkdown(
++  agents: readonly AgentContent[],
++): AgentContent[] {
++  return agents.map((a) => {
++    const t = detectSubAgentType(a.name);
++    if (!t) return { ...a };
++    return {
++      ...a,
++      content: injectPullBasedPreludeMarkdown(a.content, t),
++    };
++  });
++}
++
++export function applyPullBasedPreludeToml(
++  agents: readonly AgentContent[],
++): AgentContent[] {
++  return agents.map((a) => {
++    const t = detectSubAgentType(a.name);
++    if (!t) return { ...a };
++    return {
++      ...a,
++      content: injectPullBasedPreludeToml(a.content, t),
++    };
++  });
+ }
+diff --git a/packages/cli/src/configurators/windsurf.ts b/packages/cli/src/configurators/windsurf.ts
+index 7b18c79..2a213e7 100644
+--- a/packages/cli/src/configurators/windsurf.ts
++++ b/packages/cli/src/configurators/windsurf.ts
+@@ -1,19 +1,30 @@
+ import path from "node:path";
+-import { getAllWorkflows } from "../templates/windsurf/index.js";
++import { AI_TOOLS } from "../types/ai-tools.js";
+ import { ensureDir, writeFile } from "../utils/file-writer.js";
++import { resolveCommands, resolveSkills } from "./shared.js";
+ 
+ /**
+- * Configure Windsurf by writing workflow templates.
+- *
+- * Output:
+- * - .windsurf/workflows/<workflow-name>.md
++ * Configure Windsurf:
++ * - workflows/ — start + finish-work as slash commands
++ * - skills/trellis-{name}/SKILL.md — other 5 as auto-triggered skills
+  */
+ export async function configureWindsurf(cwd: string): Promise<void> {
+-  const workflowRoot = path.join(cwd, ".windsurf", "workflows");
+-  ensureDir(workflowRoot);
++  const ctx = AI_TOOLS.windsurf.templateContext;
+ 
+-  for (const workflow of getAllWorkflows()) {
+-    const targetPath = path.join(workflowRoot, `${workflow.name}.md`);
+-    await writeFile(targetPath, workflow.content);
++  const workflowsDir = path.join(cwd, ".windsurf", "workflows");
++  ensureDir(workflowsDir);
++  for (const cmd of resolveCommands(ctx)) {
++    await writeFile(
++      path.join(workflowsDir, `trellis-${cmd.name}.md`),
++      cmd.content,
++    );
++  }
++
++  const skillsDir = path.join(cwd, ".windsurf", "skills");
++  ensureDir(skillsDir);
++  for (const skill of resolveSkills(ctx)) {
++    const skillDir = path.join(skillsDir, skill.name);
++    ensureDir(skillDir);
++    await writeFile(path.join(skillDir, "SKILL.md"), skill.content);
+   }
+ }
+diff --git a/packages/cli/src/configurators/workflow.ts b/packages/cli/src/configurators/workflow.ts
+index e7d27ae..e850eed 100644
+--- a/packages/cli/src/configurators/workflow.ts
++++ b/packages/cli/src/configurators/workflow.ts
+@@ -7,7 +7,6 @@ import { copyTrellisDir } from "../templates/extract.js";
+ import {
+   workflowMdTemplate,
+   configYamlTemplate,
+-  worktreeYamlTemplate,
+   gitignoreTemplate,
+ } from "../templates/trellis/index.js";
+ 
+@@ -53,8 +52,6 @@ interface DocDefinition {
+ export interface WorkflowOptions {
+   /** Detected or specified project type */
+   projectType: ProjectType;
+-  /** Enable multi-agent pipeline with worktree support */
+-  multiAgent?: boolean;
+   /** Skip creating local spec templates (when using remote template) — single-repo mode */
+   skipSpecTemplates?: boolean;
+   /** Detected monorepo packages (enables monorepo spec creation) */
+@@ -72,7 +69,6 @@ export interface WorkflowOptions {
+  * 3. Creating workspace/ with index.md
+  * 4. Creating tasks/ directory
+  * 5. Creating spec/ with templates (not dogfooded - generic templates)
+- * 6. Copying worktree.yaml if multi-agent is enabled
+  *
+  * @param cwd - Current working directory
+  * @param options - Workflow options including project type
+@@ -82,7 +78,6 @@ export async function createWorkflowStructure(
+   options?: WorkflowOptions,
+ ): Promise<void> {
+   const projectType = options?.projectType ?? "fullstack";
+-  const multiAgent = options?.multiAgent ?? false;
+   const skipSpecTemplates = options?.skipSpecTemplates ?? false;
+   const packages = options?.packages;
+   const remoteSpecPackages = options?.remoteSpecPackages;
+@@ -123,14 +118,6 @@ export async function createWorkflowStructure(
+   // Create tasks/ directory
+   ensureDir(path.join(cwd, PATHS.TASKS));
+ 
+-  // Copy worktree.yaml if multi-agent enabled
+-  if (multiAgent) {
+-    await writeFile(
+-      path.join(cwd, DIR_NAMES.WORKFLOW, "worktree.yaml"),
+-      worktreeYamlTemplate,
+-    );
+-  }
+-
+   // Create spec templates based on project type
+   // These are NOT dogfooded - they are generic templates for new projects
+   if (packages && packages.length > 0) {
