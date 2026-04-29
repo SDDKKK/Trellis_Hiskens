@@ -1740,7 +1740,7 @@ function askInput(prompt: string): Promise<string> {
 }
 
 async function createRootFiles(cwd: string): Promise<void> {
-  const agentsPath = path.join(cwd, "AGENTS.md");
+  const agentsPath = path.join(cwd, FILE_NAMES.AGENTS);
 
   // Write AGENTS.md from template
   const agentsWritten = await writeFile(agentsPath, agentsMdContent);
