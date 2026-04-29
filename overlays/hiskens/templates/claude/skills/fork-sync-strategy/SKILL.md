@@ -120,6 +120,55 @@ This replaces main's tree entirely with the overlay branch while preserving merg
 | Hook file renamed/moved in shared-hooks | Overlay's `inject-subagent-context.py` OVERRIDE | Verify overlay version still a valid superset |
 | `settings.json` base template changed | Overlay `settings.overlay.json` merge | Test merged output, verify hook event names still valid |
 
+## Two-Layer Architecture
+
+The fork has two layers of files that combine at install time:
+
+```
+packages/cli/src/templates/   ← Layer 1: upstream base (all Trellis users)
+overlays/hiskens/templates/   ← Layer 2: Hiskens additions (--overlay hiskens users only)
+
+User project = Layer 1 + Layer 2 (overlay overwrites same-path files)
+```
+
+### Where to Make Changes — Decision Flow
+
+```
+Want to modify a file (e.g., trellis-research.md)?
+│
+├─ Is the change Hiskens-specific? (scientific computing, CCR, Nocturne, etc.)
+│  └─ YES → Create/edit in overlays/hiskens/templates/<same-path>
+│           The overlay copy replaces the upstream version at install time.
+│
+├─ Is the change useful for ALL Trellis users?
+│  └─ YES → Submit a PR to upstream. After merge, sync down via the
+│           rebase workflow above. Do NOT modify packages/cli/src/ directly.
+│
+└─ Is it a new file that doesn't exist upstream?
+   └─ YES → Add to overlays/hiskens/templates/<target-path>
+            It will be installed alongside upstream files.
+```
+
+### Rules
+
+- **Never modify upstream template files in `packages/cli/src/templates/`** — except the 6 overlay-loader files listed above. Every additional modified file is a future conflict surface during sync.
+- **Overlay is whole-file replacement, not patch** — if you create `overlays/hiskens/templates/claude/agents/trellis-research.md`, it entirely replaces the upstream version. When upstream updates that file in a future release, your overlay copy will NOT inherit those changes automatically.
+- **Minimize overlay overrides** — only override upstream files when genuinely needed. Each override is a maintenance burden: you must manually check upstream changes to overridden files during every sync.
+- **Root-level files are derived, not source** — `.claude/`, `.agents/`, etc. are installed copies. Edit the source (`overlays/hiskens/templates/` or upstream), then run `trellis update --overlay hiskens` to refresh.
+
+### Overlay Sync Maintenance
+
+When syncing to a new upstream tag, check each overlay file:
+
+```bash
+# List overlay files that also exist in upstream
+for f in $(find overlays/hiskens/templates/ -type f | sed 's|overlays/hiskens/templates/||'); do
+  git show v0.5.0-beta.18:packages/cli/src/templates/$f >/dev/null 2>&1 && echo "OVERRIDE: $f"
+done
+```
+
+For each OVERRIDE file: compare upstream's new version with your overlay version. Merge upstream improvements into the overlay copy if needed.
+
 ## What NOT to Do
 
 - **Don't merge upstream into main directly** — creates an unmaintainable tangle of v0.4 fork code + v0.5 upstream
