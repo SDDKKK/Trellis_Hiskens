@@ -22,11 +22,25 @@
  * because those may be customized for the Trellis project itself.
  */
 
-import { cpSync, readdirSync, statSync, mkdirSync } from "node:fs";
+import { cpSync, existsSync, readdirSync, statSync, mkdirSync } from "node:fs";
 import { join, extname } from "node:path";
 
+const EXCLUDED_TEMPLATE_ENTRIES = new Set(["__pycache__", ".DS_Store"]);
+const EXCLUDED_TEMPLATE_EXTENSIONS = new Set([".pyc", ".pyo", ".ts"]);
+
+function shouldSkipTemplateEntry(entry) {
+  return (
+    EXCLUDED_TEMPLATE_ENTRIES.has(entry) ||
+    EXCLUDED_TEMPLATE_EXTENSIONS.has(extname(entry))
+  );
+}
+
 /**
- * Recursively copy directory, excluding .ts files
+ * Recursively copy directory, excluding source and runtime cache artifacts.
+ * Python hooks are executed during local tests, so ignored `__pycache__`
+ * directories can exist in src/templates; they must not be copied into the npm
+ * tarball.
+ *
  * @param {string} src - Source directory
  * @param {string} dest - Destination directory
  */
@@ -34,13 +48,17 @@ function copyDir(src, dest) {
   mkdirSync(dest, { recursive: true });
 
   for (const entry of readdirSync(src)) {
+    if (shouldSkipTemplateEntry(entry)) {
+      continue;
+    }
+
     const srcPath = join(src, entry);
     const destPath = join(dest, entry);
     const stat = statSync(srcPath);
 
     if (stat.isDirectory()) {
       copyDir(srcPath, destPath);
-    } else if (extname(entry) !== ".ts") {
+    } else {
       cpSync(srcPath, destPath);
     }
   }
@@ -53,5 +71,14 @@ console.log("Copied src/templates/ to dist/templates/");
 // Copy src/migrations/manifests to dist/migrations/manifests
 copyDir("src/migrations/manifests", "dist/migrations/manifests");
 console.log("Copied src/migrations/manifests/ to dist/migrations/manifests/");
+
+// Copy repo-level built-in overlays to dist/overlays so published packages can
+// resolve overlays such as `--overlay hiskens` without depending on a source
+// checkout layout.
+const repoOverlaysDir = join("..", "..", "overlays");
+if (existsSync(repoOverlaysDir)) {
+  copyDir(repoOverlaysDir, "dist/overlays");
+  console.log("Copied ../../overlays/ to dist/overlays/");
+}
 
 console.log("Template copy complete.");

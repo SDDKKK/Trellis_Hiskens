@@ -46,8 +46,8 @@ Built-in WebSearch/WebFetch are disabled in `settings.json`. Prefer Grok Search 
 | Quick answer | `WebSearch` | `mcp__grok-search__web_search` |
 | Structured search | `WebSearch` | `mcp__grok-search__web_search` → `mcp__grok-search__get_sources` → `web_fetch.py` |
 | Deep research | `WebSearch` | Multiple `mcp__grok-search__web_search` rounds + `web_fetch.py` |
-| Web fetch | `WebFetch` | `Bash("uv run .trellis/scripts/search/web_fetch.py '<url>'")` |
-| Site map | N/A | `Bash("uv run .trellis/scripts/search/web_map.py '<url>'")` |
+| Web fetch | `WebFetch` | `Bash("python3 .trellis/scripts/search/web_fetch.py '<url>'")` |
+| Site map | N/A | `Bash("python3 .trellis/scripts/search/web_map.py '<url>'")` |
 
 ### Tool Capability Matrix
 
@@ -482,13 +482,13 @@ Fetches URL content and converts to Markdown with 5-tier fallback, anti-bot doma
 
 ```bash
 # Plain markdown (default)
-uv run .trellis/scripts/search/web_fetch.py "https://example.com/page"
+python3 .trellis/scripts/search/web_fetch.py "https://example.com/page"
 
 # Unified Result Contract (JSON)
-uv run .trellis/scripts/search/web_fetch.py "https://example.com/page" --json
+python3 .trellis/scripts/search/web_fetch.py "https://example.com/page" --json
 
 # JSON with markdown truncation
-uv run .trellis/scripts/search/web_fetch.py "https://example.com/page" --json --max-chars 20000
+python3 .trellis/scripts/search/web_fetch.py "https://example.com/page" --json --max-chars 20000
 ```
 
 ### web_search.py — Grok API Search
@@ -496,8 +496,8 @@ uv run .trellis/scripts/search/web_fetch.py "https://example.com/page" --json --
 Performs web search via Grok API, returns structured results.
 
 ```bash
-uv run .trellis/scripts/search/web_search.py "query"
-uv run .trellis/scripts/search/web_search.py "query" --platform github
+python3 .trellis/scripts/search/web_search.py "query"
+python3 .trellis/scripts/search/web_search.py "query" --platform github
 ```
 
 ### web_map.py — Site Structure Discovery
@@ -505,8 +505,8 @@ uv run .trellis/scripts/search/web_search.py "query" --platform github
 Discovers website link structure via Tavily Map API.
 
 ```bash
-uv run .trellis/scripts/search/web_map.py "https://docs.example.com"
-uv run .trellis/scripts/search/web_map.py "https://docs.example.com" --depth 2 --limit 100
+python3 .trellis/scripts/search/web_map.py "https://docs.example.com"
+python3 .trellis/scripts/search/web_map.py "https://docs.example.com" --depth 2 --limit 100
 ```
 
 ---

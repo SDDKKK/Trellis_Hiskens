@@ -62,7 +62,6 @@ program
   .description("Initialize trellis in the current project")
   .option("--cursor", "Include Cursor commands")
   .option("--claude", "Include Claude Code commands")
-  .option("--iflow", "Include iFlow CLI commands")
   .option("--opencode", "Include OpenCode commands")
   .option("--codex", "Include Codex skills")
   .option("--kilo", "Include Kilo CLI commands")
@@ -74,6 +73,7 @@ program
   .option("--codebuddy", "Include CodeBuddy commands")
   .option("--copilot", "Include GitHub Copilot hooks")
   .option("--droid", "Include Factory Droid commands")
+  .option("--pi", "Include Pi Agent extension assets")
   .option("-y, --yes", "Skip prompts and use defaults")
   .option(
     "-u, --user <name>",
@@ -96,7 +96,7 @@ program
     "-r, --registry <source>",
     "Use a custom template registry (e.g., gh:myorg/myrepo/specs)",
   )
-  .option("--overlay <name>", "Apply overlay on top of base templates")
+  .option("--overlay <name>", "Apply a built-in or absolute-path overlay")
   .action(async (options: Record<string, unknown>) => {
     try {
       await init(options);
@@ -105,6 +105,9 @@ program
         chalk.red("Error:"),
         error instanceof Error ? error.message : error,
       );
+      if (process.env.DEBUG || process.env.TRELLIS_DEBUG) {
+        console.error(error instanceof Error ? error.stack : error);
+      }
       process.exit(1);
     }
   });
@@ -118,7 +121,7 @@ program
   .option("-n, --create-new", "Create .new copies for all changed files")
   .option("--allow-downgrade", "Allow downgrading to an older version")
   .option("--migrate", "Apply pending file migrations (renames/deletions)")
-  .option("--overlay <name>", "Apply overlay on top of base templates")
+  .option("--overlay <name>", "Apply a built-in or absolute-path overlay")
   .action(async (options: Record<string, unknown>) => {
     try {
       await update({
@@ -135,6 +138,9 @@ program
         chalk.red("Error:"),
         error instanceof Error ? error.message : error,
       );
+      if (process.env.DEBUG || process.env.TRELLIS_DEBUG) {
+        console.error(error instanceof Error ? error.stack : error);
+      }
       process.exit(1);
     }
   });

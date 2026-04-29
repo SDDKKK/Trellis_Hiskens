@@ -9,7 +9,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 // === External dependency mocks (hoisted by vitest) ===
 
@@ -21,38 +20,20 @@ vi.mock("inquirer", () => ({
   default: { prompt: vi.fn().mockResolvedValue({}) },
 }));
 
-vi.mock("node:child_process", async () => {
-  const actual = await vi.importActual<typeof import("node:child_process")>(
-    "node:child_process",
-  );
-
-  return {
-    ...actual,
-    execSync: vi.fn((command: string, options?: Parameters<typeof actual.execSync>[1]) => {
-      if (
-        command.includes("--version") ||
-        command.includes("init_developer.py") ||
-        command.includes("create_bootstrap.py")
-      ) {
-        return actual.execSync(command, options);
-      }
-      return Buffer.from("");
-    }),
-  };
-});
+vi.mock("node:child_process", () => ({
+  execSync: vi.fn().mockReturnValue(""),
+}));
 
 // === Imports ===
 
 import { init } from "../../src/commands/init.js";
 import { VERSION } from "../../src/constants/version.js";
 import { DIR_NAMES, PATHS } from "../../src/constants/paths.js";
-import { resolveOverlayPath } from "../../src/utils/overlay.js";
+import { collectPlatformTemplates } from "../../src/configurators/index.js";
 import { execSync } from "node:child_process";
 
 // eslint-disable-next-line @typescript-eslint/no-empty-function
 const noop = () => {};
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 describe("init() integration", () => {
   let tmpDir: string;
@@ -63,10 +44,19 @@ describe("init() integration", () => {
     vi.spyOn(console, "log").mockImplementation(noop);
     vi.spyOn(console, "error").mockImplementation(noop);
     vi.mocked(execSync).mockClear();
+    vi.mocked(execSync).mockImplementation(((cmd: string) => {
+      const expectedPythonCmd =
+        process.platform === "win32" ? "python" : "python3";
+      if (cmd === `${expectedPythonCmd} --version`) {
+        return "Python 3.11.12";
+      }
+      return "";
+    }) as typeof execSync);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -85,9 +75,7 @@ describe("init() integration", () => {
     expect(fs.existsSync(path.join(tmpDir, ".claude"))).toBe(true);
     expect(fs.existsSync(path.join(tmpDir, ".codex"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".agents", "skills"))).toBe(false);
-    expect(fs.existsSync(path.join(tmpDir, ".agent", "workflows"))).toBe(
-      false,
-    );
+    expect(fs.existsSync(path.join(tmpDir, ".agent", "workflows"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".kiro", "skills"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".gemini"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".qoder"))).toBe(false);
@@ -95,13 +83,46 @@ describe("init() integration", () => {
     expect(fs.existsSync(path.join(tmpDir, ".windsurf", "workflows"))).toBe(
       false,
     );
-    expect(fs.existsSync(path.join(tmpDir, ".github", "copilot"))).toBe(
-      false,
-    );
+    expect(fs.existsSync(path.join(tmpDir, ".github", "copilot"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".factory"))).toBe(false);
+    expect(fs.existsSync(path.join(tmpDir, ".pi"))).toBe(false);
 
     // Root files
     expect(fs.existsSync(path.join(tmpDir, "AGENTS.md"))).toBe(true);
+
+    // Built-in multi-file skill is installed for default platforms.
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".claude", "skills", "trellis-meta", "SKILL.md"),
+      ),
+    ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(
+          tmpDir,
+          ".cursor",
+          "skills",
+          "trellis-meta",
+          "references",
+          "local-architecture",
+          "overview.md",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("#1b does not print the promotional pain-point block", async () => {
+    await init({ yes: true });
+
+    const logOutput = vi
+      .mocked(console.log)
+      .mock.calls.flat()
+      .filter((part): part is string => typeof part === "string")
+      .join("\n");
+
+    expect(logOutput).not.toContain("Sound familiar?");
+    expect(logOutput).not.toContain("You'll never say these again!!");
+    expect(logOutput).not.toContain("Wrote CLAUDE.md, AI ignored it");
   });
 
   it("#2 single platform creates only that platform directory", async () => {
@@ -109,13 +130,10 @@ describe("init() integration", () => {
 
     expect(fs.existsSync(path.join(tmpDir, ".claude"))).toBe(true);
     expect(fs.existsSync(path.join(tmpDir, ".cursor"))).toBe(false);
-    expect(fs.existsSync(path.join(tmpDir, ".iflow"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".opencode"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".codex"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".agents", "skills"))).toBe(false);
-    expect(fs.existsSync(path.join(tmpDir, ".agent", "workflows"))).toBe(
-      false,
-    );
+    expect(fs.existsSync(path.join(tmpDir, ".agent", "workflows"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".kiro", "skills"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".gemini"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".qoder"))).toBe(false);
@@ -123,10 +141,14 @@ describe("init() integration", () => {
     expect(fs.existsSync(path.join(tmpDir, ".windsurf", "workflows"))).toBe(
       false,
     );
-    expect(fs.existsSync(path.join(tmpDir, ".github", "copilot"))).toBe(
-      false,
-    );
+    expect(fs.existsSync(path.join(tmpDir, ".github", "copilot"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".factory"))).toBe(false);
+    expect(fs.existsSync(path.join(tmpDir, ".pi"))).toBe(false);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".claude", "skills", "trellis-meta", "SKILL.md"),
+      ),
+    ).toBe(true);
   });
 
   it("#3 multi platform creates all selected platform directories", async () => {
@@ -135,12 +157,9 @@ describe("init() integration", () => {
     expect(fs.existsSync(path.join(tmpDir, ".claude"))).toBe(true);
     expect(fs.existsSync(path.join(tmpDir, ".cursor"))).toBe(true);
     expect(fs.existsSync(path.join(tmpDir, ".opencode"))).toBe(true);
-    expect(fs.existsSync(path.join(tmpDir, ".iflow"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".codex"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".agents", "skills"))).toBe(false);
-    expect(fs.existsSync(path.join(tmpDir, ".agent", "workflows"))).toBe(
-      false,
-    );
+    expect(fs.existsSync(path.join(tmpDir, ".agent", "workflows"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".kiro", "skills"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".gemini"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".qoder"))).toBe(false);
@@ -148,54 +167,118 @@ describe("init() integration", () => {
     expect(fs.existsSync(path.join(tmpDir, ".windsurf", "workflows"))).toBe(
       false,
     );
-    expect(fs.existsSync(path.join(tmpDir, ".github", "copilot"))).toBe(
-      false,
-    );
+    expect(fs.existsSync(path.join(tmpDir, ".github", "copilot"))).toBe(false);
+    expect(fs.existsSync(path.join(tmpDir, ".pi"))).toBe(false);
   });
 
   it("#3b codex platform creates skills plus .codex assets", async () => {
     await init({ yes: true, codex: true });
 
     expect(fs.existsSync(path.join(tmpDir, ".agents", "skills"))).toBe(true);
+    // Codex is agent-capable → trellis-start skill not emitted.
     expect(
       fs.existsSync(
-        path.join(tmpDir, ".agents", "skills", "start", "SKILL.md"),
+        path.join(tmpDir, ".agents", "skills", "trellis-start", "SKILL.md"),
       ),
-    ).toBe(true);
-    expect(fs.existsSync(path.join(tmpDir, ".codex", "config.toml"))).toBe(true);
+    ).toBe(false);
     expect(
       fs.existsSync(
-        path.join(tmpDir, ".codex", "agents", "check.toml"),
+        path.join(
+          tmpDir,
+          ".agents",
+          "skills",
+          "trellis-finish-work",
+          "SKILL.md",
+        ),
       ),
     ).toBe(true);
     expect(
       fs.existsSync(
-        path.join(tmpDir, ".codex", "skills", "parallel", "SKILL.md"),
+        path.join(tmpDir, ".agents", "skills", "trellis-continue", "SKILL.md"),
       ),
     ).toBe(true);
-    expect(fs.existsSync(path.join(tmpDir, ".codex", "hooks.json"))).toBe(
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".agents", "skills", "trellis-meta", "SKILL.md"),
+      ),
+    ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(
+          tmpDir,
+          ".agents",
+          "skills",
+          "trellis-meta",
+          "references",
+          "local-architecture",
+          "overview.md",
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".codex", "skills", "trellis-meta", "SKILL.md"),
+      ),
+    ).toBe(false);
+    expect(fs.existsSync(path.join(tmpDir, ".codex", "config.toml"))).toBe(
       true,
     );
     expect(
       fs.existsSync(
-        path.join(tmpDir, ".codex", "hooks", "session-start.py"),
+        path.join(tmpDir, ".codex", "agents", "trellis-check.toml"),
       ),
+    ).toBe(true);
+    // parallel skill removed — platform-native worktree features used instead
+    expect(fs.existsSync(path.join(tmpDir, ".codex", "hooks.json"))).toBe(true);
+    expect(
+      fs.existsSync(path.join(tmpDir, ".codex", "hooks", "session-start.py")),
     ).toBe(true);
     expect(fs.existsSync(path.join(tmpDir, ".claude"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".cursor"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".gemini"))).toBe(false);
+
+    const hashFile = path.join(
+      tmpDir,
+      DIR_NAMES.WORKFLOW,
+      ".template-hashes.json",
+    );
+    const hashesFile = JSON.parse(fs.readFileSync(hashFile, "utf-8")) as {
+      __version?: number;
+      hashes?: Record<string, string>;
+    };
+    const hashes = hashesFile.hashes ?? {};
+    const trackedPaths = Object.keys(hashes).map((p) => p.replace(/\\/g, "/"));
+    expect(trackedPaths).toContain(".agents/skills/trellis-meta/SKILL.md");
+    expect(trackedPaths).toContain(
+      ".agents/skills/trellis-meta/references/local-architecture/overview.md",
+    );
   });
 
   it("#3c kiro platform creates .kiro/skills", async () => {
     await init({ yes: true, kiro: true });
 
     expect(fs.existsSync(path.join(tmpDir, ".kiro", "skills"))).toBe(true);
+    // Kiro is agent-capable → trellis-start skill not emitted.
     expect(
-      fs.existsSync(path.join(tmpDir, ".kiro", "skills", "start", "SKILL.md")),
+      fs.existsSync(
+        path.join(tmpDir, ".kiro", "skills", "trellis-start", "SKILL.md"),
+      ),
+    ).toBe(false);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".kiro", "skills", "trellis-finish-work", "SKILL.md"),
+      ),
     ).toBe(true);
     expect(
-      fs.existsSync(path.join(tmpDir, ".kiro", "skills", "parallel")),
-    ).toBe(false);
+      fs.existsSync(
+        path.join(tmpDir, ".kiro", "skills", "trellis-continue", "SKILL.md"),
+      ),
+    ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".kiro", "skills", "trellis-check", "SKILL.md"),
+      ),
+    ).toBe(true);
     expect(fs.existsSync(path.join(tmpDir, ".claude"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".cursor"))).toBe(false);
   });
@@ -203,9 +286,7 @@ describe("init() integration", () => {
   it("#3d antigravity platform creates .agent/workflows", async () => {
     await init({ yes: true, antigravity: true });
 
-    expect(fs.existsSync(path.join(tmpDir, ".agent", "workflows"))).toBe(
-      true,
-    );
+    expect(fs.existsSync(path.join(tmpDir, ".agent", "workflows"))).toBe(true);
     expect(
       fs.existsSync(path.join(tmpDir, ".agent", "workflows", "start.md")),
     ).toBe(true);
@@ -217,9 +298,9 @@ describe("init() integration", () => {
   it("#3f windsurf platform creates .windsurf/workflows", async () => {
     await init({ yes: true, windsurf: true });
 
-    expect(
-      fs.existsSync(path.join(tmpDir, ".windsurf", "workflows")),
-    ).toBe(true);
+    expect(fs.existsSync(path.join(tmpDir, ".windsurf", "workflows"))).toBe(
+      true,
+    );
     expect(
       fs.existsSync(
         path.join(tmpDir, ".windsurf", "workflows", "trellis-start.md"),
@@ -229,15 +310,17 @@ describe("init() integration", () => {
     expect(fs.existsSync(path.join(tmpDir, ".cursor"))).toBe(false);
   });
 
-  it("#3g qoder platform creates .qoder/skills", async () => {
+  it("#3g qoder platform creates .qoder/commands + .qoder/skills", async () => {
     await init({ yes: true, qoder: true });
 
     expect(
-      fs.existsSync(path.join(tmpDir, ".qoder", "skills")),
+      fs.existsSync(
+        path.join(tmpDir, ".qoder", "commands", "trellis-finish-work.md"),
+      ),
     ).toBe(true);
     expect(
       fs.existsSync(
-        path.join(tmpDir, ".qoder", "skills", "start", "SKILL.md"),
+        path.join(tmpDir, ".qoder", "skills", "trellis-brainstorm", "SKILL.md"),
       ),
     ).toBe(true);
     expect(fs.existsSync(path.join(tmpDir, ".claude"))).toBe(false);
@@ -250,9 +333,26 @@ describe("init() integration", () => {
     expect(
       fs.existsSync(path.join(tmpDir, ".codebuddy", "commands", "trellis")),
     ).toBe(true);
+    // CodeBuddy is agent-capable → start.md not emitted.
     expect(
       fs.existsSync(
         path.join(tmpDir, ".codebuddy", "commands", "trellis", "start.md"),
+      ),
+    ).toBe(false);
+    expect(
+      fs.existsSync(
+        path.join(
+          tmpDir,
+          ".codebuddy",
+          "commands",
+          "trellis",
+          "finish-work.md",
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".codebuddy", "commands", "trellis", "continue.md"),
       ),
     ).toBe(true);
     expect(fs.existsSync(path.join(tmpDir, ".claude"))).toBe(false);
@@ -263,13 +363,24 @@ describe("init() integration", () => {
     await init({ yes: true, copilot: true });
 
     expect(fs.existsSync(path.join(tmpDir, ".github", "prompts"))).toBe(true);
+    // Copilot is agent-capable → start.prompt.md not emitted.
     expect(
       fs.existsSync(path.join(tmpDir, ".github", "prompts", "start.prompt.md")),
+    ).toBe(false);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".github", "prompts", "finish-work.prompt.md"),
+      ),
+    ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".github", "prompts", "continue.prompt.md"),
+      ),
     ).toBe(true);
 
-    expect(fs.existsSync(path.join(tmpDir, ".github", "copilot", "hooks"))).toBe(
-      true,
-    );
+    expect(
+      fs.existsSync(path.join(tmpDir, ".github", "copilot", "hooks")),
+    ).toBe(true);
     expect(
       fs.existsSync(
         path.join(tmpDir, ".github", "copilot", "hooks", "session-start.py"),
@@ -287,11 +398,15 @@ describe("init() integration", () => {
       DIR_NAMES.WORKFLOW,
       ".template-hashes.json",
     );
-    const hashes = JSON.parse(
-      fs.readFileSync(hashFile, "utf-8"),
-    ) as Record<string, string>;
+    const hashesFile = JSON.parse(fs.readFileSync(hashFile, "utf-8")) as {
+      __version?: number;
+      hashes?: Record<string, string>;
+    };
+    const hashes = hashesFile.hashes ?? {};
     const trackedPaths = Object.keys(hashes).map((p) => p.replace(/\\/g, "/"));
-    expect(trackedPaths).toContain(".github/prompts/start.prompt.md");
+    expect(trackedPaths).not.toContain(".github/prompts/start.prompt.md");
+    expect(trackedPaths).toContain(".github/prompts/finish-work.prompt.md");
+    expect(trackedPaths).toContain(".github/prompts/continue.prompt.md");
     expect(trackedPaths).toContain(".github/copilot/hooks.json");
     expect(trackedPaths).toContain(".github/hooks/trellis.json");
 
@@ -301,31 +416,107 @@ describe("init() integration", () => {
 
   it("#3e gemini platform creates .gemini/commands/trellis", async () => {
     await init({ yes: true, gemini: true });
-    expect(fs.existsSync(path.join(tmpDir, ".gemini", "commands", "trellis"))).toBe(true);
-    expect(fs.existsSync(path.join(tmpDir, ".gemini", "commands", "trellis", "start.toml"))).toBe(true);
+    expect(
+      fs.existsSync(path.join(tmpDir, ".gemini", "commands", "trellis")),
+    ).toBe(true);
+    // Gemini is agent-capable → start.toml not emitted.
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".gemini", "commands", "trellis", "start.toml"),
+      ),
+    ).toBe(false);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".gemini", "commands", "trellis", "finish-work.toml"),
+      ),
+    ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".gemini", "commands", "trellis", "continue.toml"),
+      ),
+    ).toBe(true);
     expect(fs.existsSync(path.join(tmpDir, ".claude"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".cursor"))).toBe(false);
   });
 
-  it("#3j droid platform creates .factory/commands/trellis", async () => {
+  it("#3j droid platform creates commands + skills", async () => {
     await init({ yes: true, droid: true });
-    expect(
-      fs.existsSync(path.join(tmpDir, ".factory", "commands", "trellis")),
-    ).toBe(true);
+    // Droid is agent-capable → start.md not emitted.
     expect(
       fs.existsSync(
         path.join(tmpDir, ".factory", "commands", "trellis", "start.md"),
       ),
+    ).toBe(false);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".factory", "commands", "trellis", "finish-work.md"),
+      ),
     ).toBe(true);
-    // Frontmatter with description should be present
-    const startContent = fs.readFileSync(
-      path.join(tmpDir, ".factory", "commands", "trellis", "start.md"),
-      "utf-8",
-    );
-    expect(startContent.startsWith("---\n")).toBe(true);
-    expect(startContent).toMatch(/\ndescription:/);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".factory", "commands", "trellis", "continue.md"),
+      ),
+    ).toBe(true);
+    // Skills (trellis- prefix)
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".factory", "skills", "trellis-check", "SKILL.md"),
+      ),
+    ).toBe(true);
     expect(fs.existsSync(path.join(tmpDir, ".claude"))).toBe(false);
     expect(fs.existsSync(path.join(tmpDir, ".cursor"))).toBe(false);
+  });
+
+  it("#3k pi platform creates extension-backed prompts, skills, and agents", async () => {
+    await init({ yes: true, pi: true });
+
+    expect(fs.existsSync(path.join(tmpDir, ".pi", "settings.json"))).toBe(true);
+    expect(
+      fs.existsSync(path.join(tmpDir, ".pi", "prompts", "trellis-start.md")),
+    ).toBe(false);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".pi", "prompts", "trellis-finish-work.md"),
+      ),
+    ).toBe(true);
+    expect(
+      fs.existsSync(path.join(tmpDir, ".pi", "prompts", "trellis-continue.md")),
+    ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".pi", "skills", "trellis-check", "SKILL.md"),
+      ),
+    ).toBe(true);
+    expect(
+      fs.existsSync(path.join(tmpDir, ".pi", "agents", "trellis-implement.md")),
+    ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".pi", "extensions", "trellis", "index.ts"),
+      ),
+    ).toBe(true);
+    expect(fs.existsSync(path.join(tmpDir, ".pi", "hooks"))).toBe(false);
+    expect(fs.existsSync(path.join(tmpDir, ".claude"))).toBe(false);
+    expect(fs.existsSync(path.join(tmpDir, ".cursor"))).toBe(false);
+
+    const hashFile = path.join(
+      tmpDir,
+      DIR_NAMES.WORKFLOW,
+      ".template-hashes.json",
+    );
+    const hashesFile = JSON.parse(fs.readFileSync(hashFile, "utf-8")) as {
+      __version?: number;
+      hashes?: Record<string, string>;
+    };
+    const hashes = hashesFile.hashes ?? {};
+    const trackedPaths = Object.keys(hashes).map((p) => p.replace(/\\/g, "/"));
+    const piTemplates = collectPlatformTemplates("pi");
+    expect(piTemplates).toBeInstanceOf(Map);
+    if (!piTemplates) {
+      throw new Error("Expected Pi templates to be collectable");
+    }
+    const expectedPiPaths = [...piTemplates.keys()];
+    expect(trackedPaths).toEqual(expect.arrayContaining(expectedPiPaths));
   });
 
   it("#4 force mode overwrites previously modified files", async () => {
@@ -382,7 +573,65 @@ describe("init() integration", () => {
       ([cmd]) => typeof cmd === "string" && cmd.includes("init_developer.py"),
     );
     expect(match).toBeDefined();
-    expect(String((match as [unknown])[0])).toContain('"testdev"');
+    const command = String((match as [unknown])[0]);
+    const expectedPythonCmd =
+      process.platform === "win32" ? "python" : "python3";
+    expect(command).toContain(`${expectedPythonCmd} "`);
+    expect(command).toContain('"testdev"');
+  });
+
+  it("#7b throws when the selected Python command is below 3.9", async () => {
+    const expectedPythonCmd =
+      process.platform === "win32" ? "python" : "python3";
+
+    vi.mocked(execSync).mockImplementation(((cmd: string) => {
+      if (cmd === `${expectedPythonCmd} --version`) {
+        return "Python 3.8.18";
+      }
+      return "";
+    }) as typeof execSync);
+
+    await expect(init({ yes: true, claude: true })).rejects.toThrow(
+      `Python 3.8.18 detected via "${expectedPythonCmd}", but Trellis init requires Python ≥ 3.9.`,
+    );
+    expect(fs.existsSync(path.join(tmpDir, DIR_NAMES.WORKFLOW))).toBe(false);
+  });
+
+  it("#7c throws when the selected Python command is missing", async () => {
+    const expectedPythonCmd =
+      process.platform === "win32" ? "python" : "python3";
+
+    vi.mocked(execSync).mockImplementation(((cmd: string) => {
+      if (cmd === `${expectedPythonCmd} --version`) {
+        throw new Error("not found");
+      }
+      return "";
+    }) as typeof execSync);
+
+    await expect(init({ yes: true, claude: true })).rejects.toThrow(
+      `Python command "${expectedPythonCmd}" not found. Trellis init requires Python ≥ 3.9.`,
+    );
+    expect(fs.existsSync(path.join(tmpDir, DIR_NAMES.WORKFLOW))).toBe(false);
+  });
+
+  it("#7d renders the platform Python command into generated config and logs the adaptation", async () => {
+    const expectedPythonCmd =
+      process.platform === "win32" ? "python" : "python3";
+
+    await init({ yes: true, claude: true });
+
+    const settings = fs.readFileSync(
+      path.join(tmpDir, ".claude", "settings.json"),
+      "utf-8",
+    );
+    expect(settings).toContain(
+      `"${expectedPythonCmd} .claude/hooks/session-start.py"`,
+    );
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `Trellis rendered Python commands as "${expectedPythonCmd}" in generated hooks, settings, and help text`,
+      ),
+    );
   });
 
   it("#8 writes correct version file", async () => {
@@ -480,7 +729,11 @@ describe("init() integration", () => {
     // @app/web: vite.config.ts → frontend (package.json also present → still frontend)
     // @app/api: package.json + go.mod → fullstack (both indicators present)
     setupPnpmWorkspace(tmpDir, [
-      { rel: "packages/web", name: "@app/web", files: { "vite.config.ts": "" } },
+      {
+        rel: "packages/web",
+        name: "@app/web",
+        files: { "vite.config.ts": "" },
+      },
       { rel: "packages/api", name: "@app/api", files: { "go.mod": "" } },
     ]);
 
@@ -495,9 +748,7 @@ describe("init() integration", () => {
     expect(
       fs.existsSync(path.join(specDir, "web", "frontend", "index.md")),
     ).toBe(true);
-    expect(
-      fs.existsSync(path.join(specDir, "web", "backend")),
-    ).toBe(false);
+    expect(fs.existsSync(path.join(specDir, "web", "backend"))).toBe(false);
 
     // api: fullstack (package.json + go.mod) → has both backend/ and frontend/
     expect(
@@ -532,7 +783,7 @@ describe("init() integration", () => {
     expect(configContent).toContain("path: packages/cli");
     expect(configContent).toContain("docs:");
     expect(configContent).toContain("path: packages/docs");
-    expect(configContent).toContain("default_package: cli");
+    expect(configContent).toContain("default_package:");
   });
 
   it("#15 monorepo: bootstrap task references per-package spec paths", async () => {
@@ -546,38 +797,51 @@ describe("init() integration", () => {
     const taskDir = path.join(tmpDir, PATHS.TASKS, "00-bootstrap-guidelines");
     expect(fs.existsSync(taskDir)).toBe(true);
 
-    // task.json has per-package subtasks
     const taskJson = JSON.parse(
       fs.readFileSync(path.join(taskDir, "task.json"), "utf-8"),
     );
-    const subtaskNames: string[] = taskJson.subtasks.map(
-      (s: { name: string }) => s.name,
-    );
-    expect(subtaskNames).toContain("Fill guidelines for core");
-    expect(subtaskNames).toContain("Fill guidelines for ui");
+
+    // task.json.subtasks is canonical string[] (child task dir names);
+    // per-package checklist items now live in prd.md as markdown checkboxes.
+    expect(Array.isArray(taskJson.subtasks)).toBe(true);
+    expect(taskJson.subtasks).toEqual([]);
+
+    // Canonical shape: legacy current_phase / next_action must NOT appear
+    expect(taskJson.current_phase).toBeUndefined();
+    expect(taskJson.next_action).toBeUndefined();
 
     // relatedFiles point to spec/<name>/
     expect(taskJson.relatedFiles).toContain(".trellis/spec/core/");
     expect(taskJson.relatedFiles).toContain(".trellis/spec/ui/");
 
-    // prd.md mentions packages
+    // prd.md mentions packages + renders per-package checklist items
     const prd = fs.readFileSync(path.join(taskDir, "prd.md"), "utf-8");
+    const expectedPythonCmd =
+      process.platform === "win32" ? "python" : "python3";
     expect(prd).toContain("core");
     expect(prd).toContain("ui");
     expect(prd).toContain("spec/");
+    expect(prd).toContain("- [ ] Fill guidelines for core");
+    expect(prd).toContain("- [ ] Fill guidelines for ui");
+    expect(prd).toContain(
+      `${expectedPythonCmd} ./.trellis/scripts/task.py finish`,
+    );
+    expect(prd).toContain(
+      `${expectedPythonCmd} ./.trellis/scripts/task.py archive 00-bootstrap-guidelines`,
+    );
   });
 
   it("#16 --no-monorepo skips detection even with workspace config", async () => {
-    setupPnpmWorkspace(tmpDir, [
-      { rel: "packages/a", name: "a" },
-    ]);
+    setupPnpmWorkspace(tmpDir, [{ rel: "packages/a", name: "a" }]);
 
     await init({ yes: true, monorepo: false });
 
     const specDir = path.join(tmpDir, PATHS.SPEC);
     // Single-repo spec (global backend + frontend), no per-package dirs
     expect(fs.existsSync(path.join(specDir, "backend", "index.md"))).toBe(true);
-    expect(fs.existsSync(path.join(specDir, "frontend", "index.md"))).toBe(true);
+    expect(fs.existsSync(path.join(specDir, "frontend", "index.md"))).toBe(
+      true,
+    );
     expect(fs.existsSync(path.join(specDir, "a"))).toBe(false);
 
     // config.yaml should NOT have packages: section
@@ -594,20 +858,74 @@ describe("init() integration", () => {
 
     await init({ yes: true, monorepo: true });
 
-    // Should log error about missing monorepo config
+    // Should log error about missing multi-package layout
     const errorCall = logSpy.mock.calls.find(
-      ([msg]) => typeof msg === "string" && msg.includes("no monorepo"),
+      ([msg]) =>
+        typeof msg === "string" &&
+        msg.includes("no multi-package layout detected"),
     );
     expect(errorCall).toBeDefined();
+
+    // Should also print the manual config.yaml example as guidance
+    const guideCall = logSpy.mock.calls.find(
+      ([msg]) => typeof msg === "string" && msg.includes("git: true"),
+    );
+    expect(guideCall).toBeDefined();
 
     // Should NOT create .trellis/ (early return)
     expect(fs.existsSync(path.join(tmpDir, DIR_NAMES.WORKFLOW))).toBe(false);
   });
 
+  it("#20 -y --registry aborts on probe failure instead of direct download fallback", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+
+    await init({
+      yes: true,
+      registry: "bitbucket:myorg/registry/spec",
+    });
+
+    const logOutput = vi
+      .mocked(console.log)
+      .mock.calls.flat()
+      .filter((part): part is string => typeof part === "string")
+      .join("\n");
+
+    expect(logOutput).toContain("Error: Could not reach registry index");
+    expect(fs.existsSync(path.join(tmpDir, DIR_NAMES.WORKFLOW))).toBe(false);
+  });
+
+  it("#19 polyrepo: writes git: true for sibling .git packages", async () => {
+    // Two sibling .git directories — polyrepo fallback should pick them up
+    fs.mkdirSync(path.join(tmpDir, "frontend", ".git"), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, "backend", ".git"), { recursive: true });
+
+    await init({ yes: true });
+
+    const configPath = path.join(tmpDir, DIR_NAMES.WORKFLOW, "config.yaml");
+    expect(fs.existsSync(configPath)).toBe(true);
+
+    const configContent = fs.readFileSync(configPath, "utf-8");
+    // Slice off only the auto-generated section so commented-out template
+    // examples (which legitimately mention `type: submodule`) do not pollute
+    // the assertion.
+    const generatedIdx = configContent.indexOf(
+      "# Auto-detected monorepo packages",
+    );
+    expect(generatedIdx).toBeGreaterThanOrEqual(0);
+    const generated = configContent.slice(generatedIdx);
+
+    expect(generated).toContain("packages:");
+    expect(generated).toContain("frontend:");
+    expect(generated).toContain("backend:");
+    expect(generated).toContain("path: frontend");
+    expect(generated).toContain("path: backend");
+    // Polyrepo packages should be marked git: true, NOT type: submodule
+    expect(generated).toContain("git: true");
+    expect(generated).not.toContain("type: submodule");
+  });
+
   it("#18 monorepo: re-init does not duplicate packages in config.yaml", async () => {
-    setupPnpmWorkspace(tmpDir, [
-      { rel: "packages/lib", name: "lib" },
-    ]);
+    setupPnpmWorkspace(tmpDir, [{ rel: "packages/lib", name: "lib" }]);
 
     await init({ yes: true, force: true });
     await init({ yes: true, force: true });
@@ -619,198 +937,5 @@ describe("init() integration", () => {
     // packages: should appear exactly once
     const matches = configContent.match(/^packages\s*:/gm);
     expect(matches).toHaveLength(1);
-  });
-
-  it("overlay #13 init applies OVERRIDE files on top of base templates", async () => {
-    const overlayPath = resolveOverlayPath("hiskens");
-    expect(overlayPath).not.toBeNull();
-    if (!overlayPath) {
-      throw new Error("Expected hiskens overlay to exist");
-    }
-
-    await init({ yes: true, claude: true, overlay: "hiskens" });
-
-    const targetPath = path.join(
-      tmpDir,
-      ".claude",
-      "commands",
-      "trellis",
-      "brainstorm.md",
-    );
-    const overlayFile = path.join(
-      overlayPath,
-      "templates",
-      "claude",
-      "commands",
-      "trellis",
-      "brainstorm.md",
-    );
-    expect(fs.readFileSync(targetPath, "utf-8")).toBe(
-      fs.readFileSync(overlayFile, "utf-8"),
-    );
-  });
-
-  it("overlay #14 init adds overlay-only APPEND files", async () => {
-    await init({ yes: true, claude: true, overlay: "hiskens" });
-
-    expect(
-      fs.existsSync(
-        path.join(
-          tmpDir,
-          ".claude",
-          "commands",
-          "trellis",
-          "before-python-dev.md",
-        ),
-      ),
-    ).toBe(true);
-    expect(
-      fs.existsSync(
-        path.join(tmpDir, ".claude", "hooks", "context-monitor.py"),
-      ),
-    ).toBe(true);
-  });
-
-  it("overlay #15 init installs overlay statusline template when provided", async () => {
-    const overlayPath = resolveOverlayPath("hiskens");
-    expect(overlayPath).not.toBeNull();
-    if (!overlayPath) {
-      throw new Error("Expected hiskens overlay to exist");
-    }
-
-    await init({ yes: true, claude: true, overlay: "hiskens" });
-
-    const targetPath = path.join(tmpDir, ".claude", "hooks", "statusline.py");
-    const overlayTemplatePath = path.join(
-      overlayPath,
-      "templates",
-      "claude",
-      "hooks",
-      "statusline.py",
-    );
-    const baseTemplatePath = path.join(
-      __dirname,
-      "..",
-      "..",
-      "src",
-      "templates",
-      "claude",
-      "hooks",
-      "statusline.py",
-    );
-
-    expect(fs.existsSync(targetPath)).toBe(true);
-    expect(fs.readFileSync(targetPath, "utf-8")).toBe(
-      fs.existsSync(overlayTemplatePath)
-        ? fs.readFileSync(overlayTemplatePath, "utf-8")
-        : fs.readFileSync(baseTemplatePath, "utf-8"),
-    );
-  });
-
-  it("overlay #16 init removes EXCLUDE paths from output", async () => {
-    await init({ yes: true, claude: true, codex: true, overlay: "hiskens" });
-
-    expect(
-      fs.existsSync(
-        path.join(tmpDir, ".claude", "commands", "trellis", "before-dev.md"),
-      ),
-    ).toBe(false);
-    expect(
-      fs.existsSync(
-        path.join(tmpDir, ".agents", "skills", "before-dev", "SKILL.md"),
-      ),
-    ).toBe(false);
-  });
-
-  it("overlay #17 init resolves PYTHON_CMD placeholders in merged claude settings", async () => {
-    await init({ yes: true, claude: true, overlay: "hiskens" });
-
-    const settingsPath = path.join(tmpDir, ".claude", "settings.json");
-    const settingsContent = fs.readFileSync(settingsPath, "utf-8");
-    const settings = JSON.parse(settingsContent) as {
-      hooks: Record<
-        string,
-        { matcher: string; hooks: { command: string }[] }[]
-      >;
-    };
-    const expectedPython = process.platform === "win32" ? "python" : "python3";
-
-    expect(settingsContent).not.toContain("{{PYTHON_CMD}}");
-    expect(settings.hooks.UserPromptSubmit[0].hooks[0].command).toContain(
-      `${expectedPython} "$CLAUDE_PROJECT_DIR/.claude/hooks/intent-gate.py"`,
-    );
-    expect(settings.hooks.PostToolUse[0].hooks[0].command).toContain(
-      `${expectedPython} "$CLAUDE_PROJECT_DIR/.claude/hooks/todo-enforcer.py"`,
-    );
-  });
-
-  it("overlay #18 monorepo init creates package-scoped bootstrap via generated script", async () => {
-    setupPnpmWorkspace(tmpDir, [
-      { rel: "packages/solver", name: "@smoke/solver" },
-      { rel: "packages/viz", name: "@smoke/viz", files: { "vite.config.ts": "" } },
-    ]);
-
-    await init({ yes: true, user: "dev", overlay: "hiskens" });
-
-    const taskDir = path.join(tmpDir, PATHS.TASKS, "00-bootstrap-guidelines");
-    expect(fs.existsSync(taskDir)).toBe(true);
-
-    const taskJson = JSON.parse(
-      fs.readFileSync(path.join(taskDir, "task.json"), "utf-8"),
-    ) as {
-      package: string | null;
-      relatedFiles: string[];
-    };
-    expect(taskJson.package).toBe("solver");
-    expect(taskJson.relatedFiles).toContain(".trellis/spec/solver/python/");
-    expect(taskJson.relatedFiles).toContain(".trellis/spec/solver/matlab/");
-
-    expect(
-      fs.existsSync(path.join(tmpDir, PATHS.SPEC, "solver", "python", "index.md")),
-    ).toBe(true);
-    expect(
-      fs.existsSync(path.join(tmpDir, PATHS.SPEC, "solver", "matlab", "index.md")),
-    ).toBe(true);
-    expect(
-      fs.existsSync(path.join(tmpDir, PATHS.SPEC, "viz", "python", "index.md")),
-    ).toBe(true);
-    expect(
-      fs.existsSync(path.join(tmpDir, PATHS.SPEC, "viz", "matlab", "index.md")),
-    ).toBe(true);
-    expect(fs.existsSync(path.join(tmpDir, PATHS.SPEC, "python"))).toBe(false);
-    expect(fs.existsSync(path.join(tmpDir, PATHS.SPEC, "matlab"))).toBe(false);
-    expect(
-      fs.existsSync(path.join(tmpDir, PATHS.SPEC, "solver", "backend")),
-    ).toBe(false);
-    expect(
-      fs.existsSync(path.join(tmpDir, PATHS.SPEC, "viz", "frontend")),
-    ).toBe(false);
-    expect(
-      fs.existsSync(path.join(tmpDir, PATHS.SPEC, "frontend")),
-    ).toBe(false);
-    expect(
-      fs.existsSync(path.join(tmpDir, PATHS.SPEC, "backend")),
-    ).toBe(false);
-
-    const prd = fs.readFileSync(path.join(taskDir, "prd.md"), "utf-8");
-    expect(prd).toContain(".trellis/spec/solver/python/");
-    expect(prd).toContain(".trellis/spec/solver/matlab/");
-
-    const currentTask = fs.readFileSync(
-      path.join(tmpDir, DIR_NAMES.WORKFLOW, ".current-task"),
-      "utf-8",
-    );
-    expect(currentTask.trim()).toBe(".trellis/tasks/00-bootstrap-guidelines");
-  });
-
-  it("overlay #19 init copies statusline companion files and skills", async () => {
-    await init({ yes: true, claude: true, overlay: "hiskens" });
-
-    expect(
-      fs.existsSync(path.join(tmpDir, ".claude", "hooks", "parse_sub2api_usage.py")),
-    ).toBe(true);
-    expect(
-      fs.existsSync(path.join(tmpDir, ".claude", "skills", "grok-search", "SKILL.md")),
-    ).toBe(true);
   });
 });

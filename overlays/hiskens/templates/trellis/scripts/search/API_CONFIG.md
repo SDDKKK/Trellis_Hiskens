@@ -29,7 +29,7 @@
 - URL: https://console.x.ai/
 - Free tier available
 - Provides web search via Grok models
-- Default model: `grok-4.20-multi-agent`; endpoint: `/v1/responses` with native `web_search` tool
+- Default model: `grok-4-fast`; endpoint: `/v1/responses` with native `web_search` tool. Override with `GROK_MODEL` when needed.
 
 ### Jina Reader (for web_fetch.py tier 2)
 
@@ -62,32 +62,32 @@
 
 ### Option A: Shell Profile
 
-Add to `~/.bashrc` or `~/.zshrc`:
+Add to `~/.bashrc` or `~/.zshrc`. Keep values empty in committed docs and fill them only in your local shell profile:
 
 ```bash
 export GROK_API_URL="https://api.x.ai/v1"
-export GROK_API_KEY="your-grok-api-key"
-export JINA_API_KEY="your-jina-api-key"
-export CF_ACCOUNT_ID="your-cloudflare-account-id"
-export CF_API_TOKEN="your-cloudflare-api-token"
-export TAVILY_API_KEY="your-tavily-api-key"
-export MINERU_TOKEN="your-mineru-api-token"
+export GROK_API_KEY=
+export JINA_API_KEY=
+export CF_ACCOUNT_ID=
+export CF_API_TOKEN=
+export TAVILY_API_KEY=
+export MINERU_TOKEN=
 ```
 
 ### Option B: Claude Code Settings
 
-Add to `.claude/settings.json` under the `env` section:
+Add to `.claude/settings.json` under the `env` section. Keep values empty in committed files and set real values only locally:
 
 ```json
 {
   "env": {
     "GROK_API_URL": "https://api.x.ai/v1",
-    "GROK_API_KEY": "your-grok-api-key",
-    "JINA_API_KEY": "your-jina-api-key",
-    "CF_ACCOUNT_ID": "your-cloudflare-account-id",
-    "CF_API_TOKEN": "your-cloudflare-api-token",
-    "TAVILY_API_KEY": "your-tavily-api-key",
-    "MINERU_TOKEN": "your-mineru-api-token"
+    "GROK_API_KEY": "",
+    "JINA_API_KEY": "",
+    "CF_ACCOUNT_ID": "",
+    "CF_API_TOKEN": "",
+    "TAVILY_API_KEY": "",
+    "MINERU_TOKEN": ""
   }
 }
 ```

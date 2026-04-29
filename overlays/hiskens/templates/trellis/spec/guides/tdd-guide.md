@@ -33,7 +33,7 @@ def test_failure_rate_basic():
 Run it and confirm it fails for the right reason (not implemented, not syntax error):
 
 ```bash
-uv run pytest tests/test_calculator.py -q
+rtk pytest tests/test_calculator.py -q
 ```
 
 ### 2. GREEN: Write Minimal Code to Pass
@@ -42,7 +42,7 @@ Write the smallest amount of production code that makes the test pass.
 Do not add extra features, error handling, or optimizations yet.
 
 ```bash
-uv run pytest tests/test_calculator.py -q
+rtk pytest tests/test_calculator.py -q
 # Expected: 1 passed
 ```
 
@@ -51,7 +51,7 @@ uv run pytest tests/test_calculator.py -q
 Improve code structure while keeping all tests passing:
 
 ```bash
-uv run pytest tests/test_calculator.py -q
+rtk pytest tests/test_calculator.py -q
 # Must still pass after refactoring
 ```
 
@@ -116,7 +116,7 @@ def matlab_reference():
 - When `tdd: true` in task.json, implement agent receives this guide
 - PRD should include a `## Test Plan` section listing behaviors to test
 - Tests go in `tests/` following existing project conventions
-- Run `uv run pytest tests/ -q` to verify all tests pass
+- Run `rtk pytest tests/ -q` to verify all tests pass
 
 ## Core Principle
 

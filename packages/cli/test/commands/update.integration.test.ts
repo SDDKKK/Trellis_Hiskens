@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import inquirer from "inquirer";
 
 // === External dependency mocks (hoisted by vitest) ===
 
@@ -21,7 +22,10 @@ vi.mock("inquirer", () => ({
 }));
 
 vi.mock("node:child_process", () => ({
-  execSync: vi.fn().mockReturnValue(""),
+  execSync: vi.fn().mockImplementation((cmd: string) => {
+    const py = process.platform === "win32" ? "python" : "python3";
+    return cmd === `${py} --version` ? "Python 3.11.12" : "";
+  }),
 }));
 
 // === Imports ===
@@ -30,7 +34,7 @@ import { init } from "../../src/commands/init.js";
 import { update } from "../../src/commands/update.js";
 import { VERSION } from "../../src/constants/version.js";
 import { DIR_NAMES, PATHS } from "../../src/constants/paths.js";
-import { computeHash, loadHashes } from "../../src/utils/template-hash.js";
+import { computeHash } from "../../src/utils/template-hash.js";
 
 // A managed template file that update always handles (Python script)
 const MANAGED_FILE = `${PATHS.SCRIPTS}/get_context.py`;
@@ -38,6 +42,26 @@ const MANAGED_FILE = `${PATHS.SCRIPTS}/get_context.py`;
 /** Remove a key from a hash object (avoids eslint no-dynamic-delete) */
 function removeHashEntry(obj: Record<string, unknown>, key: string): Record<string, unknown> {
   return Object.fromEntries(Object.entries(obj).filter(([k]) => k !== key));
+}
+
+/**
+ * Read the v2 hashes file and return the inner `hashes` map.
+ * Tests manipulate this map then write it back via `writeHashesV2`.
+ */
+function readHashesV2(hashFile: string): Record<string, string> {
+  const raw = JSON.parse(fs.readFileSync(hashFile, "utf-8")) as {
+    __version?: number;
+    hashes?: Record<string, string>;
+  };
+  return raw.hashes ?? {};
+}
+
+/** Write a v2-shaped hashes file. */
+function writeHashesV2(hashFile: string, hashes: Record<string, string>): void {
+  fs.writeFileSync(
+    hashFile,
+    JSON.stringify({ __version: 2, hashes }, null, 2),
+  );
 }
 
 describe("update() integration", () => {
@@ -124,8 +148,8 @@ describe("update() integration", () => {
     // Delete hash + file to simulate a truly new template file
     const target = path.join(tmpDir, MANAGED_FILE);
     const hashFile = path.join(tmpDir, DIR_NAMES.WORKFLOW, ".template-hashes.json");
-    const hashes = removeHashEntry(JSON.parse(fs.readFileSync(hashFile, "utf-8")), MANAGED_FILE);
-    fs.writeFileSync(hashFile, JSON.stringify(hashes, null, 2));
+    const hashes = removeHashEntry(readHashesV2(hashFile), MANAGED_FILE) as Record<string, string>;
+    writeHashesV2(hashFile, hashes);
     fs.unlinkSync(target);
 
     await update({ dryRun: true });
@@ -165,9 +189,9 @@ describe("update() integration", () => {
     fs.writeFileSync(targetFull, oldContent);
 
     const hashFile = path.join(tmpDir, DIR_NAMES.WORKFLOW, ".template-hashes.json");
-    const hashes = JSON.parse(fs.readFileSync(hashFile, "utf-8"));
+    const hashes = readHashesV2(hashFile);
     hashes[targetRelative] = computeHash(oldContent);
-    fs.writeFileSync(hashFile, JSON.stringify(hashes, null, 2));
+    writeHashesV2(hashFile, hashes);
 
     await update({ force: true });
 
@@ -187,6 +211,18 @@ describe("update() integration", () => {
     await update({ force: true });
 
     expect(fs.readFileSync(targetFull, "utf-8")).toBe(templateContent);
+  });
+
+  it("#5b force mode does not prompt for final confirmation", async () => {
+    await setupProject();
+
+    const targetFull = path.join(tmpDir, MANAGED_FILE);
+    fs.writeFileSync(targetFull, "user customized content");
+    vi.mocked(inquirer.prompt).mockClear();
+
+    await update({ force: true });
+
+    expect(inquirer.prompt).not.toHaveBeenCalled();
   });
 
   it("#6 skipAll preserves user-modified files", async () => {
@@ -239,9 +275,9 @@ describe("update() integration", () => {
     const oldContent = "# Old version of script\n";
     fs.writeFileSync(targetFull, oldContent);
     const hashFile = path.join(tmpDir, DIR_NAMES.WORKFLOW, ".template-hashes.json");
-    const hashes = JSON.parse(fs.readFileSync(hashFile, "utf-8"));
+    const hashes = readHashesV2(hashFile);
     hashes[MANAGED_FILE] = computeHash(oldContent);
-    fs.writeFileSync(hashFile, JSON.stringify(hashes, null, 2));
+    writeHashesV2(hashFile, hashes);
 
     await update({ force: true });
 
@@ -272,8 +308,8 @@ describe("update() integration", () => {
     // Remove hash entry + file to simulate a truly new template file
     const target = path.join(tmpDir, MANAGED_FILE);
     const hashFile = path.join(tmpDir, DIR_NAMES.WORKFLOW, ".template-hashes.json");
-    const hashes = removeHashEntry(JSON.parse(fs.readFileSync(hashFile, "utf-8")), MANAGED_FILE);
-    fs.writeFileSync(hashFile, JSON.stringify(hashes, null, 2));
+    const hashes = removeHashEntry(readHashesV2(hashFile), MANAGED_FILE) as Record<string, string>;
+    writeHashesV2(hashFile, hashes);
     fs.unlinkSync(target);
 
     await update({ allowDowngrade: true, force: true });
@@ -331,11 +367,11 @@ describe("update() integration", () => {
 
     // The hash file should exist
     const hashFile = path.join(tmpDir, DIR_NAMES.WORKFLOW, ".template-hashes.json");
-    const hashes = removeHashEntry(JSON.parse(fs.readFileSync(hashFile, "utf-8")), MANAGED_FILE);
+    const hashes = removeHashEntry(readHashesV2(hashFile), MANAGED_FILE) as Record<string, string>;
 
     // Remove a hash entry AND the file (simulates a truly new template)
     const targetPath = path.join(tmpDir, MANAGED_FILE);
-    fs.writeFileSync(hashFile, JSON.stringify(hashes, null, 2));
+    writeHashesV2(hashFile, hashes);
     fs.unlinkSync(targetPath);
 
     // Run update
@@ -490,42 +526,213 @@ describe("update() integration", () => {
     expect(fs.existsSync(deprecatedFile)).toBe(false);
   });
 
-  it("overlay #17 records overlay-managed files in template hashes", async () => {
-    await init({ yes: true, force: true, claude: true, overlay: "hiskens" });
+  it("#22 preserves existing Claude statusLine config and hook file on update", async () => {
+    await init({ yes: true, force: true, claude: true });
 
-    const hashes = loadHashes(tmpDir);
-    expect(hashes[".claude/commands/trellis/before-python-dev.md"]).toBe(
-      computeHash(
-        fs.readFileSync(
-          path.join(
-            tmpDir,
-            ".claude",
-            "commands",
-            "trellis",
-            "before-python-dev.md",
-          ),
-          "utf-8",
-        ),
-      ),
-    );
+    const settingsPath = path.join(tmpDir, ".claude", "settings.json");
+    const statusLinePath = path.join(tmpDir, ".claude", "hooks", "statusline.py");
+    const statusLineConfig = {
+      type: "command",
+      command: "python3 .claude/hooks/statusline.py",
+    };
+
+    const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8")) as Record<
+      string,
+      unknown
+    >;
+    settings.statusLine = statusLineConfig;
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+    fs.writeFileSync(statusLinePath, "# existing local statusline\n");
+
+    await update({ force: true });
+
+    expect(fs.existsSync(statusLinePath)).toBe(true);
+    const updatedSettings = JSON.parse(
+      fs.readFileSync(settingsPath, "utf-8"),
+    ) as Record<string, unknown>;
+    expect(updatedSettings.statusLine).toEqual(statusLineConfig);
+    expect(updatedSettings.hooks).toBeDefined();
   });
 
-  it("overlay #18 update preserves user-modified overlay files when skipped", async () => {
-    await init({ yes: true, force: true, claude: true, overlay: "hiskens" });
+  // --- Breaking-change migration gate (v0.5.0-beta.0+) ---
+  // Gate: if upgrading from a version that spans a breaking manifest with
+  // recommendMigrate=true, `update` must be invoked with --migrate (or --dry-run
+  // for preview). Without either, exit 1 with a clear error.
 
-    const targetFile = path.join(
-      tmpDir,
-      ".claude",
-      "commands",
-      "trellis",
-      "before-python-dev.md",
+  /** Simulate a 0.4.0 project by writing a legacy command file that the manifest renames */
+  function stageLegacy040Project(): void {
+    const versionPath = path.join(tmpDir, DIR_NAMES.WORKFLOW, ".version");
+    fs.writeFileSync(versionPath, "0.4.0");
+    // Create one legacy file that matches a `rename` entry in 0.5.0-beta.0 manifest.
+    // Without this, classifyMigrations finds no work → early-exit before gate.
+    const legacyDir = path.join(tmpDir, ".claude", "commands", "trellis");
+    fs.mkdirSync(legacyDir, { recursive: true });
+    fs.writeFileSync(path.join(legacyDir, "before-dev.md"), "legacy content");
+  }
+
+  /** Delete the post-init target so classifyMigrations hits the "new doesn't exist"
+   *  branch and respects `isTemplateModified` on the source (→ confirm bucket). */
+  function clearMigrationTarget(): void {
+    fs.rmSync(
+      path.join(tmpDir, ".claude/skills/trellis-before-dev"),
+      { recursive: true, force: true },
     );
-    fs.writeFileSync(targetFile, "user customized overlay command");
+  }
 
-    await update({ skipAll: true, overlay: "hiskens" });
+  it("#22 breaking-change gate exits 1 when --migrate is missing", async () => {
+    await setupProject();
+    stageLegacy040Project();
 
-    expect(fs.readFileSync(targetFile, "utf-8")).toBe(
-      "user customized overlay command",
+    const exitSpy = vi
+      .spyOn(process, "exit")
+      .mockImplementation(() => undefined as never);
+
+    await update({});
+
+    expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+
+  it("#23 breaking-change gate allows --dry-run without --migrate", async () => {
+    await setupProject();
+    stageLegacy040Project();
+
+    const exitSpy = vi
+      .spyOn(process, "exit")
+      .mockImplementation(() => undefined as never);
+
+    await update({ dryRun: true });
+
+    // Gate must not fire for preview mode (users need to inspect before migrating)
+    expect(exitSpy).not.toHaveBeenCalled();
+  });
+
+  it("#24 breaking-change gate allows --migrate to proceed", async () => {
+    await setupProject();
+    stageLegacy040Project();
+
+    const exitSpy = vi
+      .spyOn(process, "exit")
+      .mockImplementation(() => undefined as never);
+
+    await update({ migrate: true, force: true });
+
+    // Gate passes when --migrate is present; update proceeds to completion
+    expect(exitSpy).not.toHaveBeenCalled();
+    // Version must advance to current CLI after the migrate run
+    const versionPath = path.join(tmpDir, DIR_NAMES.WORKFLOW, ".version");
+    expect(fs.readFileSync(versionPath, "utf-8")).toBe(VERSION);
+  });
+
+  // The [b] Backup-rename path in the confirm prompt promises "keeps a .backup
+  // copy". Previously it was identical to [r] (both relied on the full project
+  // snapshot). We now write an INLINE .backup next to the new path so users can
+  // diff/merge their customizations without digging through .trellis/.backup-*/.
+  /** Install a mock that returns a specific migration choice for the per-file prompt
+   *  and {proceed: true} for the top-level confirm. Resolves the flakiness of
+   *  matching on `name` field in the dynamic import path. */
+  async function installChoiceMock(choice: "rename" | "backup-rename" | "skip") {
+    const inquirer = (await import("inquirer")).default;
+    vi.mocked(inquirer.prompt).mockImplementation(((questions: unknown) => {
+      const q = Array.isArray(questions) ? questions[0] : questions;
+      const name = (q as { name?: string }).name;
+      if (name === "choice") return Promise.resolve({ choice });
+      return Promise.resolve({ proceed: true });
+    }) as never);
+  }
+
+  // The [b] Backup-rename path in the confirm prompt promises "keeps a .backup
+  // copy". Previously it was identical to [r] (both relied on the full project
+  // snapshot). We now write an INLINE .backup next to the new path so users can
+  // diff/merge their customizations without digging through .trellis/.backup-*/.
+  it("#25 backup-rename leaves inline <new-path>.backup with original content", async () => {
+    await setupProject();
+    stageLegacy040Project();
+    clearMigrationTarget();
+
+    // User-modified content that differs from the 0.5 template (forces confirm)
+    const legacyPath = path.join(
+      tmpDir,
+      ".claude/commands/trellis/before-dev.md",
+    );
+    const userContent = "## My custom before-dev notes\nEdited by user.\n";
+    fs.writeFileSync(legacyPath, userContent);
+
+    await installChoiceMock("backup-rename");
+
+    await update({ migrate: true });
+
+    // After migration:
+    //   - new-path exists (rename completed)
+    //   - new-path.backup exists with the user's content (inline preservation)
+    //   - old-path is gone
+    const newPath = path.join(
+      tmpDir,
+      ".claude/skills/trellis-before-dev/SKILL.md",
+    );
+    expect(fs.existsSync(newPath)).toBe(true);
+    expect(fs.existsSync(newPath + ".backup")).toBe(true);
+    expect(fs.readFileSync(newPath + ".backup", "utf-8")).toBe(userContent);
+    expect(fs.existsSync(legacyPath)).toBe(false);
+  });
+
+  it("#26 rename-anyway does NOT leave an inline .backup (relies on project snapshot)", async () => {
+    await setupProject();
+    stageLegacy040Project();
+    clearMigrationTarget();
+
+    const legacyPath = path.join(
+      tmpDir,
+      ".claude/commands/trellis/before-dev.md",
+    );
+    fs.writeFileSync(legacyPath, "## user edits\n");
+
+    await installChoiceMock("rename");
+
+    await update({ migrate: true });
+
+    const newPath = path.join(
+      tmpDir,
+      ".claude/skills/trellis-before-dev/SKILL.md",
+    );
+    expect(fs.existsSync(newPath)).toBe(true);
+    // No inline .backup — the full-project snapshot under .trellis/.backup-*
+    // is the single source of recovery for this mode.
+    expect(fs.existsSync(newPath + ".backup")).toBe(false);
+  });
+
+  it("#27 backup skips managed node_modules dependency trees", async () => {
+    await setupProject();
+
+    const opencodeRoot = path.join(tmpDir, ".opencode");
+    fs.mkdirSync(path.join(opencodeRoot, "node_modules", "zod"), {
+      recursive: true,
+    });
+    fs.writeFileSync(path.join(opencodeRoot, "package.json"), "{}\n");
+    fs.writeFileSync(
+      path.join(opencodeRoot, "node_modules", "zod", "index.js"),
+      "module.exports = {};\n",
+    );
+
+    // Trigger an update that creates a backup.
+    const targetFull = path.join(tmpDir, MANAGED_FILE);
+    fs.writeFileSync(targetFull, "user customized content");
+
+    await update({ force: true });
+
+    const entries = fs.readdirSync(path.join(tmpDir, DIR_NAMES.WORKFLOW));
+    const backupDirs = entries.filter((e) => e.startsWith(".backup-"));
+    expect(backupDirs.length).toBe(1);
+
+    const backupDir = path.join(
+      tmpDir,
+      DIR_NAMES.WORKFLOW,
+      backupDirs[0] as string,
+    );
+    expect(fs.existsSync(path.join(backupDir, ".opencode", "package.json"))).toBe(
+      true,
+    );
+    expect(fs.existsSync(path.join(backupDir, ".opencode", "node_modules"))).toBe(
+      false,
     );
   });
 });

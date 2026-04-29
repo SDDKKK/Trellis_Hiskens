@@ -22,17 +22,15 @@ These guides help you **ask the right questions before coding**.
 | [Codebase Search Guide](./codebase-search-guide.md) | Choose the right search tool (semantic vs exact) | When searching for code or understanding features |
 | [External Search Strategy Guide](./search-guide.md) | Unified three-layer routing for external search (Context7, Grok Scripts) | When needing external info (library docs, APIs, news, fact-checking, deep research) |
 | [GitHub Analysis Guide](./github-analysis-guide.md) | Analyze GitHub repos comprehensively (architecture, health, community, competitors) | When evaluating dependencies, researching implementations, or doing competitive analysis |
-| [Agent Large File Strategy](./agent-large-file-strategy.md) | Handle agent Write failures on large files (>300 lines) | When agent loops on Write tool or generating large files |
-| [Spec Integration Checklist](./spec-integration-checklist.md) | Ensure new specs are wired into agents, hooks, and jsonl | When adding or modifying any spec |
+| [Agent Large File Strategy](./agent-large-file-strategy.md) | Handle large generated files (>300 lines) without Write retries | When generated output is too large for one edit |
+| [Spec Integration Checklist](./spec-integration-checklist.md) | Ensure new specs are wired into workflow context, hooks, and templates | When adding or modifying any spec |
 | [Code Reuse Thinking Guide](./code-reuse-thinking-guide.md) | Identify patterns and reduce duplication | When you notice repeated patterns |
 | [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) | Think through Python↔MATLAB data flow | Features spanning both languages |
-| [Excel Reading Strategy](./excel-reading-strategy.md) | Read/compare Excel files via markitdown, openpyxl, polars | When agent needs to inspect or diff .xlsx files |
-| [New Agent Wiring](./new-agent-wiring.md) | 7-step checklist for adding a new Trellis agent | When creating a new agent type |
-| [Agent Design Principles](./agent-design-principles.md) | Programmatic vs semantic separation, anti-patterns | When designing or splitting agents |
+| [Excel Reading Strategy](./excel-reading-strategy.md) | Read/compare Excel files via markitdown, openpyxl, polars | When you need to inspect or diff .xlsx files |
 | [Cross-Platform Thinking Guide](./cross-platform-thinking-guide.md) | WSL↔Windows path, encoding, line endings, SQLite cross-access | When code touches WSL/Windows boundary or multiple runtimes |
-| [Codex Assist Guide](./codex-assist.md) | Route agents to Codex CLI for cross-model review, debugging, feasibility analysis | When needing a second model's opinion on scientific code, subtle bugs, or requirement feasibility |
+| [Codex Assist Guide](./codex-assist.md) | Use Codex CLI for optional cross-model review, debugging, feasibility analysis | When needing a second model's opinion on scientific code, subtle bugs, or requirement feasibility |
 | [Verification Before Completion](./verification-before-completion.md) | Enforce fresh verification evidence before any completion claim | When claiming lint/test/feature passes -- always re-run, never trust previous output |
-| [Receiving Review](./receiving-review.md) | Protocol for handling feedback from check/review agents | When debug/implement agent receives review feedback |
+| [Receiving Review](./receiving-review.md) | Protocol for handling feedback from check/review passes | When implementation receives review feedback |
 | [TDD Guide](./tdd-guide.md) | Red-Green-Refactor cycle for Python scientific computing | When task.json has tdd=true; pure functions, algorithms, data transforms |
 | [Finishing Branch](./finishing-branch.md) | Structured completion options after all checks pass | When finishing work and choosing commit/PR/keep/discard |
 
@@ -138,20 +136,20 @@ These guides help you **ask the right questions before coding**.
 
 **Quick Rule**: Always use `wslpath` for path conversion. Always specify UTF-8 encoding explicitly. Use `COALESCE()` for MATLAB SQLite queries. Copy DB to `/tmp/` for write-heavy operations.
 
-### When to Think About Agent Design
+### When to Think About Trellis Workflow Changes
 
-- [ ] You're creating a new agent type
-- [ ] An existing agent mixes programmatic checks and AI judgment
-- [ ] Ralph Loop markers don't match agent output
+- [ ] You're modifying hooks, task context files, or generated specs
+- [ ] A workflow step mixes programmatic checks and AI judgment
+- [ ] Verification markers or command outputs no longer match task state
 
-→ Read [Agent Design Principles](./agent-design-principles.md) + [New Agent Wiring](./new-agent-wiring.md)
+→ Read [Spec Integration Checklist](./spec-integration-checklist.md) + [Verification Before Completion](./verification-before-completion.md)
 
-**Quick Rule**: Programmatic (exit code) → check agent + verify commands. Semantic (AI judgment) → review agent + fixed markers. Never mix both in one agent.
+**Quick Rule**: Keep mechanical checks in commands with exit codes. Keep semantic judgment in review/check guidance. Verify both with fresh evidence.
 
 ### When to Think About Verification Before Completion
 
 - [ ] You're about to claim "lint passes" or "tests pass"
-- [ ] You're outputting completion markers (review agent)
+- [ ] You're outputting completion markers
 - [ ] You're running finish-work checklist
 - [ ] You're tempted to say "should work" without running the command
 
@@ -161,8 +159,8 @@ These guides help you **ask the right questions before coding**.
 
 ### When to Think About Receiving Review Feedback
 
-- [ ] Debug agent received issues from check/review
-- [ ] Implement agent received feedback to address
+- [ ] A debug/check pass reported issues
+- [ ] The implementation pass received feedback to address
 - [ ] You're about to fix something a reviewer flagged
 
 → Read [Receiving Review](./receiving-review.md)
@@ -187,7 +185,7 @@ These guides help you **ask the right questions before coding**.
 - [ ] You're modifying the context budget monitor or statusline hooks
 - [ ] You need cross-session or cross-hook communication via bridge files
 
-→ Read [Agent Design Principles](./agent-design-principles.md) (Two-Hook Bridge + Behavioral Guards sections)
+→ Read [Spec Integration Checklist](./spec-integration-checklist.md) and document bridge-file semantics near the hook
 
 **Quick Rule**: If data isn't available in your hook's stdin, use a bridge file (`/tmp/{name}-{session_id}.json`). Always add staleness guards and debounce logic.
 

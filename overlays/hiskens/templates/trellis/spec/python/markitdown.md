@@ -94,13 +94,13 @@ with ThreadPoolExecutor(max_workers=4) as executor:
 
 ```bash
 # Basic conversion
-uv run markitdown document.pdf > output.md
+markitdown document.pdf > output.md
 
 # Specify output file
-uv run markitdown document.pdf -o output.md
+markitdown document.pdf -o output.md
 
 # Pipe
-cat report.pdf | uv run markitdown > output.md
+cat report.pdf | markitdown > output.md
 ```
 
 ## Project-Specific Patterns

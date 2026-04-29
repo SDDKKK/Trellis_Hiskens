@@ -1,348 +1,430 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-Multi-Agent Pipeline Context Injection Hook
+Trellis v0.5 Agent Context Injection Hook
+
+Injects task-specific context for upstream Trellis agents (trellis-implement,
+trellis-check, trellis-research) without installing custom standalone agents.
 
 Core Design Philosophy:
-- Dispatch becomes a pure dispatcher, only responsible for "calling subagents"
-- Hook is responsible for injecting all context, subagent works autonomously with complete info
-- Each agent has a dedicated jsonl file defining its context
-- No resume needed, no segmentation, behavior controlled by code not prompt
+- Hook injects curated task context while upstream Trellis owns agent behavior
+- Task context files define the relevant implementation/checking inputs
+- CCR routing is injected as a lightweight model tag, not as a workflow fork
 
 Trigger: PreToolUse (before Task tool call)
 
-Context Source: .trellis/.current-task points to task directory
+Context Source: Trellis active task resolver points to task directory
 - implement.jsonl - Implement agent dedicated context
 - check.jsonl     - Check agent dedicated context
-- debug.jsonl     - Debug agent dedicated context
-- research.jsonl  - Research agent dedicated context (optional, usually not needed)
-- cr.jsonl        - Code review dedicated context
 - prd.md          - Requirements document
 - info.md         - Technical design
 - codex-review-output.txt - Code Review results
 """
-
 from __future__ import annotations
+
+# IMPORTANT: Suppress all warnings FIRST
+import warnings
+warnings.filterwarnings("ignore")
 
 import json
 import os
 import sys
-import warnings
 from pathlib import Path
+from typing import Any
 
-# Suppress Python warnings that could corrupt JSON stdout
-warnings.filterwarnings("ignore")
+# IMPORTANT: Force stdout to use UTF-8 on Windows
+# This fixes UnicodeEncodeError when outputting non-ASCII characters
+if sys.platform.startswith("win"):
+    import io as _io
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+    elif hasattr(sys.stdout, "detach"):
+        sys.stdout = _io.TextIOWrapper(sys.stdout.detach(), encoding="utf-8", errors="replace")  # type: ignore[union-attr]
 
-# Windows UTF-8 stdout fix (prevents UnicodeEncodeError with CJK characters)
-if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8")
-    sys.stderr.reconfigure(encoding="utf-8")
-
-# Add .trellis/scripts to path for importing common modules and nocturne_client
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / ".trellis" / "scripts"))
-
-try:
-    from nocturne_client import NocturneClient
-except ImportError:
-    NocturneClient = None  # type: ignore[misc,assignment]
-
-# Import shared context assembly module
-from common.context_assembly import (  # noqa: E402
-    AGENT_CHECK,
-    AGENT_DEBUG,
-    AGENT_IMPLEMENT,
-    AGENT_PLAN,
-    AGENT_RESEARCH,
-    AGENT_REVIEW,
-    AGENTS_ALL,
-    AGENTS_REQUIRE_TASK,
-    DIR_WORKFLOW,
-    FILE_TASK_JSON,
-    find_repo_root,
-    get_check_context,
-    get_current_task,
-    get_debug_context,
-    get_finish_context,
-    get_implement_context,
-    get_nocturne_hints,
-    get_plan_context,
-    get_research_context,
-    get_review_context,
-)
 
 # =============================================================================
-# Hook-Specific Constants (not in shared module)
+# Path Constants (change here to rename directories)
 # =============================================================================
 
-# Agents that don't update phase (can be called at any time)
-AGENTS_NO_PHASE_UPDATE = {"debug", "research", "plan"}
-
-# Valid status transitions (Mod 5: State Machine)
-VALID_STATUS_TRANSITIONS = {
-    "planning": {"active", "rejected"},
-    "active": {"review", "blocked"},
-    "review": {"active", "completed"},
-    "blocked": {"active"},
-    "completed": set(),  # terminal
-    "rejected": set(),  # terminal
-}
-
-# Map subagent type to expected task status
-AGENT_TARGET_STATUS = {
-    "implement": "active",
-    "check": "review",
-    "review": "review",
-}
+DIR_WORKFLOW = ".trellis"
+DIR_SPEC = "spec"
+FILE_TASK_JSON = "task.json"
 
 # =============================================================================
-# Codex Agent Convention
-# codex-{base} agents delegate to Codex CLI with same context as {base} agent.
-# Adding a new codex variant only requires a new .claude/agents/codex-{base}.md
-# file — no hook changes needed.
+# Trellis agent constants (change here only if upstream agent names change)
 # =============================================================================
 
-CODEX_PREFIX = "codex-"
-CODEX_ALLOWED_BASES = (AGENT_IMPLEMENT, AGENT_CHECK, AGENT_DEBUG, AGENT_REVIEW)
+AGENT_IMPLEMENT = "trellis-implement"
+AGENT_CHECK = "trellis-check"
+AGENT_RESEARCH = "trellis-research"
+
+# Agents that require a task directory
+AGENTS_REQUIRE_TASK = (AGENT_IMPLEMENT, AGENT_CHECK)
+# All supported agents
+AGENTS_ALL = (AGENT_IMPLEMENT, AGENT_CHECK, AGENT_RESEARCH)
 
 
-def parse_codex_agent(subagent_type: str) -> str | None:
-    """If subagent_type is codex-{base}, return base type. Otherwise None."""
-    if not subagent_type.startswith(CODEX_PREFIX):
+def find_repo_root(start_path: str) -> str | None:
+    """
+    Find git repo root from start_path upwards
+
+    Returns:
+        Repo root path, or None if not found
+    """
+    current = Path(start_path).resolve()
+    while current != current.parent:
+        if (current / ".git").exists():
+            return str(current)
+        current = current.parent
+    return None
+
+
+def _detect_platform(input_data: dict) -> str | None:
+    if isinstance(input_data.get("cursor_version"), str):
+        return "cursor"
+    env_map = {
+        "CLAUDE_PROJECT_DIR": "claude",
+        "CURSOR_PROJECT_DIR": "cursor",
+        "CODEBUDDY_PROJECT_DIR": "codebuddy",
+        "FACTORY_PROJECT_DIR": "droid",
+        "GEMINI_PROJECT_DIR": "gemini",
+        "QODER_PROJECT_DIR": "qoder",
+        "KIRO_PROJECT_DIR": "kiro",
+        "COPILOT_PROJECT_DIR": "copilot",
+    }
+    for env_name, platform in env_map.items():
+        if os.environ.get(env_name):
+            return platform
+    script_parts = set(Path(sys.argv[0]).parts)
+    if ".claude" in script_parts:
+        return "claude"
+    if ".cursor" in script_parts:
+        return "cursor"
+    if ".gemini" in script_parts:
+        return "gemini"
+    if ".qoder" in script_parts:
+        return "qoder"
+    if ".codebuddy" in script_parts:
+        return "codebuddy"
+    if ".factory" in script_parts:
+        return "droid"
+    if ".kiro" in script_parts:
+        return "kiro"
+    return None
+
+
+def get_current_task(repo_root: str, input_data: dict) -> str | None:
+    """Resolve current task directory through the unified active task resolver."""
+    scripts_dir = Path(repo_root) / DIR_WORKFLOW / "scripts"
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    try:
+        from common.active_task import resolve_active_task  # type: ignore[import-not-found]
+    except Exception:
         return None
-    base = subagent_type[len(CODEX_PREFIX) :]
-    if base not in CODEX_ALLOWED_BASES:
-        return None
-    return base
+
+    active = resolve_active_task(
+        Path(repo_root),
+        input_data,
+        platform=_detect_platform(input_data),
+    )
+    return active.task_path
+
 
 
 def _load_features(repo_root: str) -> dict[str, bool]:
-    """Load feature flags from .trellis/config.yaml.
+    """Load Trellis feature flags with a tiny YAML parser.
 
-    Used by hooks which cannot import from common.config (different sys.path).
-    Returns empty dict on any error (graceful degradation).
+    Hooks must degrade gracefully because they run inside editor/agent hook
+    processes where optional project modules may not be importable yet.
     """
-    config_path = os.path.join(repo_root, DIR_WORKFLOW, "config.yaml")
-    if not os.path.isfile(config_path):
+    config_path = Path(repo_root) / DIR_WORKFLOW / "config.yaml"
+    if not config_path.is_file():
         return {}
     try:
-        with open(config_path, encoding="utf-8") as f:
-            content = f.read()
-        # Minimal YAML parsing for flat key: value pairs
-        features: dict[str, bool] = {}
-        in_features = False
-        for line in content.splitlines():
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#"):
-                continue
-            if stripped.startswith("features"):
-                in_features = True
-                continue
-            if in_features:
-                if line and line[0] in (" ", "\t") and ":" in stripped:
-                    key, _, val = stripped.partition(":")
-                    key = key.strip()
-                    val = val.strip()
-                    if val.lower() in ("true", "yes", "1"):
-                        features[key] = True
-                    elif val.lower() in ("false", "no", "0", "", "[]"):
-                        features[key] = False
-                    else:
-                        features[key] = bool(val)
-                elif line and line[0] not in (" ", "\t"):
-                    break
-        return features
-    except (OSError, UnicodeDecodeError):
+        content = config_path.read_text(encoding="utf-8")
+    except OSError:
         return {}
+
+    features: dict[str, bool] = {}
+    in_features = False
+    for line in content.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("features"):
+            in_features = True
+            continue
+        if not in_features:
+            continue
+        if line[0] not in (" ", "\t"):
+            break
+        if ":" not in stripped:
+            continue
+        key, _, value = stripped.partition(":")
+        normalized = value.strip().lower()
+        if normalized in ("true", "yes", "1"):
+            features[key.strip()] = True
+        elif normalized in ("false", "no", "0", "", "[]"):
+            features[key.strip()] = False
+        else:
+            features[key.strip()] = bool(normalized)
+    return features
+
+
+def _ccr_model_keys(subagent_type: str) -> tuple[str, ...]:
+    aliases = {
+        AGENT_IMPLEMENT: (AGENT_IMPLEMENT, "implement"),
+        AGENT_CHECK: (AGENT_CHECK, "check"),
+        AGENT_RESEARCH: (AGENT_RESEARCH, "research"),
+        "implement": (AGENT_IMPLEMENT, "implement"),
+        "check": (AGENT_CHECK, "check"),
+        "research": (AGENT_RESEARCH, "research"),
+    }
+    return aliases.get(subagent_type, (subagent_type,))
 
 
 def get_ccr_model_tag(repo_root: str, subagent_type: str) -> str:
-    """Read agent-models.json and return CCR tag prefix if configured.
-    Only injects when CCR proxy is active (ANTHROPIC_BASE_URL points to localhost)
-    and ccr_routing feature is enabled in config.yaml.
+    """Return a Claude Code Router model tag for v0.5 Trellis agents.
+
+    Injection is active only when all guardrails are true:
+    - .trellis/config.yaml has features.ccr_routing: true
+    - ANTHROPIC_BASE_URL points at localhost / 127.0.0.1
+    - .trellis/config/agent-models.json exists and contains a model mapping
+
+    The mapping accepts canonical v0.5 names plus legacy aliases:
+    trellis-implement/implement, trellis-check/check, trellis-research/research.
     """
-    features = _load_features(repo_root)
-    if not features.get("ccr_routing", False):
+    if not _load_features(repo_root).get("ccr_routing", False):
         return ""
     base_url = os.environ.get("ANTHROPIC_BASE_URL", "")
     if "127.0.0.1" not in base_url and "localhost" not in base_url:
         return ""
-    config_path = os.path.join(repo_root, DIR_WORKFLOW, "config", "agent-models.json")
-    if not os.path.isfile(config_path):
+    config_path = Path(repo_root) / DIR_WORKFLOW / "config" / "agent-models.json"
+    if not config_path.is_file():
         return ""
     try:
-        with open(config_path, encoding="utf-8") as f:
-            mapping = json.load(f)
-        model = mapping.get(subagent_type, "")
-        if model:
-            return f"<CCR-SUBAGENT-MODEL>{model}</CCR-SUBAGENT-MODEL>\n"
+        mapping = json.loads(config_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
-        pass
+        return ""
+    if not isinstance(mapping, dict):
+        return ""
+    for key in _ccr_model_keys(subagent_type):
+        model = mapping.get(key)
+        if isinstance(model, str) and model.strip():
+            return f"<CCR-SUBAGENT-MODEL>{model.strip()}</CCR-SUBAGENT-MODEL>\n"
     return ""
 
 
-def _append_audit_trail(
-    repo_root: str, task_dir: str, agent_type: str, phase: int
-) -> None:
-    """Append audit trail entry when a subagent is dispatched.
+def read_file_content(base_path: str, file_path: str) -> str | None:
+    """Read file content, return None if file doesn't exist"""
+    full_path = os.path.join(base_path, file_path)
+    if os.path.exists(full_path) and os.path.isfile(full_path):
+        try:
+            with open(full_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception:
+            return None
+    return None
 
-    Never raises — audit failure must never block subagent dispatch.
+
+def read_directory_contents(
+    base_path: str, dir_path: str, max_files: int = 20
+) -> list[tuple[str, str]]:
     """
-    from datetime import datetime, timezone
+    Read all .md files in a directory
 
-    audit_file = os.path.join(repo_root, task_dir, "audit.jsonl")
-    entry = {
-        "ts": datetime.now(timezone.utc).isoformat(),
-        "phase": phase,
-        "agent": agent_type,
-        "event": "dispatch",
-    }
+    Args:
+        base_path: Base path (usually repo_root)
+        dir_path: Directory relative path
+        max_files: Max files to read (prevent huge directories)
+
+    Returns:
+        [(file_path, content), ...]
+    """
+    full_path = os.path.join(base_path, dir_path)
+    if not os.path.exists(full_path) or not os.path.isdir(full_path):
+        return []
+
+    results = []
     try:
-        with open(audit_file, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry) + "\n")
-    except Exception:
-        pass
-
-
-def update_current_phase(repo_root: str, task_dir: str, subagent_type: str) -> None:
-    """
-    Update current_phase in task.json based on subagent_type.
-
-    This ensures phase tracking is always accurate, regardless of whether
-    dispatch agent remembers to update it.
-
-    Logic:
-    - Read next_action array from task.json
-    - Find the next phase whose action matches subagent_type
-    - Only move forward, never backward
-    - Some agents (debug, research) don't update phase
-    """
-    if subagent_type in AGENTS_NO_PHASE_UPDATE:
-        return
-
-    task_json_path = os.path.join(repo_root, task_dir, FILE_TASK_JSON)
-    if not os.path.exists(task_json_path):
-        return
-
-    try:
-        with open(task_json_path, "r", encoding="utf-8") as f:
-            task_data = json.load(f)
-
-        current_phase = task_data.get("current_phase", 0)
-        next_actions = task_data.get("next_action", [])
-
-        # Map action names to subagent types
-        # "implement" -> "implement", "check" -> "check", "finish" -> "check"
-        # "codex-implement" -> "implement", etc. (codex-* delegates to base)
-        action_to_agent = {
-            "implement": "implement",
-            "check": "check",
-            "review": "review",
-            "finish": "check",  # finish uses check agent
-            "codex-implement": "implement",
-            "codex-check": "check",
-            "codex-debug": "debug",
-            "codex-review": "review",
-        }
-
-        # Find the next phase that matches this subagent_type
-        new_phase = None
-        for action in next_actions:
-            phase_num = action.get("phase", 0)
-            action_name = action.get("action", "")
-            expected_agent = action_to_agent.get(action_name)
-
-            # Only consider phases after current_phase
-            if phase_num > current_phase and expected_agent == subagent_type:
-                new_phase = phase_num
-                break
-
-        if new_phase is not None:
-            task_data["current_phase"] = new_phase
-
-            with open(task_json_path, "w", encoding="utf-8") as f:
-                json.dump(task_data, f, indent=2, ensure_ascii=False)
-    except Exception:
-        # Don't fail the hook if phase update fails
-        pass
-
-
-def validate_status_transition(
-    repo_root: str, task_dir: str, subagent_type: str
-) -> None:
-    """
-    Validate and update task status based on subagent type (Mod 5: State Machine).
-
-    Warns on invalid transitions but does not block (gradual introduction).
-    """
-    if subagent_type not in AGENT_TARGET_STATUS:
-        return
-
-    task_json_path = os.path.join(repo_root, task_dir, FILE_TASK_JSON)
-    if not os.path.exists(task_json_path):
-        return
-
-    try:
-        with open(task_json_path, "r", encoding="utf-8") as f:
-            task_data = json.load(f)
-
-        current_status = task_data.get("status", "planning")
-        target_status = AGENT_TARGET_STATUS[subagent_type]
-
-        # Already at target status, no transition needed
-        if current_status == target_status:
-            return
-
-        allowed = VALID_STATUS_TRANSITIONS.get(current_status, set())
-        if target_status not in allowed:
-            print(
-                f"WARNING: Invalid status transition {current_status} → {target_status} "
-                f"(triggered by {subagent_type} agent)",
-                file=sys.stderr,
-            )
-            return
-
-        # Valid transition: update status and append to history
-        task_data["status"] = target_status
-
-        # Append to status_history
-        history = task_data.get("status_history", [])
-        from datetime import datetime, timezone
-
-        history.append(
-            {
-                "from": current_status,
-                "to": target_status,
-                "at": datetime.now(timezone.utc).isoformat(),
-                "by": subagent_type,
-            }
+        # Only read .md files, sorted by filename
+        md_files = sorted(
+            [
+                f
+                for f in os.listdir(full_path)
+                if f.endswith(".md") and os.path.isfile(os.path.join(full_path, f))
+            ]
         )
-        task_data["status_history"] = history
 
-        with open(task_json_path, "w", encoding="utf-8") as f:
-            json.dump(task_data, f, indent=2, ensure_ascii=False)
+        for filename in md_files[:max_files]:
+            file_full_path = os.path.join(full_path, filename)
+            relative_path = os.path.join(dir_path, filename)
+            try:
+                with open(file_full_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                    results.append((relative_path, content))
+            except Exception:
+                continue
     except Exception:
         pass
 
-
-# =============================================================================
-# Prompt Builder Functions (Claude-specific, not in shared module)
-# =============================================================================
+    return results
 
 
-def build_implement_prompt(
-    original_prompt: str, context: str, nocturne_hints: str = ""
-) -> str:
+def read_jsonl_entries(base_path: str, jsonl_path: str) -> list[tuple[str, str]]:
+    """
+    Read all file/directory contents referenced in jsonl file
+
+    Schema:
+        {"file": "path/to/file.md", "reason": "..."}
+        {"file": "path/to/dir/", "type": "directory", "reason": "..."}
+        {"_example": "..."}          # seed row — skipped (no `file` field)
+
+    Rows without a ``file`` field (e.g. the self-describing seed line written
+    by ``task.py create`` before the agent has curated entries) are skipped
+    silently. If the resulting entry list is empty, a stderr warning is
+    emitted so the operator can debug missing context.
+
+    Returns:
+        [(path, content), ...]
+    """
+    full_path = os.path.join(base_path, jsonl_path)
+    if not os.path.exists(full_path):
+        print(
+            f"[inject-subagent-context] WARN: {jsonl_path} not found — "
+            f"sub-agent will receive only prd.md",
+            file=sys.stderr,
+        )
+        return []
+
+    results = []
+    saw_real_entry = False
+    try:
+        with open(full_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    item = json.loads(line)
+                    file_path = item.get("file") or item.get("path")
+                    entry_type = item.get("type", "file")
+
+                    if not file_path:
+                        # Seed / comment row — skip silently
+                        continue
+
+                    saw_real_entry = True
+                    if entry_type == "directory":
+                        # Read all .md files in directory
+                        dir_contents = read_directory_contents(base_path, file_path)
+                        results.extend(dir_contents)
+                    else:
+                        # Read single file
+                        content = read_file_content(base_path, file_path)
+                        if content:
+                            results.append((file_path, content))
+                except json.JSONDecodeError:
+                    continue
+    except Exception:
+        pass
+
+    if not saw_real_entry:
+        print(
+            f"[inject-subagent-context] WARN: {jsonl_path} has no curated "
+            f"entries (only seed / empty) — sub-agent will receive only "
+            f"prd.md. See workflow.md Phase 1.3 for curation guidance.",
+            file=sys.stderr,
+        )
+
+    return results
+
+
+
+
+def get_agent_context(repo_root: str, task_dir: str, agent_type: str) -> str:
+    """
+    Get context from {agent_type}.jsonl for the specified agent.
+    Only reads implement.jsonl or check.jsonl (the two JSONL files the task system creates).
+    """
+    context_parts = []
+
+    agent_jsonl = f"{task_dir}/{agent_type}.jsonl"
+    for file_path, content in read_jsonl_entries(repo_root, agent_jsonl):
+        context_parts.append(f"=== {file_path} ===\n{content}")
+
+    return "\n\n".join(context_parts)
+
+
+def get_implement_context(repo_root: str, task_dir: str) -> str:
+    """
+    Complete context for Implement Agent
+
+    Read order:
+    1. All files in implement.jsonl (dev specs)
+    2. prd.md (requirements)
+    3. info.md (technical design)
+    """
+    context_parts = []
+
+    # 1. Read implement.jsonl
+    base_context = get_agent_context(repo_root, task_dir, "implement")
+    if base_context:
+        context_parts.append(base_context)
+
+    # 2. Requirements document
+    prd_content = read_file_content(repo_root, f"{task_dir}/prd.md")
+    if prd_content:
+        context_parts.append(f"=== {task_dir}/prd.md (Requirements) ===\n{prd_content}")
+
+    # 3. Technical design
+    info_content = read_file_content(repo_root, f"{task_dir}/info.md")
+    if info_content:
+        context_parts.append(
+            f"=== {task_dir}/info.md (Technical Design) ===\n{info_content}"
+        )
+
+    return "\n\n".join(context_parts)
+
+
+def get_check_context(repo_root: str, task_dir: str) -> str:
+    """
+    Context for Check Agent: check.jsonl + prd.md
+    """
+    context_parts = []
+
+    for file_path, content in read_jsonl_entries(repo_root, f"{task_dir}/check.jsonl"):
+        context_parts.append(f"=== {file_path} ===\n{content}")
+
+    prd_content = read_file_content(repo_root, f"{task_dir}/prd.md")
+    if prd_content:
+        context_parts.append(f"=== {task_dir}/prd.md (Requirements) ===\n{prd_content}")
+
+    return "\n\n".join(context_parts)
+
+
+def get_finish_context(repo_root: str, task_dir: str) -> str:
+    """
+    Context for Finish phase: reuses check.jsonl + prd.md
+    (Finish is a final check, same context source.)
+    """
+    return get_check_context(repo_root, task_dir)
+
+
+
+def build_implement_prompt(original_prompt: str, context: str) -> str:
     """Build complete prompt for Implement"""
-    nocturne_section = f"\n{nocturne_hints}\n" if nocturne_hints else ""
     return f"""# Implement Agent Task
 
-You are the Implement Agent in the Multi-Agent Pipeline.
+You are trellis-implement in the upstream Trellis v0.5 workflow.
 
 ## Your Context
 
 All the information you need has been prepared for you:
 
 {context}
-{nocturne_section}
+
 ---
 
 ## Your Task
@@ -365,21 +447,18 @@ All the information you need has been prepared for you:
 - Report list of modified/created files when done"""
 
 
-def build_check_prompt(
-    original_prompt: str, context: str, nocturne_hints: str = ""
-) -> str:
+def build_check_prompt(original_prompt: str, context: str) -> str:
     """Build complete prompt for Check"""
-    nocturne_section = f"\n{nocturne_hints}\n" if nocturne_hints else ""
     return f"""# Check Agent Task
 
-You are the Check Agent in the Multi-Agent Pipeline (code and cross-layer checker).
+You are trellis-check in the upstream Trellis v0.5 workflow (code and cross-layer checker).
 
 ## Your Context
 
 All check specs and dev specs you need:
 
 {context}
-{nocturne_section}
+
 ---
 
 ## Your Task
@@ -400,43 +479,6 @@ All check specs and dev specs you need:
 - Fix issues yourself, don't just report
 - Must execute complete checklist in check specs
 - Pay special attention to impact radius analysis (L1-L5)"""
-
-
-def build_review_prompt(
-    original_prompt: str, context: str, nocturne_hints: str = ""
-) -> str:
-    """Build complete prompt for Review"""
-    nocturne_section = f"\n{nocturne_hints}\n" if nocturne_hints else ""
-    return f"""# Review Agent Task
-
-You are the Review Agent in the Multi-Agent Pipeline (semantic code reviewer).
-
-## Your Context
-
-All review specs you need:
-
-{context}
-{nocturne_section}
----
-
-## Your Task
-
-{original_prompt}
-
----
-
-## Workflow
-
-1. **Get changes** - Run `git diff --name-only` and `git diff` to get code changes
-2. **Review 4 dimensions** - D1 Scientific, D2 Cross-Layer, D4 Performance, D5 Data Integrity
-3. **Self-fix** - Fix issues directly, don't just report
-4. **Output markers** - Output all 4 completion markers when verified
-
-## Important Constraints
-
-- Fix issues yourself, don't just report
-- Output SCIENTIFIC_FINISH, CROSSLAYER_FINISH, PERFORMANCE_FINISH, DATAINTEGRITY_FINISH when done
-- If a dimension is N/A, still output the marker with a note"""
 
 
 def build_finish_prompt(original_prompt: str, context: str) -> str:
@@ -464,63 +506,73 @@ Finish checklist and requirements:
 1. **Review changes** - Run `git diff --name-only` to see all changed files
 2. **Verify requirements** - Check each requirement in prd.md is implemented
 3. **Spec sync** - Analyze whether changes introduce new patterns, contracts, or conventions
-   - If new pattern/convention found: read target spec file -> update it -> update index.md
+   - If new pattern/convention found: read target spec file → update it → update index.md if needed
    - If infra/cross-layer change: follow the 7-section mandatory template from update-spec.md
    - If pure code fix with no new patterns: skip this step
-4. **Run final checks** - Execute finish-work.md checklist
+4. **Run final checks** - Execute lint and typecheck
 5. **Confirm ready** - Ensure code is ready for PR
 
 ## Important Constraints
 
 - You MAY update spec files when gaps are detected (use update-spec.md as guide)
-- MUST read the target file BEFORE editing (avoid duplicating existing content)
+- MUST read the target spec file BEFORE editing (avoid duplicating existing content)
 - Do NOT update specs for trivial changes (typos, formatting, obvious fixes)
 - If critical CODE issues found, report them clearly (fix specs, not code)
 - Verify all acceptance criteria in prd.md are met"""
 
 
-def build_debug_prompt(
-    original_prompt: str, context: str, nocturne_hints: str = ""
-) -> str:
-    """Build complete prompt for Debug"""
-    nocturne_section = f"\n{nocturne_hints}\n" if nocturne_hints else ""
-    return f"""# Debug Agent Task
 
-You are the Debug Agent in the Multi-Agent Pipeline (issue fixer).
+def get_research_context(repo_root: str, task_dir: str | None) -> str:
+    """
+    Context for Research Agent — project structure overview for spec directories.
 
-## Your Context
+    `task_dir` kept for signature parity with get_implement_context / get_check_context
+    so the dispatcher can call them uniformly.
+    """
+    _ = task_dir
+    context_parts = []
 
-Dev specs and Codex Review results:
+    # 1. Project structure overview (dynamically discover spec directories)
+    spec_path = f"{DIR_WORKFLOW}/{DIR_SPEC}"
+    spec_root = Path(repo_root) / DIR_WORKFLOW / DIR_SPEC
 
-{context}
-{nocturne_section}
----
+    # Build spec tree dynamically
+    tree_lines = [f"{spec_path}/"]
+    if spec_root.is_dir():
+        pkg_dirs = sorted(d for d in spec_root.iterdir() if d.is_dir())
+        for i, pkg_dir in enumerate(pkg_dirs):
+            is_last = i == len(pkg_dirs) - 1
+            prefix = "└── " if is_last else "├── "
+            layers = sorted(d.name for d in pkg_dir.iterdir() if d.is_dir())
+            layer_info = f" ({', '.join(layers)})" if layers else ""
+            tree_lines.append(f"{prefix}{pkg_dir.name}/{layer_info}")
 
-## Your Task
+    spec_tree = "\n".join(tree_lines)
 
-{original_prompt}
+    project_structure = f"""## Project Spec Directory Structure
 
----
+```
+{spec_tree}
+```
 
-## Workflow
+To get structured package info, run: `python3 ./{DIR_WORKFLOW}/scripts/get_context.py --mode packages`
 
-1. **Understand issues** - Analyze issues pointed out in Codex Review
-2. **Locate code** - Find positions that need fixing
-3. **Fix against specs** - Fix issues following dev specs
-4. **Verify fixes** - Run typecheck to ensure no new issues
+## Search Tips
 
-## Important Constraints
+- Spec files: `{spec_path}/**/*.md`
+- Code search: Use Glob and Grep tools
+- Tech solutions: Use mcp__exa__web_search_exa or mcp__exa__get_code_context_exa"""
 
-- Do NOT execute git commit, only code modifications
-- Run typecheck after each fix to verify
-- Report which issues were fixed and which files were modified"""
+    context_parts.append(project_structure)
+
+    return "\n\n".join(context_parts)
 
 
 def build_research_prompt(original_prompt: str, context: str) -> str:
     """Build complete prompt for Research"""
     return f"""# Research Agent Task
 
-You are the Research Agent in the Multi-Agent Pipeline (search researcher).
+You are trellis-research in the upstream Trellis v0.5 workflow (search researcher).
 
 ## Core Principle
 
@@ -547,24 +599,15 @@ You are a documenter, not a reviewer.
 3. **Execute search** - Execute multiple independent searches in parallel
 4. **Organize results** - Output structured report
 
-## Search Tools (Three-Layer External Search)
+## Search Tools
 
-| Tool | Purpose | Layer | Fallback if Unavailable |
-|------|---------|-------|------------------------|
-| Glob | Search by filename pattern | Local | — |
-| Grep | Search by content (exact match) | Local | — |
-| Read | Read file content | Local | — |
-| mcp__morph-mcp__warpgrep_codebase_search | Broad semantic code search (multi-turn parallel) | Local | mcp__augment-context-engine__codebase-retrieval |
-| mcp__augment-context-engine__codebase-retrieval | Deep semantic code understanding | Local | Grep + Read (manual) |
-| mcp__context7__resolve-library-id | Resolve library name to Context7 ID | 0 | mcp__grok-search__web_search |
-| mcp__context7__query-docs | Query library documentation and examples | 0 | mcp__grok-search__web_search |
-| mcp__grok-search__web_search | Quick answer, platform-targeted web search, multi-source discovery | 1-2 | Bash("python3 .trellis/scripts/search/web_search.py '<query>'") |
-| mcp__grok-search__get_sources | Inspect cached source list for citation verification | 1-2 | Use URLs embedded in search response |
-| Bash("python3 .trellis/scripts/search/web_fetch.py '<url>'") | Fetch full webpage content as Markdown | 2 | (no equivalent - try all tiers) |
-| Bash("python3 ~/.claude/skills/with-codex/scripts/codex_bridge.py ...") | Cross-model analysis (slow, 300s timeout) | Codex | Own analysis (skip Codex) |
-
-Escalation: Layer 0 → 1 → 2 → 3. Start at lowest sufficient layer.
-Tool Selection: Exact identifier → Grep. Broad semantic → warpgrep. Deep understanding → codebase-retrieval.
+| Tool | Purpose |
+|------|---------|
+| Glob | Search by filename pattern |
+| Grep | Search by content |
+| Read | Read file content |
+| mcp__exa__web_search_exa | External web search |
+| mcp__exa__get_code_context_exa | External code/doc search |
 
 ## Strict Boundaries
 
@@ -585,175 +628,139 @@ Provide structured search results including:
 - External references (if any)"""
 
 
-def build_plan_prompt(original_prompt: str, context: str) -> str:
-    """Build complete prompt for Plan Agent."""
-    return f"""# Plan Agent Task
-
-You are the Plan Agent in the Multi-Agent Pipeline (requirement evaluator & task configurator).
-
-## Project Info
-
-{context}
-
----
-
-## Your Task
-
-{original_prompt}
-
----
-
-## Workflow
-
-1. **Evaluate requirement** - Check if the requirement is clear, specific, and feasible
-2. **Reject or accept** - Reject if vague, too large, or harmful; accept if actionable
-3. **Research codebase** - Call research agent to find relevant specs and patterns
-4. **Configure task** - Create jsonl files, prd.md, and set metadata
-5. **Validate** - Ensure all referenced files exist
-
-## Important Constraints
-
-- You have the power to REJECT unclear requirements
-- Do NOT execute git commit
-- Always call research agent before configuring context
-- Validate all file paths in jsonl entries"""
+def _string_value(value: Any) -> str:
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped
+    return ""
 
 
-# =============================================================================
-# Codex context getter mapping (base_type → getter function)
-# =============================================================================
+def _extract_subagent_name(value: Any) -> str:
+    """Extract a sub-agent name from common platform encodings.
 
-CODEX_CONTEXT_GETTERS: dict[str, object] = {}  # populated after function defs
-
-
-def _init_codex_context_getters() -> None:
-    """Populate CODEX_CONTEXT_GETTERS after all getter functions are defined."""
-    CODEX_CONTEXT_GETTERS.update(
-        {
-            AGENT_IMPLEMENT: get_implement_context,
-            AGENT_CHECK: get_check_context,
-            AGENT_DEBUG: get_debug_context,
-            AGENT_REVIEW: get_review_context,
-        }
-    )
-
-
-_init_codex_context_getters()
-
-
-def build_codex_prompt(
-    base_type: str, original_prompt: str, context: str, nocturne_hints: str = ""
-) -> str:
-    """Build prompt for codex-{base} wrapper agents.
-
-    Scheme C: Hook pre-assembles full context into temp file, wrapper passes
-    it via --context-file. Codex receives complete context (specs + prd + memory).
+    Cursor's native Task args encode custom sub-agents as a protobuf oneof,
+    which can appear in hook JSON as either ``{"custom": {"name": "..."}}``
+    or ``{"type": {"case": "custom", "value": {"name": "..."}}}``.
     """
-    base_constraints = {
-        "implement": "Do NOT execute git commit. Only code modifications.",
-        "check": "Fix issues found by linting/formatting. Run ruff check + format.",
-        "debug": "Precise fixes only. Do not refactor unrelated code.",
-        "review": "Review for correctness and consistency. Fix issues directly.",
+    direct = _string_value(value)
+    if direct:
+        return direct
+
+    if not isinstance(value, dict):
+        return ""
+
+    for key in ("name", "subagent_type_name", "subagentTypeName"):
+        direct = _string_value(value.get(key))
+        if direct:
+            return direct
+
+    custom = value.get("custom")
+    if isinstance(custom, dict):
+        custom_name = _string_value(custom.get("name"))
+        if custom_name:
+            return custom_name
+
+    oneof = value.get("type")
+    if isinstance(oneof, dict):
+        case_name = _string_value(oneof.get("case"))
+        if case_name == "custom":
+            nested_value = oneof.get("value")
+            if isinstance(nested_value, dict):
+                custom_name = _string_value(nested_value.get("name"))
+                if custom_name:
+                    return custom_name
+        if case_name:
+            return case_name
+
+    case_name = _string_value(value.get("case"))
+    if case_name == "custom":
+        nested_value = value.get("value")
+        if isinstance(nested_value, dict):
+            custom_name = _string_value(nested_value.get("name"))
+            if custom_name:
+                return custom_name
+    if case_name:
+        return case_name
+
+    for agent_name in AGENTS_ALL:
+        if agent_name in value:
+            return agent_name
+
+    return ""
+
+
+def _extract_subagent_type(tool_input: dict) -> str:
+    for key in (
+        "subagent_type",
+        "subagentType",
+        "subagent_type_name",
+        "subagentTypeName",
+        "agent_type",
+        "agentType",
+        "name",
+    ):
+        agent_name = _extract_subagent_name(tool_input.get(key))
+        if agent_name:
+            return agent_name
+    return ""
+
+
+def _parse_hook_input(input_data: dict) -> tuple[str, str, dict]:
+    """Parse hook input across different platform formats.
+
+    Returns (subagent_type, original_prompt, tool_input).
+    Handles:
+    - Claude Code / Qoder / CodeBuddy / Droid: tool_name=Task|Agent, tool_input.subagent_type
+    - Cursor: tool_name=Task|Subagent, tool_input.subagent_type
+    - Copilot CLI: toolName=task (camelCase key, lowercase value)
+    - Gemini CLI: tool_name IS the agent name (BeforeTool matcher already filtered)
+    - Kiro: agentSpawn hook, agent_name field at top level
+    """
+    tool_input = input_data.get("tool_input", {})
+
+    # Standard format: Task/Agent tool with subagent_type
+    tool_name = input_data.get("tool_name", "") or input_data.get("toolName", "")
+    if tool_name.lower() in ("task", "agent", "subagent"):
+        return (
+            _extract_subagent_type(tool_input),
+            tool_input.get("prompt", ""),
+            tool_input,
+        )
+
+    # Kiro: agentSpawn hook passes agent_name at top level
+    agent_name = input_data.get("agent_name", "")
+    if agent_name:
+        return agent_name, tool_input.get("prompt", input_data.get("prompt", "")), tool_input
+
+    # Gemini CLI: BeforeTool where tool_name IS the agent name
+    # (matcher already ensured it's one of our agents)
+    if tool_name in AGENTS_ALL:
+        return tool_name, tool_input.get("prompt", ""), tool_input
+
+    # Copilot CLI: toolName field (camelCase), value might be the agent name
+    tool_name_camel = input_data.get("toolName", "")
+    if tool_name_camel in AGENTS_ALL:
+        return tool_name_camel, input_data.get("toolArgs", ""), tool_input
+
+    return "", "", tool_input
+
+
+
+def emit_updated_prompt(tool_input: dict, new_prompt: str) -> None:
+    """Emit an updated hook payload in all platform formats used by v0.5."""
+    updated = {**tool_input, "prompt": new_prompt}
+    output = {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "allow",
+            "updatedInput": updated,
+        },
+        "permission": "allow",
+        "updated_input": updated,
+        "updatedInput": updated,
     }
-    base_mode = {
-        "implement": "exec",
-        "check": "exec",
-        "debug": "exec",
-        "review": "review",
-    }
-
-    constraint = base_constraints.get(base_type, "")
-    mode = base_mode.get(base_type, "exec")
-
-    # Assemble full context content (including Nocturne hints)
-    ctx_content = context
-    if nocturne_hints:
-        ctx_content += f"\n\n{nocturne_hints}"
-
-    # Write to temp file with PID + timestamp for concurrency safety
-    import time as _time
-
-    ctx_path = f"/tmp/trellis-codex-ctx-{os.getpid()}-{int(_time.time())}.md"
-    with open(ctx_path, "w", encoding="utf-8") as f:
-        f.write(ctx_content)
-
-    return f"""# Codex {base_type.title()} Agent Task
-
-You are a Codex Wrapper Agent. Your job is to delegate the task to Codex CLI
-via codex_bridge.py, then report the results.
-
-## How It Works
-
-1. Hook has pre-assembled full context (specs + prd + memory) into a temp file
-2. Your prompt includes the --context-file path below
-3. You call codex_bridge.py with that path — Codex receives complete context
-4. You collect results and report back
-
-## Context File Location
-
-**{ctx_path}**
-
-This file contains the complete assembled context. Do NOT modify it.
-
-## Execution Steps
-
-1. **Understand the task** from the context file and original request below
-2. **Call codex_bridge.py** using Bash (note the --context-file):
-
-```bash
-python3 ~/.claude/skills/with-codex/scripts/codex_bridge.py \\
-  --mode {mode} \\
-  --cd "$(pwd)" \\
-  --full-auto \\
-  --context-file {ctx_path} \\
-  --timeout 600 \\
-  --PROMPT "<summarize the task from original request below>"
-```
-
-3. **Parse the JSON output** — check `success`, `agent_messages`, `partial`
-4. **Verify file changes** — run `git diff --stat` to see what Codex modified
-5. **Report results** using the format below
-6. **Cleanup** — remove the temp context file
-
-## Original Request
-
-{original_prompt}
-
-## Constraints
-
-- {constraint}
-- If Codex fails (success=false), report the error — do NOT retry automatically
-- If Codex returns partial results (partial=true), report what was completed
-- If codex_bridge.py is not found or Codex CLI is not installed, report the error clearly
-
-## Cleanup (Required)
-
-After Codex completes, remove the temp context file:
-
-```bash
-rm -f {ctx_path}
-```
-
-## Report Format
-
-```markdown
-## Codex {base_type.title()} Complete
-
-### Codex Output Summary
-<brief summary of agent_messages>
-
-### Files Modified
-- `path/to/file.py` - description
-
-### Verification
-- git diff stat: <output>
-
-### Cleanup
-- Context file removed: {ctx_path}
-
-### Issues (if any)
-- <any problems encountered>
-```"""
+    print(json.dumps(output, ensure_ascii=False))
+    sys.exit(0)
 
 
 def main():
@@ -762,21 +769,11 @@ def main():
     except json.JSONDecodeError:
         sys.exit(0)
 
-    tool_name = input_data.get("tool_name", "")
-
-    if tool_name not in ("Task", "Agent"):
-        sys.exit(0)
-
-    tool_input = input_data.get("tool_input", {})
-    subagent_type = tool_input.get("subagent_type", "")
-    original_prompt = tool_input.get("prompt", "")
+    subagent_type, original_prompt, tool_input = _parse_hook_input(input_data)
     cwd = input_data.get("cwd", os.getcwd())
 
-    # Check for codex-* prefix first
-    codex_base = parse_codex_agent(subagent_type)
-
-    # Only handle known subagent types or codex-* agents
-    if subagent_type not in AGENTS_ALL and codex_base is None:
+    # Only handle subagent types we care about
+    if subagent_type not in AGENTS_ALL:
         sys.exit(0)
 
     # Find repo root
@@ -784,124 +781,60 @@ def main():
     if not repo_root:
         sys.exit(0)
 
-    # Get current task directory (research/plan don't require it)
-    task_dir = get_current_task(repo_root)
+    ccr_tag = get_ccr_model_tag(repo_root, subagent_type)
 
-    # Determine effective agent type for task/phase/status checks
-    effective_type = codex_base or subagent_type
+    # Get current task directory (research doesn't require it)
+    task_dir = get_current_task(repo_root, input_data)
 
-    # implement/check/debug need task directory (codex-* inherits from base)
-    if effective_type in AGENTS_REQUIRE_TASK:
-        if not task_dir or not os.path.exists(os.path.join(repo_root, task_dir)):
-            # No task dir — still inject CCR model tag if configured, then exit
-            ccr_tag = get_ccr_model_tag(repo_root, subagent_type)
+    # implement/check need task directory for Trellis context. If CCR is active,
+    # still emit a tag-only prompt so router selection works for ad-hoc subagent
+    # calls that are not tied to a Trellis task yet.
+    if subagent_type in AGENTS_REQUIRE_TASK:
+        if not task_dir:
             if ccr_tag:
-                output = {
-                    "hookSpecificOutput": {
-                        "hookEventName": "PreToolUse",
-                        "permissionDecision": "allow",
-                        "updatedInput": {
-                            **tool_input,
-                            "prompt": ccr_tag + original_prompt,
-                        },
-                    }
-                }
-                print(json.dumps(output, ensure_ascii=False))
+                emit_updated_prompt(tool_input, ccr_tag + original_prompt)
             sys.exit(0)
-        # Update current_phase in task.json (system-level enforcement)
-        update_current_phase(repo_root, task_dir, effective_type)
-
-        # Validate and update status (Mod 5: State Machine)
-        validate_status_transition(repo_root, task_dir, effective_type)
-
-    # --- Codex agent path: use base agent's context + codex prompt builder ---
-    if codex_base is not None:
-        assert task_dir is not None  # codex agents always require task
-        getter = CODEX_CONTEXT_GETTERS.get(codex_base)
-        if getter is None:
+        # Check if task directory exists
+        task_dir_full = os.path.join(repo_root, task_dir)
+        if not os.path.exists(task_dir_full):
+            if ccr_tag:
+                emit_updated_prompt(tool_input, ccr_tag + original_prompt)
             sys.exit(0)
-        context = getter(repo_root, task_dir)
-        nocturne_hints = get_nocturne_hints(codex_base)
-        new_prompt = build_codex_prompt(
-            codex_base, original_prompt, context, nocturne_hints
-        )
-    else:
-        # --- Standard agent path (unchanged) ---
 
-        # Check for [finish] marker in prompt (check agent with finish context)
-        is_finish_phase = "[finish]" in original_prompt.lower()
+    # Check for [finish] marker in prompt (check agent with finish context)
+    is_finish_phase = "[finish]" in original_prompt.lower()
 
-        # Get Nocturne hints for relevant agents
-        nocturne_hints = get_nocturne_hints(subagent_type)
-
-        # Get context and build prompt based on subagent type
-        if subagent_type == AGENT_IMPLEMENT:
-            assert task_dir is not None  # validated above
-            context = get_implement_context(repo_root, task_dir)
-            new_prompt = build_implement_prompt(
-                original_prompt, context, nocturne_hints
-            )
-        elif subagent_type == AGENT_CHECK:
-            assert task_dir is not None  # validated above
-            if is_finish_phase:
-                context = get_finish_context(repo_root, task_dir)
-                new_prompt = build_finish_prompt(original_prompt, context)
-            else:
-                context = get_check_context(repo_root, task_dir)
-                new_prompt = build_check_prompt(
-                    original_prompt, context, nocturne_hints
-                )
-        elif subagent_type == AGENT_DEBUG:
-            assert task_dir is not None  # validated above
-            context = get_debug_context(repo_root, task_dir)
-            new_prompt = build_debug_prompt(original_prompt, context, nocturne_hints)
-        elif subagent_type == AGENT_REVIEW:
-            assert task_dir is not None  # validated above
-            context = get_review_context(repo_root, task_dir)
-            new_prompt = build_review_prompt(original_prompt, context, nocturne_hints)
-        elif subagent_type == AGENT_RESEARCH:
-            context = get_research_context(repo_root, task_dir)
-            new_prompt = build_research_prompt(original_prompt, context)
-        elif subagent_type == AGENT_PLAN:
-            context = get_plan_context(repo_root, task_dir)
-            new_prompt = build_plan_prompt(original_prompt, context)
+    # Get context and build prompt based on subagent type
+    if subagent_type == AGENT_IMPLEMENT:
+        assert task_dir is not None  # validated above
+        context = get_implement_context(repo_root, task_dir)
+        new_prompt = build_implement_prompt(original_prompt, context)
+    elif subagent_type == AGENT_CHECK:
+        assert task_dir is not None  # validated above
+        if is_finish_phase:
+            # Finish phase: use finish context (lighter, focused on final verification)
+            context = get_finish_context(repo_root, task_dir)
+            new_prompt = build_finish_prompt(original_prompt, context)
         else:
-            sys.exit(0)
-
-    # Empty context check: for standard agents, exit early. For codex agents,
-    # proceed with empty context (temp file already written; PRD edge case #2).
-    if not context and codex_base is None:
+            # Regular check phase: use check context (full specs for self-fix loop)
+            context = get_check_context(repo_root, task_dir)
+            new_prompt = build_check_prompt(original_prompt, context)
+    elif subagent_type == AGENT_RESEARCH:
+        # Research can work without task directory
+        context = get_research_context(repo_root, task_dir)
+        new_prompt = build_research_prompt(original_prompt, context)
+    else:
         sys.exit(0)
 
-    # Prepend CCR subagent model tag if configured
-    ccr_tag = get_ccr_model_tag(repo_root, subagent_type)
+    if not context:
+        if ccr_tag:
+            emit_updated_prompt(tool_input, ccr_tag + original_prompt)
+        sys.exit(0)
+
     if ccr_tag:
         new_prompt = ccr_tag + new_prompt
 
-    # Return updated input
-    output = {
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "allow",
-            "updatedInput": {**tool_input, "prompt": new_prompt},
-        }
-    }
-
-    # Append audit trail for agents that have a task directory
-    if task_dir and effective_type in AGENTS_REQUIRE_TASK:
-        try:
-            task_json_path = os.path.join(repo_root, task_dir, FILE_TASK_JSON)
-            phase = 0
-            if os.path.exists(task_json_path):
-                with open(task_json_path, "r", encoding="utf-8") as _f:
-                    _td = json.load(_f)
-                phase = _td.get("current_phase", 0)
-        except Exception:
-            phase = 0
-        _append_audit_trail(repo_root, task_dir, effective_type, phase)
-
-    print(json.dumps(output, ensure_ascii=False))
-    sys.exit(0)
+    emit_updated_prompt(tool_input, new_prompt)
 
 
 if __name__ == "__main__":

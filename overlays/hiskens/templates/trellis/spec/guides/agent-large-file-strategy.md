@@ -35,7 +35,7 @@ Bash  → compile to verify
 
 This works because Edit appends are small enough to fit within the output token budget. The key is that the agent must be told upfront to use this pattern — without explicit instruction, it will default to a single Write call.
 
-### Strategy 2: Multi-Agent Pipeline
+### Strategy 2: Segmented Trellis Workflow
 
 Split the file across multiple sequential agent calls from the main session:
 
@@ -61,7 +61,7 @@ Design the PRD to split large classes into multiple smaller files (<200 lines ea
 | <200 lines | Agent direct Write |
 | 200-500 lines | Strategy 1: instruct agent to use Write + Edit |
 | 500-800 lines | Strategy 1 with detailed method grouping in prompt |
-| >800 lines | Strategy 2 (multi-agent) or Strategy 4 (split files) |
+| >800 lines | Strategy 2 (segmented workflow) or Strategy 4 (split files) |
 
 ## Prompt Template for Strategy 1
 

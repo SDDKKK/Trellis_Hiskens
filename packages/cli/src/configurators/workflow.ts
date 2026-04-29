@@ -7,7 +7,6 @@ import { copyTrellisDir } from "../templates/extract.js";
 import {
   workflowMdTemplate,
   configYamlTemplate,
-  worktreeYamlTemplate,
   gitignoreTemplate,
 } from "../templates/trellis/index.js";
 
@@ -53,16 +52,12 @@ interface DocDefinition {
 export interface WorkflowOptions {
   /** Detected or specified project type */
   projectType: ProjectType;
-  /** Enable multi-agent pipeline with worktree support */
-  multiAgent?: boolean;
   /** Skip creating local spec templates (when using remote template) — single-repo mode */
   skipSpecTemplates?: boolean;
   /** Detected monorepo packages (enables monorepo spec creation) */
   packages?: DetectedPackage[];
   /** Package names that use remote templates (skip blank spec for these) */
   remoteSpecPackages?: Set<string>;
-  /** Skip base per-package spec generation in monorepo mode. */
-  skipPackageSpecTemplates?: boolean;
 }
 
 /**
@@ -74,7 +69,6 @@ export interface WorkflowOptions {
  * 3. Creating workspace/ with index.md
  * 4. Creating tasks/ directory
  * 5. Creating spec/ with templates (not dogfooded - generic templates)
- * 6. Copying worktree.yaml if multi-agent is enabled
  *
  * @param cwd - Current working directory
  * @param options - Workflow options including project type
@@ -84,11 +78,9 @@ export async function createWorkflowStructure(
   options?: WorkflowOptions,
 ): Promise<void> {
   const projectType = options?.projectType ?? "fullstack";
-  const multiAgent = options?.multiAgent ?? false;
   const skipSpecTemplates = options?.skipSpecTemplates ?? false;
   const packages = options?.packages;
   const remoteSpecPackages = options?.remoteSpecPackages;
-  const skipPackageSpecTemplates = options?.skipPackageSpecTemplates ?? false;
 
   // Create base .trellis directory
   ensureDir(path.join(cwd, DIR_NAMES.WORKFLOW));
@@ -126,23 +118,11 @@ export async function createWorkflowStructure(
   // Create tasks/ directory
   ensureDir(path.join(cwd, PATHS.TASKS));
 
-  // Copy worktree.yaml if multi-agent enabled
-  if (multiAgent) {
-    await writeFile(
-      path.join(cwd, DIR_NAMES.WORKFLOW, "worktree.yaml"),
-      worktreeYamlTemplate,
-    );
-  }
-
   // Create spec templates based on project type
   // These are NOT dogfooded - they are generic templates for new projects
   if (packages && packages.length > 0) {
     // Monorepo mode: create per-package spec directories
-    if (!skipPackageSpecTemplates) {
-      await createSpecTemplates(cwd, projectType, packages, remoteSpecPackages);
-    } else {
-      await createGuidesTemplates(cwd);
-    }
+    await createSpecTemplates(cwd, projectType, packages, remoteSpecPackages);
   } else if (!skipSpecTemplates) {
     // Single-repo mode: create global spec (skip if using remote template)
     await createSpecTemplates(cwd, projectType);
@@ -227,25 +207,7 @@ async function createSpecTemplates(
   // Ensure spec directory exists
   ensureDir(path.join(cwd, PATHS.SPEC));
 
-  await createGuidesTemplates(cwd);
-
-  if (packages && packages.length > 0) {
-    // Monorepo mode: create spec/<name>/ for each package
-    for (const pkg of packages) {
-      const dirName = sanitizePkgName(pkg.name);
-      if (remoteSpecPackages?.has(dirName)) continue;
-      const pkgSpecBase = path.join(cwd, `${PATHS.SPEC}/${dirName}`);
-      ensureDir(pkgSpecBase);
-      const pkgType = pkg.type === "unknown" ? "fullstack" : pkg.type;
-      await writeSpecForType(pkgSpecBase, pkgType);
-    }
-  } else {
-    // Single-repo mode
-    await writeSpecForType(path.join(cwd, PATHS.SPEC), projectType);
-  }
-}
-
-async function createGuidesTemplates(cwd: string): Promise<void> {
+  // Guides - always created regardless of mode
   const guidesDir = path.join(cwd, `${PATHS.SPEC}/guides`);
   ensureDir(guidesDir);
   const guidesDocs: DocDefinition[] = [
@@ -261,5 +223,20 @@ async function createGuidesTemplates(cwd: string): Promise<void> {
   ];
   for (const doc of guidesDocs) {
     await writeFile(path.join(guidesDir, doc.name), doc.content);
+  }
+
+  if (packages && packages.length > 0) {
+    // Monorepo mode: create spec/<name>/ for each package
+    for (const pkg of packages) {
+      const dirName = sanitizePkgName(pkg.name);
+      if (remoteSpecPackages?.has(dirName)) continue;
+      const pkgSpecBase = path.join(cwd, `${PATHS.SPEC}/${dirName}`);
+      ensureDir(pkgSpecBase);
+      const pkgType = pkg.type === "unknown" ? "fullstack" : pkg.type;
+      await writeSpecForType(pkgSpecBase, pkgType);
+    }
+  } else {
+    // Single-repo mode
+    await writeSpecForType(path.join(cwd, PATHS.SPEC), projectType);
   }
 }

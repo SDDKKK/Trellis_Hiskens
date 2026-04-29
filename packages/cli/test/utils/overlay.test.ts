@@ -16,6 +16,12 @@ function writeOverlaySettings(tmpDir: string, payload: object): string {
   return filePath;
 }
 
+function requireOverlayPath(name = "hiskens"): string {
+  const overlayPath = resolveOverlayPath(name);
+  expect(overlayPath).not.toBeNull();
+  return overlayPath ?? "";
+}
+
 describe("overlay utils", () => {
   const tmpDirs: string[] = [];
 
@@ -40,26 +46,23 @@ describe("overlay utils", () => {
   });
 
   it("#3 resolveOverlayPath returns null for missing overlays", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
     expect(resolveOverlayPath("does-not-exist")).toBeNull();
     expect(warnSpy).toHaveBeenCalledOnce();
   });
 
-  it("#4 loadExcludeList parses exclude.yaml entries", () => {
-    const overlayPath = resolveOverlayPath("hiskens");
-    expect(overlayPath).not.toBeNull();
+  it("#4 loadExcludeList parses v0.5 overlay exclude.yaml", () => {
+    const overlayPath = requireOverlayPath();
 
-    const excludeList = loadExcludeList(overlayPath!);
-    expect(excludeList).toContain("claude/commands/trellis/before-dev.md");
-    expect(excludeList).toContain("agents/skills/check/SKILL.md");
+    const excludeList = loadExcludeList(overlayPath);
+    expect(excludeList).toEqual([]);
   });
 
   it("loads overlay metadata from overlay.yaml", () => {
-    const overlayPath = resolveOverlayPath("hiskens");
-    expect(overlayPath).not.toBeNull();
+    const overlayPath = requireOverlayPath();
 
-    const config = loadOverlayConfig(overlayPath!);
+    const config = loadOverlayConfig(overlayPath);
     expect(config.name).toBe("hiskens");
     expect(config.version).toBe("1.0.0");
     expect(config.settings_merge?.claude).toBe(
@@ -69,12 +72,11 @@ describe("overlay utils", () => {
   });
 
   it("returns the overlay template directory for an existing platform", () => {
-    const overlayPath = resolveOverlayPath("hiskens");
-    expect(overlayPath).not.toBeNull();
+    const overlayPath = requireOverlayPath();
 
-    const templatePath = getOverlayTemplatePath(overlayPath!, "claude");
+    const templatePath = getOverlayTemplatePath(overlayPath, "claude");
     expect(templatePath).not.toBeNull();
-    expect(fs.existsSync(templatePath!)).toBe(true);
+    expect(fs.existsSync(templatePath ?? "")).toBe(true);
   });
 
   it("#5 mergeSettings initializes missing hooks safely", () => {

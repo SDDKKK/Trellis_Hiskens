@@ -153,7 +153,7 @@ $env:DB_PATH = "X:\path\to\your\project\data\database.db"
 # Proxy env vars must be set in the correct environment
 # WSL Python: reads from WSL env
 # MATLAB/Java: reads from Windows env
-# start.py already handles this for multi-agent pipeline
+# start.py already handles this for the Trellis workflow
 ```
 
 ---
@@ -164,12 +164,12 @@ $env:DB_PATH = "X:\path\to\your\project\data\database.db"
 
 | Tool | WSL2 | Windows | Notes |
 |------|------|---------|-------|
-| `python3` / `uv` | Yes | Maybe | Use `uv run` in WSL |
+| `python3` / `uv` | Yes | Maybe | Use `python3` or RTK wrappers in WSL |
 | `matlab` | No | Yes | Call via `matlab -batch` from WSL |
 | `java` / `mvn` | Maybe | Yes | FMEACal runs on Windows JVM |
 | `git` | Yes | Yes | Use WSL git for consistency |
-| `ruff` | Yes | Maybe | `uv run ruff` in WSL |
-| `pytest` | Yes | Maybe | `uv run pytest` in WSL |
+| `ruff` | Yes | Maybe | `rtk ruff` in WSL |
+| `pytest` | Yes | Maybe | `rtk pytest` in WSL |
 | `sqlite3` | Yes | Maybe | WSL version preferred |
 
 ### Calling MATLAB from WSL Python

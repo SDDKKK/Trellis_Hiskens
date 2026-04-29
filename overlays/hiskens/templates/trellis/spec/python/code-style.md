@@ -12,8 +12,8 @@ All Python code must pass `ruff check`. Config in `pyproject.toml`:
 - Target: Python 3.9
 
 ```bash
-uv run ruff check .
-uv run ruff format --check .
+rtk ruff check .
+rtk ruff format --check .
 ```
 
 ## Typing Annotations

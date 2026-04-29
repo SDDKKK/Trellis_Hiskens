@@ -51,7 +51,7 @@ Fetches a URL → returns clean markdown. 3-tier fallback:
 3. Tavily Extract (fallback)
 
 ```bash
-uv run .trellis/scripts/search/web_fetch.py "https://example.com/page"
+python3 .trellis/scripts/search/web_fetch.py "https://example.com/page"
 ```
 
 ### 3. Fallback Web Search — `.trellis/scripts/search/web_search.py`
@@ -59,8 +59,8 @@ uv run .trellis/scripts/search/web_fetch.py "https://example.com/page"
 Fallback Grok API search when the MCP server is unavailable or not installed.
 
 ```bash
-uv run .trellis/scripts/search/web_search.py "query"
-uv run .trellis/scripts/search/web_search.py "query" --platform github
+python3 .trellis/scripts/search/web_search.py "query"
+python3 .trellis/scripts/search/web_search.py "query" --platform github
 ```
 
 ### 4. Web Map — `.trellis/scripts/search/web_map.py`
@@ -68,8 +68,8 @@ uv run .trellis/scripts/search/web_search.py "query" --platform github
 Tavily Map API — discover site link structure.
 
 ```bash
-uv run .trellis/scripts/search/web_map.py "https://docs.example.com"
-uv run .trellis/scripts/search/web_map.py "https://docs.example.com" --depth 2 --limit 100
+python3 .trellis/scripts/search/web_map.py "https://docs.example.com"
+python3 .trellis/scripts/search/web_map.py "https://docs.example.com" --depth 2 --limit 100
 ```
 
 ## Usage Policy
@@ -78,8 +78,8 @@ Use this order by default:
 
 1. For live search: `mcp__grok-search__web_search`
 2. If you need to audit or cite the result set: `mcp__grok-search__get_sources`
-3. If you need full page content: `uv run .trellis/scripts/search/web_fetch.py "<url>"`
-4. If MCP is unavailable: `uv run .trellis/scripts/search/web_search.py "<query>"`
-5. If you need site structure: `uv run .trellis/scripts/search/web_map.py "<url>"`
+3. If you need full page content: `python3 .trellis/scripts/search/web_fetch.py "<url>"`
+4. If MCP is unavailable: `python3 .trellis/scripts/search/web_search.py "<query>"`
+5. If you need site structure: `python3 .trellis/scripts/search/web_map.py "<url>"`
 
 Treat `.trellis/scripts/search/web_search.py` as fallback, not the default entrypoint.

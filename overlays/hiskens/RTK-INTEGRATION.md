@@ -1,83 +1,92 @@
 # RTK Integration — Hiskens Overlay
 
-This document captures how the Hiskens overlay hooks into [RTK (Rust Token
-Killer)](https://github.com/rtk-ai/rtk), a CLI proxy that compresses common
-developer-tool output before it reaches the LLM. Readers should skim
-MAINTENANCE.md first for the overlay sync workflow.
+This document describes the RTK integration used by the Hiskens overlay after the Trellis v0.5 rebuild.
 
-## Why RTK
+RTK is used to reduce noisy developer-tool output before it enters the LLM context. In Hiskens projects, the important paths are Python/MATLAB scientific-computing checks, ruff, pytest, git output, and shell inspection commands.
 
-RTK reduces token usage by 60–90% on commands the LLM runs frequently
-(`git diff`, `grep`, `ls`, `ruff`, `pytest`, ...). For science projects
-running multi-agent pipelines, the ruff/pytest output compression alone
-saves significant context per check loop. Install via `rtk init -g`;
-verify with `rtk --version` and `rtk gain`.
+## Current wiring
 
-## Hook wiring — API migration history
+The Hiskens overlay uses the current RTK Claude hook form:
 
-Two generations exist. The overlay currently ships the second.
+```bash
+rtk hook claude
+```
 
-| Era | Hook command | Status |
+That command is wired through the Claude Code `PreToolUse` settings overlay in:
+
+```text
+overlays/hiskens/templates/claude/settings.overlay.json
+```
+
+The overlay no longer ships old v0.4 agent frontmatter overrides, so there is no separate list of agent markdown files that must each be patched for RTK. Upstream v0.5 `trellis-*` agents remain in control, and the settings overlay provides the shared hook behavior.
+
+## Preferred command forms
+
+Use RTK-native command shapes where practical:
+
+| Tooling need | Preferred command | Notes |
 |---|---|---|
-| Legacy | `$HOME/.claude/hooks/rtk-rewrite.sh` (shell wrapper that invoked `rtk rewrite`) | Removed in rtk 0.37.x — script no longer installed |
-| Current | `rtk hook claude` (direct binary, reads PreToolUse JSON from stdin) | In use as of overlay v1.x |
+| Python tests | `rtk pytest` | Preferred over `uv run pytest -q` in Hiskens instructions/templates. |
+| Ruff lint | `rtk ruff check .` | Keeps ruff output compact for LLM loops. |
+| Ruff format check | `rtk ruff format --check .` | Use for verification blocks and CI-like checks. |
+| Python scripts | `python3 ...` or `python ...` | Prefer direct interpreter calls for repository scripts where possible. |
+| Git/shell inspection | plain `git diff`, `grep`, `ls`, etc. | The Claude `PreToolUse` hook can rewrite/compress supported calls transparently. |
 
-The migration to `rtk hook claude` happened because the wrapper script was
-no longer bundled with rtk binaries, causing PreToolUse hooks to fail
-silently (measured at 0.2% RTK coverage across 12357 subagent Bash calls
-via `rtk discover`). See commit history of
-`overlays/hiskens/templates/claude/` for the rollout.
+Do not reintroduce `uv run` recommendations into generated Hiskens templates unless a future Trellis/RTK decision explicitly changes this policy.
 
-**If you ever reintroduce a wrapper script**: mirror the update across all
-8 agent frontmatters (check/plan/debug/research/review/dispatch/implement/
-codex-implement) **and** `settings.overlay.json`. A stale reference in any
-one file will silently skip RTK for whichever subagent runs it.
+## Why not use the old wrapper
 
-## Preferred command shapes in Hiskens projects
+Older Hiskens templates referenced wrapper-style hook commands such as `$HOME/.claude/hooks/rtk-rewrite.sh`. That wrapper is not part of the current Hiskens v0.5 overlay. The supported integration point is `rtk hook claude`.
 
-These recommendations are baked into `templates/trellis/worktree.yaml`'s
-commented `verify:` block.
+## No default worktree verification block
 
-### Python tooling
+The v0.5 overlay does not ship a default `templates/trellis/worktree.yaml` verification block.
 
-| Tool | Preferred form | Why |
-|---|---|---|
-| ruff | `rtk ruff check .` / `rtk ruff format --check .` | RTK compresses ruff output; ruff has a global binary so no uv wrapper needed. |
-| pytest | `uv run pytest -q` (for now) | pytest lives inside the uv-managed env (no global binary). RTK 0.37.2 does **not** unwrap `uv run` prefixes, so `rtk rewrite 'uv run pytest'` returns empty. Migrate to `rtk uv run pytest` once [rtk-ai/rtk#1405](https://github.com/rtk-ai/rtk/pull/1405) merges and is released. |
-| python (scripts) | `uv run python ...` | Same `uv run` gap as pytest; RTK passes through. |
+Reasons:
 
-### Shell / VCS (hook-rewritten transparently)
+- Hiskens supports multiple project flavors: Python, MATLAB, both, Trellis internals, tests, and docs.
+- A single default verification block would be too opinionated for MATLAB-only or docs-only projects.
+- Upstream Trellis v0.5 owns the primary workflow shape; Hiskens keeps RTK guidance in docs/specs instead of forcing a generated worktree config.
 
-`git diff`, `grep`, `ls`, `find`, `cat`, `curl`, `wc`, `gh` → all
-automatically rewritten by `rtk hook claude` when the hook fires. No
-explicit `rtk` prefix required in agent docs.
+Project maintainers can still add project-local verification commands such as:
 
-## Verify-block rationale (`templates/trellis/worktree.yaml`)
+```bash
+rtk ruff check .
+rtk ruff format --check .
+rtk pytest
+```
 
-The overlay ships `verify:` commented rather than active because Hiskens
-`dev_types` includes non-Python flavors (matlab, both, trellis, test,
-docs). Forcing `rtk ruff` active would break MATLAB-only or docs-only
-projects that don't install ruff. Project maintainers uncomment the block
-matching their dev_type at `trellis init` time.
+## Maintainer checklist
 
-The `# Fallback` block with raw `uv run ruff` exists for projects that
-haven't installed RTK yet — they can still run the Ralph Loop by
-swapping to the fallback lines.
+When changing RTK wiring:
 
-## Upstream dependencies to watch
+1. Inspect `overlays/hiskens/templates/claude/settings.overlay.json` and confirm the Claude `PreToolUse` hook still calls `rtk hook claude`.
+2. Confirm generated templates do not reintroduce stale forms:
 
-| Upstream | Impact | Action |
-|---|---|---|
-| [rtk-ai/rtk#1405](https://github.com/rtk-ai/rtk/pull/1405) "feat: add uv run support" | Unblocks `rtk uv run pytest`, kills the ~1200-call/30-day uv-run gap. | On merge + release: update this doc, migrate `uv run pytest` → `rtk uv run pytest` (or `rtk pytest` if `rtk uv` handles routing) in `templates/trellis/worktree.yaml`. |
-| rtk `hook claude` API shape | Any stdin/stdout contract change would require updating all 9 hook references at once. | Subscribe to rtk-ai/rtk release notes; grep overlay for `rtk hook claude` to find all call sites. |
+```bash
+rg 'rtk-rewrite|uv run|worktree.yaml|SubagentStop' overlays/hiskens/templates
+```
 
-## Maintainer checklist when updating overlay hook wiring
+3. Run targeted overlay tests, including the initialized-project overlay-only regression:
 
-1. Grep the overlay tree: `rg "rtk-rewrite|rtk hook" overlays/hiskens/`.
-2. Confirm all 9 hook references (8 agents + `settings.overlay.json`) point
-   to the same form.
-3. Sanity-test in a fresh project: `trellis init --overlay hiskens` →
-   trigger a subagent Bash call → `rtk gain` should show subagent-sourced
-   counts climbing.
-4. If coverage stays at ~0.2%, the hook is not firing; re-check the
-   referenced command exists on PATH.
+```bash
+pnpm --filter @mindfoldhq/trellis exec vitest run \
+  test/utils/overlay.test.ts \
+  test/configurators/index.test.ts \
+  test/commands/init-joiner.integration.test.ts \
+  test/commands/update-internals.test.ts
+```
+
+4. Run fresh-project and existing-project smoke checks with the built CLI. The existing-project check should start with `.trellis/` and `.claude/settings.json`, then run `init --overlay hiskens -y` and confirm `rtk hook claude` is merged while existing settings remain.
+5. Trigger a Bash tool call in Claude Code if possible.
+6. Use `rtk gain` or equivalent RTK diagnostics to confirm RTK is seeing tool calls in the target environment.
+
+## Watch list
+
+Monitor RTK release notes for changes to:
+
+- `rtk hook claude` stdin/stdout contract.
+- Supported command wrappers and passthrough behavior.
+- pytest/ruff output compaction behavior.
+
+If RTK changes its Claude hook API, update `settings.overlay.json`, this document, and the smoke-test checklist together.

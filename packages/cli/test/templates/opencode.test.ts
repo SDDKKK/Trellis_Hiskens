@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { contextCollector } from "../../src/templates/opencode/lib/trellis-context.js";
-import { hasInjectedTrellisContext } from "../../src/templates/opencode/plugins/session-start.js";
+import {
+  buildSessionContext,
+  hasInjectedTrellisContext,
+} from "../../src/templates/opencode/plugins/session-start.js";
+import injectSubagentContextPlugin from "../../src/templates/opencode/plugins/inject-subagent-context.js";
 
 interface TestContextCollector {
   processed: Set<string>;
@@ -41,6 +45,28 @@ describe("opencode session context dedupe", () => {
 });
 
 describe("opencode session-start history detection", () => {
+  it("includes the one-shot first-reply notice in injected context", () => {
+    const context = buildSessionContext({
+      directory: "/tmp/trellis-opencode-test",
+      getActiveTask: () => ({ taskPath: null, source: "none", stale: false }),
+      getContextKey: () => null,
+      getCurrentTask: () => null,
+      readFile: () => "",
+      readProjectFile: () => "",
+      resolveTaskDir: () => null,
+      runScript: () => "",
+    });
+
+    expect(context).toContain("<first-reply-notice>");
+    expect(context).toContain(
+      "Trellis SessionStart 已注入：workflow、当前任务状态、开发者身份、git 状态、active tasks、spec 索引已加载。",
+    );
+    expect(context).toContain("This notice is one-shot");
+    expect(context.indexOf("<first-reply-notice>")).toBeLessThan(
+      context.indexOf("<guidelines>"),
+    );
+  });
+
   it("detects persisted Trellis context from metadata", () => {
     const messages = [
       {
@@ -76,5 +102,109 @@ describe("opencode session-start history detection", () => {
     ];
 
     expect(hasInjectedTrellisContext(messages)).toBe(false);
+  });
+});
+
+describe("opencode bash session context", () => {
+  it("injects TRELLIS_CONTEXT_ID into Bash commands from plugin sessionID", async () => {
+    const hooks = (await injectSubagentContextPlugin({
+      directory: "/tmp/trellis-opencode-test",
+    })) as {
+      "tool.execute.before": (
+        input: unknown,
+        output: { args: { command: string } },
+      ) => Promise<void>;
+    };
+    const output = {
+      args: {
+        command: "python3 ./.trellis/scripts/task.py start .trellis/tasks/demo",
+      },
+    };
+
+    await hooks["tool.execute.before"](
+      { tool: "bash", sessionID: "oc-a" },
+      output,
+    );
+
+    expect(output.args.command).toBe(
+      "export TRELLIS_CONTEXT_ID='opencode_oc-a'; python3 ./.trellis/scripts/task.py start .trellis/tasks/demo",
+    );
+  });
+
+  it("does not duplicate an explicit TRELLIS_CONTEXT_ID assignment", async () => {
+    const hooks = (await injectSubagentContextPlugin({
+      directory: "/tmp/trellis-opencode-test",
+    })) as {
+      "tool.execute.before": (
+        input: unknown,
+        output: { args: { command: string } },
+      ) => Promise<void>;
+    };
+    const output = {
+      args: {
+        command:
+          "TRELLIS_CONTEXT_ID=manual python3 ./.trellis/scripts/task.py current",
+      },
+    };
+
+    await hooks["tool.execute.before"](
+      { tool: "bash", sessionID: "oc-a" },
+      output,
+    );
+
+    expect(output.args.command).toBe(
+      "TRELLIS_CONTEXT_ID=manual python3 ./.trellis/scripts/task.py current",
+    );
+  });
+
+  it("does not duplicate an explicit exported TRELLIS_CONTEXT_ID", async () => {
+    const hooks = (await injectSubagentContextPlugin({
+      directory: "/tmp/trellis-opencode-test",
+    })) as {
+      "tool.execute.before": (
+        input: unknown,
+        output: { args: { command: string } },
+      ) => Promise<void>;
+    };
+    const output = {
+      args: {
+        command:
+          "export TRELLIS_CONTEXT_ID=manual; python3 ./.trellis/scripts/task.py current",
+      },
+    };
+
+    await hooks["tool.execute.before"](
+      { tool: "bash", sessionID: "oc-a" },
+      output,
+    );
+
+    expect(output.args.command).toBe(
+      "export TRELLIS_CONTEXT_ID=manual; python3 ./.trellis/scripts/task.py current",
+    );
+  });
+
+  it("does not treat a grep pattern as an explicit TRELLIS_CONTEXT_ID assignment", async () => {
+    const hooks = (await injectSubagentContextPlugin({
+      directory: "/tmp/trellis-opencode-test",
+    })) as {
+      "tool.execute.before": (
+        input: unknown,
+        output: { args: { command: string } },
+      ) => Promise<void>;
+    };
+    const output = {
+      args: {
+        command: "env | sort | grep '^TRELLIS_CONTEXT_ID='",
+      },
+    };
+
+    await hooks["tool.execute.before"](
+      { tool: "bash", sessionID: "oc-a" },
+      output,
+    );
+
+    expect(output.args.command).toBe(
+      "export TRELLIS_CONTEXT_ID='opencode_oc-a'; env | sort | grep '^TRELLIS_CONTEXT_ID='",
+    );
   });
 });

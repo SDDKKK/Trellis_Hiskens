@@ -23,9 +23,9 @@ BEFORE claiming any status (lint passes, tests pass, feature works):
 
 | Claim | Required Command |
 |-------|-----------------|
-| Lint passes | `uv run ruff check .` |
-| Format passes | `uv run ruff format --check .` |
-| Tests pass | `uv run pytest tests/ -q` |
+| Lint passes | `rtk ruff check .` |
+| Format passes | `rtk ruff format --check .` |
+| Tests pass | `rtk pytest tests/ -q` |
 | No type errors | `mcp__ide__getDiagnostics` |
 | Feature works | Run the actual feature and show output |
 
@@ -46,23 +46,23 @@ These phrases indicate a verification gap. Do NOT use them:
 
 ## Correct Patterns
 
-- "Running `uv run ruff check .` now... Output: `All checks passed.` Exit code 0."
-- "Verified: `uv run pytest tests/test_x.py -q` shows 5 passed, 0 failed."
+- "Running `rtk ruff check .` now... Output: `All checks passed.` Exit code 0."
+- "Verified: `rtk pytest tests/test_x.py -q` shows 5 passed, 0 failed."
 - "getDiagnostics returned 0 errors for `src/module.py`."
 
 ## When This Applies
 
 - Before claiming implementation is complete (implement agent)
 - Before claiming all checks pass (check agent)
-- Before outputting completion markers (review agent)
+- Before outputting completion markers
 - Before marking a task as done (finish phase)
 - After every fix -- re-run the failing command to confirm
 
-## Integration with Ralph Loop
+## Integration with Trellis v0.5 Workflow
 
-The Ralph Loop enforces verification programmatically for check/review agents.
-This spec extends that principle to ALL agents, including implement and finish,
-where Ralph Loop does not run.
+Trellis v0.5 verification combines command exit codes, `trellis-check`, and
+explicit completion evidence. This guide applies to every phase: implementation,
+checking, review, and finish.
 
 ## Framework Change Verification (L1-L4)
 
@@ -79,8 +79,7 @@ When modifying `~/.trellis/shared/` (scripts, hooks, agents, config), use this 4
 # L1: All scripts compile (0 FAIL required)
 for f in ~/.trellis/shared/.trellis/scripts/common/*.py \
          ~/.trellis/shared/.trellis/scripts/*.py \
-         ~/.trellis/shared/.trellis/scripts/multi_agent/*.py \
-         ~/.trellis/shared/.claude/hooks/*.py; do
+                  ~/.trellis/shared/.claude/hooks/*.py; do
   python3 -m py_compile "$f" || echo "FAIL: $f"
 done
 
@@ -154,15 +153,15 @@ If the answers are "yes / yes / yes", the work is likely complete and the failur
 
 **Corollary**: track dispatcher retries carefully. Three consecutive retries of the same subagent hitting the same provider error is a strong signal to stop and inspect disk state rather than escalate.
 
-## Gotcha: `uv run` Exit Codes Can Reflect Cache Environment, Not Script Logic
+## Gotcha: Tool Runner Exit Codes Can Reflect Cache Environment, Not Script Logic
 
-> **Warning**: A non-zero exit from `uv run python ./.trellis/scripts/task.py ...` is not automatically evidence that `task.py` itself failed.
+> **Warning**: A non-zero exit from `python3 ./.trellis/scripts/task.py ...` is not automatically evidence that `task.py` itself failed.
 
 In restricted or sandboxed environments, `uv` can try to use the default cache under `~/.cache/uv`. If that path is read-only, `uv` may surface an error even when the Python script already executed its own side effects correctly.
 
 **Real failure pattern**:
 
-- `uv run python ./.trellis/scripts/task.py finish` returns `2`
+- `python3 ./.trellis/scripts/task.py finish` returns `2`
 - `.trellis/.current-task` is still cleared
 - scratchpad/task cleanup already happened
 
@@ -173,7 +172,7 @@ That combination points to a `uv` runtime/cache problem, not a `cmd_finish()` co
 1. Isolate script semantics with direct Python:
    `python3 ./.trellis/scripts/task.py finish`
 2. Verify the real workflow path with writable uv cache:
-   `UV_CACHE_DIR=.cache/uv uv run python ./.trellis/scripts/task.py finish`
+   `UV_CACHE_DIR=.cache/uv python3 ./.trellis/scripts/task.py finish`
 3. Only file a lifecycle-script regression if the direct-Python path is wrong too.
 
 ## Core Principle

@@ -42,7 +42,7 @@
 git add <files> && git commit -m "type(scope): description"
 
 # Option 2: Automated
-python3 ./.trellis/scripts/multi_agent/create_pr.py
+# The old automated PR helper was removed in v0.5; create PRs manually with gh or your platform workflow
 
 # Option 3: No action needed
 echo "Changes preserved. Resume with: python3 ./.trellis/scripts/task.py start <dir>"

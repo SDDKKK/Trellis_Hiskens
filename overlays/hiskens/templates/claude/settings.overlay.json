@@ -1,6 +1,5 @@
 {
   "env": {
-    "GROK_API_URL": "https://fast.poloai.top/v1",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "ENABLE_TOOL_SEARCH": "true"
   },
@@ -35,18 +34,6 @@
           {
             "type": "command",
             "command": "rtk hook claude"
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "matcher": "review",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "{{PYTHON_CMD}} \"$CLAUDE_PROJECT_DIR/.claude/hooks/ralph-loop.py\"",
-            "timeout": 30000
           }
         ]
       }

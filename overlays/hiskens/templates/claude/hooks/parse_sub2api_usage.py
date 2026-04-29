@@ -17,8 +17,9 @@ from typing import Any
 from urllib import error, request
 
 
-DEFAULT_URL = "https://sub2api.qianfuv.fun/v1/usage"
-DEFAULT_API_KEY_ENV = "SUB2API_KEY"
+DEFAULT_URL_ENV = "SUB2API_USAGE_URL"
+DEFAULT_URL = os.environ.get(DEFAULT_URL_ENV, "http://127.0.0.1:8080/v1/usage")
+DEFAULT_API_KEY_ENV = "SUB2API_API_KEY"
 RED = "\033[31m"
 GREEN = "\033[32m"
 YELLOW = "\033[33m"
@@ -62,7 +63,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--url",
         default=DEFAULT_URL,
-        help=f"Usage endpoint URL (default: {DEFAULT_URL})",
+        help=(
+            f"Usage endpoint URL (default: ${DEFAULT_URL_ENV} or local Sub2API at "
+            f"{DEFAULT_URL})"
+        ),
     )
     parser.add_argument(
         "--output",

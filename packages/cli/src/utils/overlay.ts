@@ -23,7 +23,14 @@ interface JsonObject {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const BUILTIN_OVERLAYS_DIR = path.resolve(__dirname, "../../../../overlays");
+const BUILTIN_OVERLAY_DIRS = [
+  // Packaged CLI layout after build: dist/utils/overlay.js -> dist/overlays/
+  path.resolve(__dirname, "../overlays"),
+  // Optional package-root layout for local development or future packaging.
+  path.resolve(__dirname, "../../overlays"),
+  // Monorepo source layout: packages/cli/src/utils/overlay.ts -> repo overlays/
+  path.resolve(__dirname, "../../../../overlays"),
+];
 
 function stripQuotes(value: string): string {
   if (
@@ -134,12 +141,29 @@ function toPosixRelative(fromDir: string, filePath: string): string {
 }
 
 export function resolveOverlayPath(overlayName: string): string | null {
-  const candidate = path.isAbsolute(overlayName)
-    ? overlayName
-    : path.join(BUILTIN_OVERLAYS_DIR, overlayName);
+  if (path.isAbsolute(overlayName)) {
+    if (fs.existsSync(overlayName) && fs.statSync(overlayName).isDirectory()) {
+      return overlayName;
+    }
+    console.warn(`Warning: overlay "${overlayName}" not found`);
+    return null;
+  }
 
-  if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
-    return candidate;
+  const normalizedName = overlayName.replace(/\\/g, "/");
+  if (
+    normalizedName === "" ||
+    normalizedName.startsWith("/") ||
+    normalizedName.split("/").some((segment) => segment === "..")
+  ) {
+    console.warn(`Warning: overlay "${overlayName}" not found`);
+    return null;
+  }
+
+  for (const builtinDir of BUILTIN_OVERLAY_DIRS) {
+    const candidate = path.join(builtinDir, normalizedName);
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
+      return candidate;
+    }
   }
 
   console.warn(`Warning: overlay "${overlayName}" not found`);

@@ -28,15 +28,17 @@ import {
   computeHash,
 } from "../utils/template-hash.js";
 import { compareVersions } from "../utils/compare-versions.js";
+import { toPosix } from "../utils/posix.js";
 import { setupProxy } from "../utils/proxy.js";
+import { emptyTaskJson } from "../utils/task-json.js";
 
 // Import templates for comparison
 import {
   getAllScripts,
   // Configuration
   configYamlTemplate,
-  worktreeYamlTemplate,
   gitignoreTemplate,
+  workflowMdTemplate,
 } from "../templates/trellis/index.js";
 
 import {
@@ -75,6 +77,8 @@ interface ChangeAnalysis {
 }
 
 type ConflictAction = "overwrite" | "skip" | "create-new";
+
+const CLAUDE_SETTINGS_PATH = ".claude/settings.json";
 
 // Paths that should never be touched (true user data)
 // spec/ is user-customized content created during init; update should never modify it
@@ -119,6 +123,14 @@ function collectSafeFileDeletes(
   migrations: MigrationItem[],
   cwd: string,
   skipPaths: string[],
+  /**
+   * Bypass `update.skip` for safe-file-delete. Enable this for breaking releases
+   * where honoring skip would leave the project half-migrated (old files at
+   * protected paths sitting next to the new architecture forever). The hash
+   * check in `allowed_hashes` is still the ultimate safety net — user-modified
+   * files still stay put with a "skip-modified" warning.
+   */
+  bypassUpdateSkip = false,
 ): SafeFileDeleteClassified[] {
   const safeDeletes = migrations.filter((m) => m.type === "safe-file-delete");
   const results: SafeFileDeleteClassified[] = [];
@@ -132,14 +144,15 @@ function collectSafeFileDeletes(
       continue;
     }
 
-    // Check: protected path?
+    // Check: protected path? (user data dirs — always protected, never bypassed)
     if (isProtectedPath(item.from)) {
       results.push({ item, action: "skip-protected" });
       continue;
     }
 
-    // Check: update.skip?
+    // Check: update.skip? (can be bypassed for breaking releases)
     if (
+      !bypassUpdateSkip &&
       skipPaths.some(
         (skip) =>
           item.from === skip ||
@@ -344,9 +357,57 @@ function needsCodexUpgrade(cwd: string): boolean {
   return Object.keys(hashes).some((key) => key.startsWith(".agents/skills/"));
 }
 
-function collectTemplateFiles(
+function preserveExistingClaudeStatusLine(
+  cwd: string,
+  templates: Map<string, string>,
+): void {
+  const newSettingsContent = templates.get(CLAUDE_SETTINGS_PATH);
+  if (!newSettingsContent) return;
+
+  const settingsPath = path.join(cwd, CLAUDE_SETTINGS_PATH);
+  if (!fs.existsSync(settingsPath)) return;
+
+  try {
+    const existingSettings = JSON.parse(
+      fs.readFileSync(settingsPath, "utf-8"),
+    ) as Record<string, unknown>;
+
+    if (!Object.prototype.hasOwnProperty.call(existingSettings, "statusLine")) {
+      return;
+    }
+
+    const newSettings = JSON.parse(newSettingsContent) as Record<
+      string,
+      unknown
+    >;
+
+    if (Object.prototype.hasOwnProperty.call(newSettings, "statusLine")) {
+      return;
+    }
+
+    newSettings.statusLine = existingSettings.statusLine;
+    templates.set(
+      CLAUDE_SETTINGS_PATH,
+      `${JSON.stringify(newSettings, null, 2)}\n`,
+    );
+  } catch {
+    // Invalid local JSON is handled by the normal conflict path.
+  }
+}
+
+/** @internal Exported for tests. */
+export function collectTemplateFiles(
   cwd: string,
   extraPlatforms?: Set<AITool>,
+  /**
+   * Bypass `update.skip` when collecting templates. Enable this for breaking
+   * releases so new files (e.g. `continue.md` added in 0.5.0) and template
+   * updates can land even under skip-protected paths. Without this, users with
+   * `.claude/commands/` in their skip list would silently miss new commands.
+   * Existing user customizations are still guarded at WRITE time via the
+   * "Modified by you" conflict prompt — they can skip per-file there.
+   */
+  bypassUpdateSkip = false,
   overlayName?: string,
 ): Map<string, string> {
   const files = new Map<string, string>();
@@ -364,9 +425,16 @@ function collectTemplateFiles(
 
   // Configuration
   files.set(`${DIR_NAMES.WORKFLOW}/config.yaml`, configYamlTemplate);
-  files.set(`${DIR_NAMES.WORKFLOW}/worktree.yaml`, worktreeYamlTemplate);
   files.set(`${DIR_NAMES.WORKFLOW}/.gitignore`, gitignoreTemplate);
-  // workflow.md and workspace/index.md are user-customizable; only created during init
+  // workflow.md is included here (starting v0.5.0-beta.4) because it's no longer
+  // just user-facing documentation — `## Phase Index`, `## Phase 1/2/3` headings,
+  // and `[workflow-state:STATUS]` tag blocks are parsed by get_context.py /
+  // shared hooks, so scripts break silently when workflow.md drifts from the
+  // CLI version. Users who customized their copy land in the normal
+  // "Modified by you" confirm prompt at write time (not force-overwritten).
+  files.set(`${DIR_NAMES.WORKFLOW}/workflow.md`, workflowMdTemplate);
+  // workspace/index.md stays excluded — it's runtime-appended by add_session.py
+  // (journal index) and has no script-parsed structure.
 
   for (const [filePath, content] of collectWorkflowOverlayTemplates(
     overlayName,
@@ -381,25 +449,27 @@ function collectTemplateFiles(
     const platformFiles = collectPlatformTemplates(platformId, overlayName);
     if (platformFiles) {
       for (const [filePath, content] of platformFiles) {
-        if (!isProtectedPath(filePath)) {
-          files.set(filePath, content);
-        }
+        files.set(filePath, content);
       }
     }
   }
 
-  // Apply update.skip from config.yaml
-  const skipPaths = loadUpdateSkipPaths(cwd);
-  if (skipPaths.length > 0) {
-    for (const [filePath] of [...files]) {
-      if (
-        skipPaths.some(
-          (skip) =>
-            filePath === skip ||
-            filePath.startsWith(skip.endsWith("/") ? skip : skip + "/"),
-        )
-      ) {
-        files.delete(filePath);
+  preserveExistingClaudeStatusLine(cwd, files);
+
+  // Apply update.skip from config.yaml (unless bypassed for breaking release)
+  if (!bypassUpdateSkip) {
+    const skipPaths = loadUpdateSkipPaths(cwd);
+    if (skipPaths.length > 0) {
+      for (const [filePath] of [...files]) {
+        if (
+          skipPaths.some(
+            (skip) =>
+              filePath === skip ||
+              filePath.startsWith(skip.endsWith("/") ? skip : skip + "/"),
+          )
+        ) {
+          files.delete(filePath);
+        }
       }
     }
   }
@@ -642,19 +712,38 @@ const BACKUP_DIRS = ALL_MANAGED_DIRS;
  */
 const BACKUP_EXCLUDE_PATTERNS = [
   ".backup-", // Previous backups
+  "/node_modules", // Installed dependencies; restore via package manager
   "/workspace/", // Developer workspace (user data)
   "/tasks/", // Task data (user data)
   "/spec/", // Spec files (user-customized content)
   "/backlog/", // Backlog data (user data)
   "/agent-traces/", // Agent traces (user data, legacy name)
+  // Platform-native worktree dirs — these are full sub-repos the CLI
+  // spawns for parallel sessions. Backing them up on every update would
+  // snapshot the entire nested working tree. Confirmed conventions:
+  //   Claude Code: .claude/worktrees/
+  //   Cursor CLI:  .cursor/worktrees/
+  //   Gemini CLI:  .gemini/worktrees/
+  // Matches any platform using the same convention (future-proof).
+  "/worktrees/",
+  "/worktree/",
 ];
 
 /**
  * Check if a path should be excluded from backup
+ * @internal Exported for testing only
  */
-function shouldExcludeFromBackup(relativePath: string): boolean {
+export function shouldExcludeFromBackup(relativePath: string): boolean {
+  // Normalize Windows backslashes to forward slashes so patterns like
+  // "/worktrees/" / "/tasks/" match regardless of host OS. Without this,
+  // Windows `path.relative` returns `.claude\worktrees\...` and none of
+  // the slash-prefixed exclude patterns trigger — which causes
+  // `collectAllFiles` to descend into platform worktrees (full nested
+  // project copies) and explode the scan. Same normalization pattern
+  // used by `isManagedPath` in configurators/index.ts.
+  const normalized = relativePath.replace(/\\/g, "/");
   for (const pattern of BACKUP_EXCLUDE_PATTERNS) {
-    if (relativePath.includes(pattern)) {
+    if (normalized.includes(pattern)) {
       return true;
     }
   }
@@ -674,7 +763,7 @@ function createFullBackup(cwd: string): string | null {
     const dirPath = path.join(cwd, dir);
     if (!fs.existsSync(dirPath)) continue;
 
-    const files = collectAllFiles(dirPath);
+    const files = collectAllFiles(dirPath, cwd);
     for (const fullPath of files) {
       const relativePath = path.relative(cwd, fullPath);
 
@@ -733,18 +822,33 @@ async function getLatestNpmVersion(): Promise<string | null> {
 /**
  * Recursively collect all files in a directory
  */
-function collectAllFiles(dirPath: string): string[] {
+function collectAllFiles(dirPath: string, cwd = process.cwd()): string[] {
   if (!fs.existsSync(dirPath)) return [];
 
   const files: string[] = [];
-  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+  const stack = [dirPath];
 
-  for (const entry of entries) {
-    const fullPath = path.join(dirPath, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...collectAllFiles(fullPath));
-    } else if (entry.isFile()) {
-      files.push(fullPath);
+  while (stack.length > 0) {
+    const currentDir = stack.pop();
+    if (!currentDir) continue;
+
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name);
+      const relativePath = path.relative(cwd, fullPath);
+
+      // Never follow symlinks / Windows directory junctions — a junction
+      // pointing at an ancestor would loop the scan forever. Node's
+      // `isSymbolicLink()` returns true for NTFS junctions since v12.
+      if (entry.isSymbolicLink()) continue;
+
+      if (entry.isDirectory()) {
+        if (!shouldExcludeFromBackup(relativePath)) {
+          stack.push(fullPath);
+        }
+      } else if (entry.isFile()) {
+        files.push(fullPath);
+      }
     }
   }
 
@@ -766,11 +870,13 @@ function isDirectorySafeToReplace(
   const dirFullPath = path.join(cwd, dirRelativePath);
   if (!fs.existsSync(dirFullPath)) return true;
 
-  const files = collectAllFiles(dirFullPath);
+  const files = collectAllFiles(dirFullPath, cwd);
   if (files.length === 0) return true; // Empty directory is safe
 
   for (const fullPath of files) {
-    const relativePath = path.relative(cwd, fullPath);
+    // POSIX-normalize: hashes/templates keys are persisted as POSIX, but
+    // `path.relative` returns OS-native separators (backslash on Windows).
+    const relativePath = toPosix(path.relative(cwd, fullPath));
     const storedHash = hashes[relativePath];
     const templateContent = templates.get(relativePath);
 
@@ -990,37 +1096,77 @@ function printMigrationSummary(classified: ClassifiedMigrations): void {
 }
 
 /**
- * Prompt user for migration action on a single item
+ * Prompt user for migration action on a single item.
+ *
+ * Design notes:
+ * - Default is `backup-rename`: safest — preserves user's content as a .backup
+ *   alongside the rename, so Enter-to-continue never destroys work or leaves
+ *   stale paths behind.
+ * - "Skip" leaves a stale old path that won't be cleaned by later updates —
+ *   warn explicitly so users understand the consequence.
+ * - Show manifest description + why-flagged so users can make an informed
+ *   choice without needing to dig through the diff.
  */
 async function promptMigrationAction(
   item: MigrationItem,
 ): Promise<MigrationAction> {
-  const action =
+  const headline =
     item.type === "rename"
-      ? `${item.from} → ${item.to}`
-      : `Delete ${item.from}`;
+      ? `${chalk.cyan(item.from)} → ${chalk.green(item.to)}`
+      : `${chalk.red("Delete")} ${chalk.cyan(item.from)}`;
+
+  const description =
+    item.description ?? "No description provided in manifest.";
+
+  // Actions with inline guidance so users see the trade-off per choice.
+  const renameLabel =
+    item.type === "rename"
+      ? "[r] Rename anyway — use if the file is unchanged, or any edits are fine to move as-is"
+      : "[d] Delete anyway — use if you don't need this file (already migrated to replacement)";
+  const backupLabel =
+    item.type === "rename"
+      ? "[b] Backup original, then proceed — SAFEST: writes <new-path>.backup with your current content, then renames"
+      : "[b] Backup original, then proceed — SAFEST: writes <path>.backup with your current content, then deletes";
+  const skipLabel =
+    item.type === "rename"
+      ? "[s] Skip — leaves the old path in place (you'll see it flagged on future updates until cleaned up manually)"
+      : "[s] Skip — keeps the deprecated file (you'll see it flagged on future updates until cleaned up manually)";
+
+  // Prefer the per-migration `reason` (version-specific context authored in the
+  // manifest) over a generic fallback. Hardcoding version-specific hints here
+  // rots fast — every release gets a new set of edge cases.
+  const whyFlagged = item.reason
+    ? chalk.gray(
+        item.reason
+          .split("\n")
+          .map((line) => `  ${line}`)
+          .join("\n"),
+      )
+    : chalk.gray(
+        `  Why prompted: file content doesn't match the Trellis template hash\n` +
+          `  for this path — usually local customization. If unsure, pick [b].`,
+      );
+
+  const message = [
+    headline,
+    "",
+    chalk.bold("  What:") + " " + description,
+    whyFlagged,
+    "",
+    chalk.bold("  Choose:"),
+  ].join("\n");
 
   const { choice } = await inquirer.prompt<{ choice: MigrationAction }>([
     {
       type: "list",
       name: "choice",
-      message: `${action}\nThis file has been modified. What would you like to do?`,
+      message,
       choices: [
-        {
-          name:
-            item.type === "rename" ? "[r] Rename anyway" : "[d] Delete anyway",
-          value: "rename" as MigrationAction,
-        },
-        {
-          name: "[b] Backup original, then proceed",
-          value: "backup-rename" as MigrationAction,
-        },
-        {
-          name: "[s] Skip this migration",
-          value: "skip" as MigrationAction,
-        },
+        { name: backupLabel, value: "backup-rename" as MigrationAction },
+        { name: renameLabel, value: "rename" as MigrationAction },
+        { name: skipLabel, value: "skip" as MigrationAction },
       ],
-      default: "skip",
+      default: "backup-rename",
     },
   ]);
 
@@ -1207,13 +1353,23 @@ async function executeMigrations(
       continue;
     }
 
-    // For backup-rename, just proceed (backup already done)
-    // Proceed with rename or delete
+    // For `backup-rename`, leave an inline .backup copy of the user's modified
+    // original next to the new location (for rename) or in place (for delete).
+    // This is in addition to the full project snapshot at .trellis/.backup-*/;
+    // the inline copy is more discoverable when the user wants to diff or merge
+    // their customizations against the new template.
     if (item.type === "rename" && item.to) {
       const oldPath = path.join(cwd, item.from);
       const newPath = path.join(cwd, item.to);
 
       fs.mkdirSync(path.dirname(newPath), { recursive: true });
+
+      if (action === "backup-rename") {
+        // Copy original alongside the new path before the rename overwrites nothing
+        // (target dir is guaranteed fresh since `conflict` is handled elsewhere).
+        fs.copyFileSync(oldPath, newPath + ".backup");
+      }
+
       fs.renameSync(oldPath, newPath);
       renameHash(cwd, item.from, item.to);
 
@@ -1227,6 +1383,13 @@ async function executeMigrations(
       result.renamed++;
     } else if (item.type === "delete") {
       const filePath = path.join(cwd, item.from);
+
+      if (action === "backup-rename") {
+        // Keep a .backup copy in place before deletion so the user can recover
+        // inline without digging through .trellis/.backup-*/.
+        fs.copyFileSync(filePath, filePath + ".backup");
+      }
+
       fs.unlinkSync(filePath);
       removeHash(cwd, item.from);
 
@@ -1376,10 +1539,28 @@ export async function update(options: UpdateOptions): Promise<void> {
     );
   }
 
+  // For breaking releases with recommendMigrate + --migrate, bypass update.skip
+  // across the board (safe-file-delete, new file writes, template updates).
+  // Why: honoring skip here leaves users forever half-migrated — old deprecated
+  // files persist under skip-protected paths, new commands like `continue.md`
+  // never land, and every future update re-flags the same mess. Rename
+  // migrations already ignore update.skip; this makes the rest consistent
+  // during a breaking upgrade. User customizations are still guarded by the
+  // per-file conflict prompt ("Modified by you") at write time.
+  const breakingBypass =
+    options.migrate === true &&
+    cliVsProject > 0 &&
+    projectVersion !== "unknown" &&
+    (() => {
+      const md = getMigrationMetadata(projectVersion, cliVersion);
+      return md.breaking && md.recommendMigrate;
+    })();
+
   // Collect templates (used for both migration classification and change analysis)
   const templates = collectTemplateFiles(
     cwd,
     codexUpgradeNeeded ? new Set<AITool>(["codex"]) : undefined,
+    breakingBypass,
     options.overlay,
   );
 
@@ -1389,7 +1570,12 @@ export async function update(options: UpdateOptions): Promise<void> {
   // Collect safe-file-delete items from ALL manifests (hash match is the safety net)
   // This runs regardless of version — unknown version still gets safe cleanup
   const allMigrations = getAllMigrations();
-  const safeFileDeletes = collectSafeFileDeletes(allMigrations, cwd, skipPaths);
+  const safeFileDeletes = collectSafeFileDeletes(
+    allMigrations,
+    cwd,
+    skipPaths,
+    breakingBypass,
+  );
   const hasSafeDeletes =
     safeFileDeletes.filter((c) => c.action === "delete").length > 0;
 
@@ -1448,7 +1634,45 @@ export async function update(options: UpdateOptions): Promise<void> {
 
     printMigrationSummary(classifiedMigrations);
 
-    // Show hint about --migrate flag (execution happens later after backup)
+    // Hard-stop: pending rename/delete work from a breaking release requires --migrate.
+    // Why: without --migrate, those entries are skipped and update()'s later path silently
+    // bumps the version stamp, leaving old paths orphaned next to new templates. Force
+    // explicit opt-in so the user can't half-migrate by accident.
+    const pendingMigrationCount =
+      classifiedMigrations.auto.length +
+      classifiedMigrations.confirm.length +
+      classifiedMigrations.conflict.length;
+
+    if (
+      pendingMigrationCount > 0 &&
+      !options.migrate &&
+      !options.dryRun &&
+      cliVsProject > 0 &&
+      projectVersion !== "unknown"
+    ) {
+      const gateMetadata = getMigrationMetadata(projectVersion, cliVersion);
+      if (gateMetadata.breaking && gateMetadata.recommendMigrate) {
+        console.log(
+          chalk.bgRed.white.bold(" ✖ MIGRATION REQUIRED ") +
+            chalk.red(
+              ` Breaking changes between ${projectVersion} → ${cliVersion} require --migrate.`,
+            ),
+        );
+        console.log("");
+        console.log(chalk.yellow(`  Run: trellis update --migrate`));
+        console.log("");
+        console.log(
+          chalk.gray(
+            "  Without --migrate, renamed/relocated files from breaking releases aren't moved,\n" +
+              "  leaving your project with stale paths alongside new templates.\n" +
+              "  Use --dry-run to preview what --migrate will do.",
+          ),
+        );
+        process.exit(1);
+      }
+    }
+
+    // Soft hint: non-breaking migrations or projects that chose not to set recommendMigrate
     if (!options.migrate) {
       const autoCount = classifiedMigrations.auto.length;
       const confirmCount = classifiedMigrations.confirm.length;
@@ -1570,6 +1794,33 @@ export async function update(options: UpdateOptions): Promise<void> {
             chalk.green.bold(" Run with --migrate to complete the migration"),
         );
       }
+      // Notice when update.skip is bypassed so user isn't surprised when
+      // skipPaths-protected files get cleaned up during this breaking upgrade.
+      if (breakingBypass && skipPaths.length > 0) {
+        const willBypass = safeFileDeletes.filter(
+          (c) =>
+            c.action === "delete" &&
+            skipPaths.some(
+              (skip) =>
+                c.item.from === skip ||
+                c.item.from.startsWith(skip.endsWith("/") ? skip : skip + "/"),
+            ),
+        );
+        if (willBypass.length > 0) {
+          console.log("");
+          console.log(
+            chalk.bgYellow.black.bold(" ⚠ update.skip BYPASSED ") +
+              chalk.yellow.bold(
+                ` Breaking release — ${willBypass.length.toString()} file(s) under your update.skip paths will be cleaned up.`,
+              ),
+          );
+          console.log(
+            chalk.gray(
+              "  Hash-verified: only files matching known Trellis templates are deleted. Your local customizations (hash mismatch) are still preserved.",
+            ),
+          );
+        }
+      }
       console.log(chalk.cyan("═".repeat(60)));
       console.log("");
     }
@@ -1581,19 +1832,22 @@ export async function update(options: UpdateOptions): Promise<void> {
     return;
   }
 
-  // Confirm
-  const { proceed } = await inquirer.prompt<{ proceed: boolean }>([
-    {
-      type: "confirm",
-      name: "proceed",
-      message: "Proceed?",
-      default: true,
-    },
-  ]);
+  // Batch-resolution flags are explicit consent for non-interactive runs.
+  // Prompting here breaks CI and `node ... update --force --migrate` smoke tests.
+  if (!options.force && !options.skipAll && !options.createNew) {
+    const { proceed } = await inquirer.prompt<{ proceed: boolean }>([
+      {
+        type: "confirm",
+        name: "proceed",
+        message: "Proceed?",
+        default: true,
+      },
+    ]);
 
-  if (!proceed) {
-    console.log(chalk.yellow("Update cancelled."));
-    return;
+    if (!proceed) {
+      console.log(chalk.yellow("Update cancelled."));
+      return;
+    }
   }
 
   // Create complete backup of all managed platform/workflow directories
@@ -1835,37 +2089,21 @@ export async function update(options: UpdateOptions): Promise<void> {
           }
         }
 
-        // Build task.json
+        // Build task.json — canonical 24-field shape via shared factory.
         const taskTitle = `Migrate to v${cliVersion}`;
         const todayStr = today.toISOString().split("T")[0];
-        const taskJson = {
+        const taskJson = emptyTaskJson({
+          id: taskSlug,
+          name: taskSlug,
           title: taskTitle,
           description: `Breaking change migration from v${projectVersion} to v${cliVersion}`,
           status: "planning",
-          dev_type: null,
           scope: "migration",
           priority: "P1",
           creator: "trellis-update",
           assignee: currentDeveloper,
           createdAt: todayStr,
-          completedAt: null,
-          branch: null,
-          base_branch: null,
-          worktree_path: null,
-          current_phase: 0,
-          next_action: [
-            { phase: 1, action: "review-guide" },
-            { phase: 2, action: "update-files" },
-            { phase: 3, action: "run-migrate" },
-            { phase: 4, action: "test" },
-          ],
-          commit: null,
-          pr_url: null,
-          subtasks: [],
-          children: [],
-          parent: null,
-          meta: {},
-        };
+        });
 
         // Write task.json
         const taskJsonPath = path.join(taskDir, "task.json");

@@ -212,7 +212,7 @@ def _search_core(
     if not api_url or not api_key:
         return (False, "Error: GROK_API_URL and GROK_API_KEY must be set", False, "")
 
-    effective_model = model or os.environ.get("GROK_MODEL", "grok-4.20-multi-agent")
+    effective_model = model or os.environ.get("GROK_MODEL", "grok-4-fast")
     full_query = f"{query} (platform: {platform})" if platform else query
 
     payload = {

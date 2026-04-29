@@ -319,9 +319,9 @@
 
 ## 参考资源
 
-- **Plan Agent 文档**: `.claude/agents/plan.md`
-- **Multi-Agent Pipeline 指南**: `.trellis/docs/multi-agent-pipeline.md`
-- **Workflow 文档**: `.trellis/workflow.md`
+- **Trellis Workflow 文档**: `.trellis/workflow.md`
+- **PRD 模板与需求指南**: `.trellis/templates/` 与 `.trellis/spec/guides/`
+- **Hiskens Review Checklist**: `.trellis/spec/guides/review-checklist.md`
 
 ---
 

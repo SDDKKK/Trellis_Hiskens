@@ -176,15 +176,15 @@ AGREEMENT RATE: X% (overlap / union)
 
 ### When to Use
 
-- After `/trellis:review` (or review subagent) AND `codex review --base <base>` have both run
+- After the primary Trellis review/check pass AND `codex review --base <base>` have both run
 - The main agent or dispatch agent can invoke this comparison
 - Overlap findings have HIGH confidence (two independent models agree)
 - "Only Codex" findings deserve extra scrutiny (Claude may have missed something)
 - "Only Claude" findings are likely valid (Claude had richer context)
 
-### Integration with Review Agent
+### Integration with Primary Review
 
-The review agent can optionally invoke Codex for a second opinion on critical paths:
+The primary review/check pass can optionally invoke Codex for a second opinion on critical paths:
 
 1. Run primary review (two-pass per review-checklist.md)
 2. If critical scientific correctness findings exist, invoke: `codex review --base <base>`
@@ -474,8 +474,6 @@ Task(subagent_type="codex-implement")
 |---------------|-----------|----------------|------------|
 | `codex-implement` | implement | implement.jsonl | `--mode exec` |
 | `codex-check` | check | check.jsonl | `--mode exec` |
-| `codex-debug` | debug | debug.jsonl | `--mode exec` |
-| `codex-review` | review | review.jsonl | `--mode review` |
 
 Each requires a corresponding `.claude/agents/codex-{base}.md` file. MVP ships with `codex-implement`.
 
