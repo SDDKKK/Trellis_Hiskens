@@ -8,13 +8,13 @@ Add a new phase to the task workflow pipeline.
 
 ## Files to Modify
 
-| File | Action | Required |
-|------|--------|----------|
-| Task `task.json` | Modify | Yes |
-| `.claude/agents/dispatch.md` | Modify | Yes |
+| File                            | Action | Required     |
+| ------------------------------- | ------ | ------------ |
+| Task `task.json`                | Modify | Yes          |
+| `.claude/agents/dispatch.md`    | Modify | Yes          |
 | `.claude/agents/{new-agent}.md` | Create | If new agent |
-| `inject-subagent-context.py` | Modify | If new agent |
-| `trellis-local/SKILL.md` | Update | Yes |
+| `inject-subagent-context.py`    | Modify | If new agent |
+| `trellis-local/SKILL.md`        | Update | Yes          |
 
 ---
 
@@ -37,11 +37,11 @@ Modify the `next_action` array in task.json:
 ```json
 {
   "next_action": [
-    {"phase": 1, "action": "implement"},
-    {"phase": 2, "action": "review"},      // New phase
-    {"phase": 3, "action": "check"},
-    {"phase": 4, "action": "finish"},
-    {"phase": 5, "action": "create-pr"}
+    { "phase": 1, "action": "implement" },
+    { "phase": 2, "action": "review" }, // New phase
+    { "phase": 3, "action": "check" },
+    { "phase": 4, "action": "finish" },
+    { "phase": 5, "action": "create-pr" }
   ]
 }
 ```
@@ -51,10 +51,10 @@ Modify the `next_action` array in task.json:
 ```json
 {
   "next_action": [
-    {"phase": 1, "action": "design"},      // New phase
-    {"phase": 2, "action": "implement"},
-    {"phase": 3, "action": "check"},
-    {"phase": 4, "action": "finish"}
+    { "phase": 1, "action": "design" }, // New phase
+    { "phase": 2, "action": "implement" },
+    { "phase": 3, "action": "check" },
+    { "phase": 4, "action": "finish" }
   ]
 }
 ```
@@ -71,14 +71,17 @@ Edit `.claude/agents/dispatch.md`:
 ## Phase Handling
 
 ### implement Phase
+
 ...existing...
 
 ### review Phase (NEW)
+
 - Purpose: Review implementation before check
 - Call: `Task(subagent_type="review")`
 - Next: Proceed to check phase
 
 ### check Phase
+
 ...existing...
 ```
 
@@ -116,11 +119,13 @@ tools: Read, Glob, Grep
 # Review Agent
 
 ## Core Responsibilities
+
 1. Review code changes
 2. Check against requirements
 3. Identify issues before check phase
 
 ## Forbidden Operations
+
 - Writing code (that's implement's job)
 - Git operations
 ```
@@ -167,6 +172,7 @@ default_next_action = [
 ## Workflow Changes
 
 ### Added review Phase
+
 - **Position**: After implement, before check
 - **Agent**: review
 - **Purpose**: Review implementation quality

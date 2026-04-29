@@ -8,11 +8,11 @@ Add a new `/trellis:my-command` command.
 
 ## Files to Modify
 
-| File | Action | Required |
-|------|--------|----------|
-| `.claude/commands/trellis/my-command.md` | Create | Yes |
-| `.cursor/commands/my-command.md` | Create | Optional |
-| `trellis-local/SKILL.md` | Update | Yes |
+| File                                     | Action | Required |
+| ---------------------------------------- | ------ | -------- |
+| `.claude/commands/trellis/my-command.md` | Create | Yes      |
+| `.cursor/commands/my-command.md`         | Create | Optional |
+| `trellis-local/SKILL.md`                 | Update | Yes      |
 
 ---
 
@@ -51,7 +51,7 @@ What the command produces.
 ### Command Name Convention
 
 - Use kebab-case: `my-command`, not `myCommand`
-- Prefix with category if needed: `check-cross-layer`, `before-dev`
+- Prefix with category if needed: `check-backend`, `before-frontend-dev`
 
 ---
 
@@ -73,6 +73,7 @@ Update `.claude/skills/trellis-local/SKILL.md`:
 ### Added Commands
 
 #### /trellis:my-command
+
 - **File**: `.claude/commands/trellis/my-command.md`
 - **Platform**: [ALL]
 - **Purpose**: What it does

@@ -15,6 +15,32 @@ session_commit_message: "chore: record journal"
 max_journal_lines: 2000
 
 #-------------------------------------------------------------------------------
+# Session Context
+#-------------------------------------------------------------------------------
+
+# Scope filter for spec injection during session-start.
+# Useful for monorepos with multiple packages.
+# If null or omitted, all specs are injected (default behavior).
+#
+# spec_scope: null                  # Inject all specs (default)
+# spec_scope: "active_task"         # Only inject specs for the active task's package
+# spec_scope: ["cli", "core"]       # Only inject specs for listed packages
+session:
+  spec_scope: active_task
+
+#-------------------------------------------------------------------------------
+# Update Skip Paths
+#-------------------------------------------------------------------------------
+
+# Files or directories to skip during `trellis update`.
+# Use this to prevent update from re-adding files you intentionally removed.
+#
+# update:
+#   skip:
+#     - .claude/commands/
+#     - .agents/skills/
+
+#-------------------------------------------------------------------------------
 # Task Lifecycle Hooks
 #-------------------------------------------------------------------------------
 
@@ -33,27 +59,21 @@ max_journal_lines: 2000
 #     - "echo 'Task archived'"
 
 #-------------------------------------------------------------------------------
-# Monorepo / Packages
+# Features (config-driven behavior for shared scripts)
 #-------------------------------------------------------------------------------
 
-# Declare packages for monorepo projects.
-# Trellis auto-detects workspaces during `trellis init`, but you can also
-# configure them manually here.
+# Feature flags that control project-specific behavior in shared Python scripts.
+# Shared scripts read these flags from config.yaml to enable/disable features.
+# Missing features section or individual flags default to false (graceful degradation).
 #
-# packages:
-#   frontend:
-#     path: packages/frontend
-#   backend:
-#     path: packages/backend
-#   docs:
-#     path: docs-site
-#     type: submodule
-#   # For polyrepo / meta-repo layouts (independent .git in each subdir),
-#   # mark the package with `git: true`. The runtime treats it as an
-#   # independent repository for things like git-context display.
-#   webapp:
-#     path: ./webapp
-#     git: true
-
-# Default package used when --package is not specified.
-# default_package: frontend
+# ccr_routing:       Enable CCR (Claude Code Router) model tag injection in hooks.
+#                    Requires agent-models.json config and CCR proxy running on localhost.
+# reference_support: Enable --reference flag in task.py add-context command.
+#                    Allows injecting only index.md from directories (spec three-layer injection).
+# java_support:      Enable Java-related cross-layer checks and tooling. (reserved for Anhui_CIM)
+# extra_platforms:   Additional platforms to detect alongside built-in ones. (reserved for future)
+features:
+  ccr_routing: true
+  reference_support: true
+  java_support: false
+  extra_platforms: []

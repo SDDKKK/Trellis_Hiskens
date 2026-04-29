@@ -35,23 +35,15 @@ cat .trellis/workflow.md  # Development process, conventions, and quick start gu
 ### Step 2: Get Current Status `[AI]`
 
 ```bash
-python3 ./.trellis/scripts/get_context.py
+uv run python ./.trellis/scripts/get_context.py
 ```
 
 ### Step 3: Read Project Guidelines `[AI]`
 
 ```bash
-# Discover packages and their spec layers
-python3 ./.trellis/scripts/get_context.py --mode packages
-```
-
-Read the spec index for the package you'll work on:
-
-```bash
-cat .trellis/spec/<package>/<layer>/index.md
-
-# Always read shared thinking guides
-cat .trellis/spec/guides/index.md
+uv run python ./.trellis/scripts/get_context.py --mode packages  # Discover available spec layers
+cat .trellis/spec/<package>/<layer>/index.md              # Read relevant package-scoped indexes
+cat .trellis/spec/guides/index.md    # Thinking guides
 ```
 
 ### Step 4: Ask User for Requirements
@@ -59,8 +51,8 @@ cat .trellis/spec/guides/index.md
 Ask the user:
 
 1. What feature to develop?
-2. Which modules are involved?
-3. Development type? (backend / frontend / fullstack)
+2. Which package(s) and modules are involved?
+3. Development type? (python / matlab / both)
 
 ---
 
@@ -76,9 +68,10 @@ Use when:
 - Unclear scope that needs research
 
 ```bash
-python3 ./.trellis/scripts/multi_agent/plan.py \
+uv run python ./.trellis/scripts/multi_agent/plan.py \
   --name "<feature-name>" \
-  --type "<backend|frontend|fullstack>" \
+  --type "<python|matlab|both>" \
+  [--package "<package>"] \
   --requirement "<user requirement description>"
 ```
 
@@ -92,7 +85,7 @@ Plan Agent will:
 After plan.py completes, start the worktree agent:
 
 ```bash
-python3 ./.trellis/scripts/multi_agent/start.py "$TASK_DIR"
+uv run python ./.trellis/scripts/multi_agent/start.py "$TASK_DIR"
 ```
 
 ### Option B: Manual Configuration (For simple/clear features) `[AI]`
@@ -106,25 +99,25 @@ Use when:
 
 ```bash
 # title is task description, --slug for task directory name
-TASK_DIR=$(python3 ./.trellis/scripts/task.py create "<title>" --slug <task-name>)
+TASK_DIR=$(uv run python ./.trellis/scripts/task.py create "<title>" --slug <task-name> [--package <package>])
 ```
 
 #### Step 2: Configure Task
 
 ```bash
 # Initialize jsonl context files
-python3 ./.trellis/scripts/task.py init-context "$TASK_DIR" <dev_type>
+uv run python ./.trellis/scripts/task.py init-context "$TASK_DIR" <dev_type> [--package <package>]
 
 # Set branch and scope
-python3 ./.trellis/scripts/task.py set-branch "$TASK_DIR" feature/<name>
-python3 ./.trellis/scripts/task.py set-scope "$TASK_DIR" <scope>
+uv run python ./.trellis/scripts/task.py set-branch "$TASK_DIR" feature/<name>
+uv run python ./.trellis/scripts/task.py set-scope "$TASK_DIR" <scope>
 ```
 
 #### Step 3: Add Context (optional: use research agent)
 
 ```bash
-python3 ./.trellis/scripts/task.py add-context "$TASK_DIR" implement "<path>" "<reason>"
-python3 ./.trellis/scripts/task.py add-context "$TASK_DIR" check "<path>" "<reason>"
+uv run python ./.trellis/scripts/task.py add-context "$TASK_DIR" implement "<path>" "<reason>"
+uv run python ./.trellis/scripts/task.py add-context "$TASK_DIR" check "<path>" "<reason>"
 ```
 
 #### Step 4: Create prd.md
@@ -144,8 +137,8 @@ EOF
 #### Step 5: Validate and Start
 
 ```bash
-python3 ./.trellis/scripts/task.py validate "$TASK_DIR"
-python3 ./.trellis/scripts/multi_agent/start.py "$TASK_DIR"
+uv run python ./.trellis/scripts/task.py validate "$TASK_DIR"
+uv run python ./.trellis/scripts/multi_agent/start.py "$TASK_DIR"
 ```
 
 ---
@@ -174,10 +167,10 @@ The following slash commands are for users (not AI):
 Tell the user they can use these commands to monitor:
 
 ```bash
-python3 ./.trellis/scripts/multi_agent/status.py                    # Overview
-python3 ./.trellis/scripts/multi_agent/status.py --log <name>       # View log
-python3 ./.trellis/scripts/multi_agent/status.py --watch <name>     # Real-time monitoring
-python3 ./.trellis/scripts/multi_agent/cleanup.py <branch>          # Cleanup worktree
+uv run python ./.trellis/scripts/multi_agent/status.py                    # Overview
+uv run python ./.trellis/scripts/multi_agent/status.py --log <name>       # View log
+uv run python ./.trellis/scripts/multi_agent/status.py --watch <name>     # Real-time monitoring
+uv run python ./.trellis/scripts/multi_agent/cleanup.py <branch>          # Cleanup worktree
 ```
 
 ---

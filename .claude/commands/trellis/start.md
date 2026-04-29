@@ -32,26 +32,38 @@ cat .trellis/workflow.md
 ### Step 2: Get Current Context
 
 ```bash
-python3 ./.trellis/scripts/get_context.py
+uv run python ./.trellis/scripts/get_context.py
 ```
 
-This shows: developer identity, git status, current task (if any), active tasks.
+This shows: developer identity, git status, current task (if any), active tasks, memory status, session freshness.
 
 ### Step 3: Read Guidelines Index
 
 ```bash
-# Discover packages and their spec layers
-python3 ./.trellis/scripts/get_context.py --mode packages
+uv run python ./.trellis/scripts/get_context.py --mode packages
 ```
 
-Read the spec index for the package you'll work on:
+This shows available packages and their spec layers. Read the relevant spec indexes:
 
 ```bash
+# Discover packages and their spec layers
+uv run python ./.trellis/scripts/get_context.py --mode packages
+
+# Read index for the package/layer you'll work on
 cat .trellis/spec/<package>/<layer>/index.md
+
+# Hiskens scientific layers are package-scoped, for example:
+cat .trellis/spec/<package>/python/index.md
+cat .trellis/spec/<package>/matlab/index.md
 
 # Always read shared thinking guides
 cat .trellis/spec/guides/index.md
 ```
+
+> **Important**: The index files are navigation — they list the actual guideline files (e.g., `error-handling.md`, `conventions.md`, `mock-strategies.md`).
+> In single-repo projects, replace `.trellis/spec/<package>/...` with `.trellis/spec/...`.
+> At this step, just read the indexes to understand what's available.
+> When you start actual development, you MUST go back and read the specific guideline files relevant to your task, as listed in the index's Pre-Development Checklist.
 
 ### Step 4: Report and Ask
 
@@ -107,15 +119,24 @@ For questions or trivial fixes, work directly:
 
 For simple, well-defined tasks:
 
-1. Quick confirm: "I understand you want to [goal]. Ready to proceed?"
-2. If yes, proceed to **Task Workflow Phase 1 Path B** (create task, write PRD, then research)
-3. If no, clarify and confirm again
+1. Quick confirm: "I understand you want to [goal]. Shall I proceed?"
+2. If no, clarify and confirm again
+3. **If yes: execute ALL steps below without stopping. Do NOT ask for additional confirmation between steps.**
+   - Create task directory (Phase 1 Path B, Step 2)
+   - Write PRD (Step 3)
+   - Research codebase (Phase 2, Step 5)
+   - Configure context (Step 6)
+   - Activate task (Step 7)
+   - Implement (Phase 3, Step 8)
+   - Check quality (Step 9)
+   - Semantic review (Step 10)
+   - Complete (Step 11)
 
 ---
 
 ## Complex Task - Brainstorm First
 
-For complex or vague tasks, use the brainstorm process to clarify requirements.
+For complex or vague tasks, **automatically start the brainstorm process** — do NOT skip directly to implementation.
 
 See `/trellis:brainstorm` for the full process. Summary:
 
@@ -129,6 +150,8 @@ See `/trellis:brainstorm` for the full process. Summary:
 > **Subtask Decomposition**: If brainstorm reveals multiple independent work items,
 > consider creating subtasks using `--parent` flag or `add-subtask` command.
 > See `/trellis:brainstorm` Step 8 for details.
+
+> For deep multi-layer reasoning on complex tasks, see `.trellis/spec/guides/thinking-framework.md` (optional reference, not required by the workflow).
 
 ### Key Brainstorm Principles
 
@@ -176,13 +199,14 @@ PRD and task directory already exist from brainstorm. Skip directly to Phase 2.
 
 Quick confirm:
 - What is the goal?
-- What type of development? (frontend / backend / fullstack)
+- What type of development? (python / matlab / both)
+- Which package is in scope? (if monorepo)
 - Any specific requirements or constraints?
 
 **Step 2: Create Task Directory** `[AI]`
 
 ```bash
-TASK_DIR=$(python3 ./.trellis/scripts/task.py create "<title>" --slug <name>)
+TASK_DIR=$(uv run python ./.trellis/scripts/task.py create "<title>" --slug <name> [--package <package>])
 ```
 
 **Step 3: Write PRD** `[AI]`
@@ -218,10 +242,10 @@ Create `prd.md` in the task directory with:
 If the task touches infra or cross-layer contracts, do not start implementation until code-spec depth is defined.
 
 Trigger this requirement when the change includes any of:
-- New or changed command/API signatures
-- Database schema or migration changes
+- New or changed Python↔MATLAB contracts (data file formats, variable naming conventions)
+- New config schemas or shared constants
+- Changes to data interchange files (.mat, .csv, .json, .h5)
 - Infra integrations (storage, queue, cache, secrets, env contracts)
-- Cross-layer payload transformations
 
 Must-have before proceeding:
 - [ ] Target code-spec files to update are identified
@@ -233,13 +257,15 @@ Must-have before proceeding:
 
 Based on the confirmed PRD, call Research Agent to find relevant specs and patterns:
 
+> **Research agent gotcha**: `research` is intentionally lightweight. Hook injection gives it project structure plus optional `research.jsonl`, not the task-specific `implement` / `check` / `debug` / `review` jsonl files. Do not use `research` to validate task-jsonl hook injection.
+
 ```
 Task(
   subagent_type: "research",
   prompt: "Analyze the codebase for this task:
 
   Task: <goal from PRD>
-  Type: <frontend/backend/fullstack>
+  Type: <python/matlab/both>
 
   Please find:
   1. Relevant code-spec files in .trellis/spec/
@@ -264,22 +290,22 @@ Task(
 Initialize default context:
 
 ```bash
-python3 ./.trellis/scripts/task.py init-context "$TASK_DIR" <type>
-# type: backend | frontend | fullstack
+uv run python ./.trellis/scripts/task.py init-context "$TASK_DIR" <type> [--package <package>]
+# type: python | matlab | both
 ```
 
 Add code-spec files found by Research Agent:
 
 ```bash
 # For each relevant code-spec and code pattern:
-python3 ./.trellis/scripts/task.py add-context "$TASK_DIR" implement "<path>" "<reason>"
-python3 ./.trellis/scripts/task.py add-context "$TASK_DIR" check "<path>" "<reason>"
+uv run python ./.trellis/scripts/task.py add-context "$TASK_DIR" implement "<path>" "<reason>"
+uv run python ./.trellis/scripts/task.py add-context "$TASK_DIR" check "<path>" "<reason>"
 ```
 
 **Step 7: Activate Task** `[AI]`
 
 ```bash
-python3 ./.trellis/scripts/task.py start "$TASK_DIR"
+uv run python ./.trellis/scripts/task.py start "$TASK_DIR"
 ```
 
 This sets `.current-task` so hooks can inject context.
@@ -310,15 +336,36 @@ Call Check Agent (code-spec context is auto-injected by hook):
 ```
 Task(
   subagent_type: "check",
-  prompt: "Review all code changes against the code-spec requirements.
+  prompt: "Check code standards (D3). Fix any ruff or format issues.
+  Ensure lint and format pass.
 
-  Fix any issues you find directly.
-  Ensure lint and typecheck pass.",
+  Scope: Dimension 3 (code standards) only.
+  Semantic review (D1/D2/D4/D5) is delegated to a separate review agent in Step 10.",
   model: "opus"
 )
 ```
 
-**Step 10: Complete** `[AI]`
+**Step 10: Semantic Review** `[AI]`
+
+Call Review Agent for dimensions 1/2/4/5 (correctness, design, tests, docs):
+
+```
+Task(
+  subagent_type: "review",
+  prompt: "Perform semantic review on all code changes.
+
+  Dimensions to cover:
+  - D1: Correctness — does the code do what the PRD says?
+  - D2: Design — is the structure sound? Any code smells?
+  - D4: Tests — is test coverage adequate for the changes?
+  - D5: Docs — are docstrings and comments accurate?
+
+  Report findings and fix issues directly where safe.",
+  model: "opus"
+)
+```
+
+**Step 11: Complete** `[AI]`
 
 1. Verify lint and typecheck pass
 2. Report what was implemented
@@ -335,7 +382,8 @@ If `get_context.py` shows a current task:
 
 1. Read the task's `prd.md` to understand the goal
 2. Check `task.json` for current status and phase
-3. Ask user: "Continue working on <task-name>?"
+3. If a stale-session warning appears in the session start context, review the scratchpad and recent git diff before continuing.
+4. Ask user: "Continue working on <task-name>?"
 
 If yes, resume from the appropriate step (usually Step 7 or 8).
 
@@ -357,21 +405,22 @@ If yes, resume from the appropriate step (usually Step 7 or 8).
 
 | Script | Purpose |
 |--------|---------|
-| `python3 ./.trellis/scripts/get_context.py` | Get session context |
-| `python3 ./.trellis/scripts/task.py create` | Create task directory |
-| `python3 ./.trellis/scripts/task.py init-context` | Initialize jsonl files |
-| `python3 ./.trellis/scripts/task.py add-context` | Add code-spec/context file to jsonl |
-| `python3 ./.trellis/scripts/task.py start` | Set current task |
-| `python3 ./.trellis/scripts/task.py finish` | Clear current task |
-| `python3 ./.trellis/scripts/task.py archive` | Archive completed task |
+| `uv run python ./.trellis/scripts/get_context.py` | Get session context |
+| `uv run python ./.trellis/scripts/task.py create` | Create task directory |
+| `uv run python ./.trellis/scripts/task.py init-context` | Initialize jsonl files |
+| `uv run python ./.trellis/scripts/task.py add-context` | Add code-spec/context file to jsonl |
+| `uv run python ./.trellis/scripts/task.py start` | Set current task |
+| `uv run python ./.trellis/scripts/task.py finish` | Clear current task |
+| `uv run python ./.trellis/scripts/task.py archive` | Archive completed task |
 
 ### Sub Agents `[AI]`
 
 | Agent | Purpose | Hook Injection |
 |-------|---------|----------------|
-| research | Analyze codebase | No (lightweight only: project structure + optional research.jsonl; not for task-jsonl injection checks) |
+| research | Analyze codebase | No (reads directly) |
 | implement | Write code | Yes (implement.jsonl) |
-| check | Review & fix | Yes (check.jsonl) |
+| check | Code standards (D3) | Yes (check.jsonl) |
+| review | Semantic review (D1/D2/D4/D5) | Yes (review.jsonl) |
 | debug | Fix specific issues | Yes (debug.jsonl) |
 
 ---

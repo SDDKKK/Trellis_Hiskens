@@ -28,12 +28,10 @@ Otherwise, if task-specific research is needed:
    - If `path` is a file → Read it
    - If `path` is a directory → Read all `.md` files in it
 
-To discover available packages and spec layers, run:
-`python3 ./.trellis/scripts/get_context.py --mode packages`
-
-Then read the relevant spec files:
-- `.trellis/spec/<package>/<layer>/index.md` - Package-specific specs
-- `.trellis/spec/guides/` - Thinking guides (shared)
+Project spec locations for reference:
+- `.trellis/spec/<package>/<layer>/` - Package-specific standards
+- `.trellis/spec/guides/` - Thinking guides
+- `.trellis/big-question/` - Known issues and pitfalls
 
 ---
 

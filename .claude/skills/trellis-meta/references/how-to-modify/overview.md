@@ -6,18 +6,18 @@ Common Trellis customization scenarios and what files need to be modified.
 
 ## Quick Reference
 
-| Task | Files to Modify | Platform |
-|------|-----------------|----------|
-| [Add slash command](#add-slash-command) | commands/, trellis-local | All |
-| [Add agent](#add-agent) | agents/, hook, jsonl, trellis-local | CC |
-| [Modify hook](#modify-hook) | hooks/, settings.json, trellis-local | CC |
-| [Add spec category](#add-spec-category) | spec/, jsonl, trellis-local | All |
-| [Change verify commands](#change-verify-commands) | worktree.yaml | CC |
-| [Add workflow phase](#add-workflow-phase) | task.json, dispatch, trellis-local | CC |
-| [Add post_create step](#add-post_create-step) | worktree.yaml | CC |
-| [Modify session start](#modify-session-start) | session-start.py, trellis-local | CC |
-| [Add core script](#add-core-script) | scripts/, trellis-local | All |
-| [Change task types](#change-task-types) | task.py, jsonl templates | All |
+| Task                                              | Files to Modify                      | Platform |
+| ------------------------------------------------- | ------------------------------------ | -------- |
+| [Add slash command](#add-slash-command)           | commands/, trellis-local             | All      |
+| [Add agent](#add-agent)                           | agents/, hook, jsonl, trellis-local  | CC       |
+| [Modify hook](#modify-hook)                       | hooks/, settings.json, trellis-local | CC       |
+| [Add spec category](#add-spec-category)           | spec/, jsonl, trellis-local          | All      |
+| [Change verify commands](#change-verify-commands) | worktree.yaml                        | CC       |
+| [Add workflow phase](#add-workflow-phase)         | task.json, dispatch, trellis-local   | CC       |
+| [Add post_create step](#add-post_create-step)     | worktree.yaml                        | CC       |
+| [Modify session start](#modify-session-start)     | session-start.py, trellis-local      | CC       |
+| [Add core script](#add-core-script)               | scripts/, trellis-local              | All      |
+| [Change task types](#change-task-types)           | task.py, jsonl templates             | All      |
 
 **Platform**: `All` = All platforms | `CC` = Claude Code only
 
@@ -38,6 +38,7 @@ Common Trellis customization scenarios and what files need to be modified.
 ```
 
 **Steps**:
+
 1. Create command file with YAML frontmatter
 2. Mirror to Cursor if needed
 3. Document in trellis-local
@@ -60,6 +61,7 @@ Common Trellis customization scenarios and what files need to be modified.
 ```
 
 **Optional**:
+
 ```
 .claude/agents/dispatch.md                          # Modify: If adding to pipeline
 task.json template                                  # Modify: Add to next_action
@@ -113,11 +115,12 @@ task.json template                                  # Modify: Add to next_action
 ```
 
 **Example**:
+
 ```yaml
 verify:
   - pnpm lint
   - pnpm typecheck
-  - pnpm test        # Add this
+  - pnpm test # Add this
 ```
 
 → See `change-verify.md` for details.
@@ -153,10 +156,11 @@ task.json (in task directories)           # Modify: next_action array
 ```
 
 **Example**:
+
 ```yaml
 post_create:
   - pnpm install
-  - pnpm db:migrate    # Add this
+  - pnpm db:migrate # Add this
 ```
 
 ---
@@ -210,14 +214,14 @@ post_create:
 
 ## Documents in This Directory
 
-| Document | Scenario |
-|----------|----------|
-| `add-command.md` | Adding slash commands |
-| `add-agent.md` | Adding new agent types |
-| `modify-hook.md` | Modifying hook behavior |
-| `add-spec.md` | Adding spec categories |
-| `change-verify.md` | Changing verify commands |
-| `add-phase.md` | Adding workflow phases |
+| Document                  | Scenario                         |
+| ------------------------- | -------------------------------- |
+| `add-command.md`          | Adding slash commands            |
+| `add-agent.md`            | Adding new agent types           |
+| `modify-hook.md`          | Modifying hook behavior          |
+| `add-spec.md`             | Adding spec categories           |
+| `change-verify.md`        | Changing verify commands         |
+| `add-phase.md`            | Adding workflow phases           |
 | `modify-session-start.md` | Changing session start injection |
-| `add-script.md` | Adding automation scripts |
-| `change-task-types.md` | Adding task types |
+| `add-script.md`           | Adding automation scripts        |
+| `change-task-types.md`    | Adding task types                |

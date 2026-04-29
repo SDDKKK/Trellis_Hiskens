@@ -8,12 +8,12 @@ Add a new spec category like `mobile/`.
 
 ## Files to Modify
 
-| File | Action | Required |
-|------|--------|----------|
-| `.trellis/spec/mobile/index.md` | Create | Yes |
-| `.trellis/spec/mobile/*.md` | Create | Yes |
-| Task JSONL templates | Update | Yes |
-| `trellis-local/SKILL.md` | Update | Yes |
+| File                            | Action | Required |
+| ------------------------------- | ------ | -------- |
+| `.trellis/spec/mobile/index.md` | Create | Yes      |
+| `.trellis/spec/mobile/*.md`     | Create | Yes      |
+| Task JSONL templates            | Update | Yes      |
+| `trellis-local/SKILL.md`        | Update | Yes      |
 
 ---
 
@@ -36,11 +36,11 @@ Guidelines for mobile development.
 
 ## Quick Reference
 
-| Topic | Guideline |
-|-------|-----------|
-| Architecture | MVVM pattern |
-| State | Use StateFlow |
-| Navigation | Jetpack Navigation |
+| Topic        | Guideline          |
+| ------------ | ------------------ |
+| Architecture | MVVM pattern       |
+| State        | Use StateFlow      |
+| Navigation   | Jetpack Navigation |
 
 ## Specifications
 
@@ -63,7 +63,7 @@ Create individual spec files in the category:
 
 ### Example: `architecture.md`
 
-```markdown
+````markdown
 # Mobile Architecture
 
 ## Overview
@@ -77,11 +77,14 @@ Description of architecture approach.
 Explanation...
 
 **Do:**
+
 ```kotlin
 // Good example
 ```
+````
 
 **Don't:**
+
 ```kotlin
 // Bad example
 ```
@@ -93,7 +96,8 @@ Explanation...
 ## Related Specs
 
 - [UI Guidelines](./ui-guidelines.md)
-```
+
+````
 
 ---
 
@@ -113,7 +117,7 @@ def init_mobile_context(task_dir):
             "file": ".trellis/spec/mobile/index.md",
             "reason": "Mobile guidelines"
         }) + "\n")
-```
+````
 
 ### Option B: Add to Existing Templates
 
@@ -136,6 +140,7 @@ Update `.claude/skills/trellis-local/SKILL.md`:
 ### Added Categories
 
 #### mobile/
+
 - **Path**: `.trellis/spec/mobile/`
 - **Purpose**: Mobile development guidelines
 - **Added**: 2026-01-31
@@ -155,17 +160,21 @@ Update `.claude/skills/trellis-local/SKILL.md`:
 # [Spec Title]
 
 ## Overview
+
 Brief description.
 
 ## Guidelines
 
 ### 1. [Guideline Name]
+
 Explanation with examples.
 
 ### 2. [Another Guideline]
+
 ...
 
 ## Related Specs
+
 Links to related specs.
 ```
 

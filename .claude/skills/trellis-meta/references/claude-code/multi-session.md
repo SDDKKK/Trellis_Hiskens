@@ -9,6 +9,7 @@ Documentation for parallel isolated sessions using Git worktrees.
 Multi-Session enables **parallel, isolated development sessions** using Git worktrees. Each session runs in its own directory with its own branch.
 
 **Key Distinction**:
+
 - **Multi-Agent** = Multiple agents in current directory (dispatch → implement → check)
 - **Multi-Session** = Parallel sessions in separate worktrees (this document)
 
@@ -16,13 +17,13 @@ Multi-Session enables **parallel, isolated development sessions** using Git work
 
 ## When to Use Multi-Session
 
-| Scenario | Use Multi-Session? |
-|----------|-------------------|
-| Normal task in current branch | No - use Multi-Agent |
-| Long-running task, want to work on other things | Yes |
-| Multiple independent tasks in parallel | Yes |
-| Task needs clean isolated environment | Yes |
-| Quick fix or small change | No |
+| Scenario                                        | Use Multi-Session?   |
+| ----------------------------------------------- | -------------------- |
+| Normal task in current branch                   | No - use Multi-Agent |
+| Long-running task, want to work on other things | Yes                  |
+| Multiple independent tasks in parallel          | Yes                  |
+| Task needs clean isolated environment           | Yes                  |
+| Quick fix or small change                       | No                   |
 
 ---
 
@@ -82,14 +83,14 @@ Git worktrees allow multiple working directories from one repository:
 
 ### Benefits
 
-| Benefit | Description |
-|---------|-------------|
-| **True isolation** | Separate filesystem per session |
-| **Own branch** | Each worktree on its own branch |
-| **Parallel execution** | Multiple agents work simultaneously |
-| **Clean state** | Start fresh, no interference |
-| **Session persistence** | Each has `.session-id` for resume |
-| **Easy cleanup** | Remove worktree = remove everything |
+| Benefit                 | Description                         |
+| ----------------------- | ----------------------------------- |
+| **True isolation**      | Separate filesystem per session     |
+| **Own branch**          | Each worktree on its own branch     |
+| **Parallel execution**  | Multiple agents work simultaneously |
+| **Clean state**         | Start fresh, no interference        |
+| **Session persistence** | Each has `.session-id` for resume   |
+| **Easy cleanup**        | Remove worktree = remove everything |
 
 ---
 
@@ -106,13 +107,13 @@ worktree_dir: ../worktrees
 
 # Files to copy to each worktree (default: [])
 copy:
-  - .trellis/.developer      # Developer identity
-  - .env                      # Environment variables
-  - .env.local                # Local overrides
+  - .trellis/.developer # Developer identity
+  - .env # Environment variables
+  - .env.local # Local overrides
 
 # Commands after worktree creation (default: [])
 post_create:
-  - npm install               # Install dependencies
+  - npm install # Install dependencies
   # - pnpm install --frozen-lockfile
 
 # Verification commands for Ralph Loop (default: [])
@@ -128,15 +129,15 @@ Each session needs a configured task:
 ```json
 // task.json
 {
-  "branch": "feature/add-login",     // Required for worktree
+  "branch": "feature/add-login", // Required for worktree
   "base_branch": "main",
-  "worktree_path": null,             // Set by start.py
+  "worktree_path": null, // Set by start.py
   "current_phase": 0,
   "next_action": [
-    {"phase": 1, "action": "implement"},
-    {"phase": 2, "action": "check"},
-    {"phase": 3, "action": "finish"},
-    {"phase": 4, "action": "create-pr"}
+    { "phase": 1, "action": "implement" },
+    { "phase": 2, "action": "check" },
+    { "phase": 3, "action": "finish" },
+    { "phase": 4, "action": "create-pr" }
   ]
 }
 ```
@@ -154,6 +155,7 @@ python3 .trellis/scripts/multi_agent/start.py <task-dir>
 ```
 
 **Actions**:
+
 1. Read `task.json` for branch name
 2. Create git worktree:
    ```bash
@@ -162,7 +164,7 @@ python3 .trellis/scripts/multi_agent/start.py <task-dir>
 3. Copy files from `worktree.yaml` copy list
 4. Copy task directory to worktree
 5. Run `post_create` hooks
-6. Set the session-scoped active task for the worktree run
+6. Set `.trellis/.current-task` in worktree
 7. Start Claude Dispatch Agent:
    ```bash
    claude -p --agent dispatch \
@@ -174,6 +176,7 @@ python3 .trellis/scripts/multi_agent/start.py <task-dir>
 8. Register to `registry.json`
 
 **Example**:
+
 ```bash
 python3 .trellis/scripts/multi_agent/start.py .trellis/tasks/01-31-add-login-taosu
 # Output: Started agent in ../trellis-worktrees/feature/add-login
@@ -203,6 +206,7 @@ python3 .trellis/scripts/multi_agent/status.py --registry
 ```
 
 **Output**:
+
 ```
 Active Sessions:
 ┌──────────────┬──────────┬────────────────┬──────────┬───────────┐
@@ -227,6 +231,7 @@ python3 .trellis/scripts/multi_agent/create_pr.py [--dry-run]
 ```
 
 **Actions**:
+
 1. Stage changes: `git add -A`
 2. Exclude: `git reset .trellis/workspace/`
 3. Commit: `feat(<scope>): <task-name>`
@@ -252,6 +257,7 @@ python3 .trellis/scripts/multi_agent/cleanup.py --all
 ```
 
 **Actions**:
+
 1. Archive task to `.trellis/tasks/archive/YYYY-MM/`
 2. Remove from registry
 3. Remove worktree: `git worktree remove <path>`
@@ -271,6 +277,7 @@ python3 .trellis/scripts/multi_agent/plan.py \
 ```
 
 **Plan Agent**:
+
 1. Evaluates requirements (can REJECT)
 2. Calls Research Agent
 3. Creates `prd.md`
@@ -300,6 +307,7 @@ Tracks all running sessions.
 ```
 
 **API** (`common/registry.py`):
+
 ```python
 registry_add_agent(agent_id, worktree_path, pid, task_dir)
 registry_remove_by_id(agent_id)
@@ -369,6 +377,7 @@ python3 .trellis/scripts/multi_agent/status.py
 ```
 
 Each runs independently:
+
 - Own worktree
 - Own branch
 - Own Claude process
@@ -396,6 +405,7 @@ claude --resume <session-id>
 Quality enforcement for Check Agent in sessions.
 
 **Mechanism**:
+
 1. Check Agent completes
 2. SubagentStop hook fires
 3. `ralph-loop.py` runs verify commands
@@ -403,13 +413,15 @@ Quality enforcement for Check Agent in sessions.
 5. Any fail → block, continue agent
 
 **Constants**:
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `MAX_ITERATIONS` | 5 | Maximum loop iterations |
-| `STATE_TIMEOUT_MINUTES` | 30 | State timeout |
-| Command timeout | 120s | Per verify command |
+
+| Constant                | Value | Description             |
+| ----------------------- | ----- | ----------------------- |
+| `MAX_ITERATIONS`        | 5     | Maximum loop iterations |
+| `STATE_TIMEOUT_MINUTES` | 30    | State timeout           |
+| Command timeout         | 120s  | Per verify command      |
 
 **Configuration** (`worktree.yaml`):
+
 ```yaml
 verify:
   - pnpm lint
@@ -417,6 +429,7 @@ verify:
 ```
 
 **State** (`.trellis/.ralph-state.json`):
+
 ```json
 {
   "task": ".trellis/tasks/01-31-add-login",

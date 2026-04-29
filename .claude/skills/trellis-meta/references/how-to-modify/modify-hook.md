@@ -8,21 +8,21 @@ Change hook behavior for context injection or validation.
 
 ## Files to Modify
 
-| File | Action | Required |
-|------|--------|----------|
-| `.claude/hooks/{hook}.py` | Modify | Yes |
-| `.claude/settings.json` | Modify | If changing matcher/timeout |
-| `trellis-local/SKILL.md` | Update | Yes |
+| File                      | Action | Required                    |
+| ------------------------- | ------ | --------------------------- |
+| `.claude/hooks/{hook}.py` | Modify | Yes                         |
+| `.claude/settings.json`   | Modify | If changing matcher/timeout |
+| `trellis-local/SKILL.md`  | Update | Yes                         |
 
 ---
 
 ## Hook Types
 
-| Hook | File | Purpose |
-|------|------|---------|
-| SessionStart | `session-start.py` | Inject initial context |
-| PreToolUse:Task | `inject-subagent-context.py` | Inject agent context |
-| SubagentStop:check | `ralph-loop.py` | Quality enforcement |
+| Hook               | File                         | Purpose                |
+| ------------------ | ---------------------------- | ---------------------- |
+| SessionStart       | `session-start.py`           | Inject initial context |
+| PreToolUse:Task    | `inject-subagent-context.py` | Inject agent context   |
+| SubagentStop:check | `ralph-loop.py`              | Quality enforcement    |
 
 ---
 
@@ -59,10 +59,10 @@ Hooks output JSON:
 
 ### Result Types
 
-| Result | Effect |
-|--------|--------|
+| Result     | Effect                             |
+| ---------- | ---------------------------------- |
 | `continue` | Allow operation, optionally modify |
-| `block` | Prevent operation |
+| `block`    | Prevent operation                  |
 
 ---
 
@@ -142,7 +142,7 @@ Edit `.claude/settings.json`:
           {
             "type": "command",
             "command": "python3 ...",
-            "timeout": 60  // Increase from 30
+            "timeout": 60 // Increase from 30
           }
         ]
       }
@@ -176,6 +176,7 @@ Update `.claude/skills/trellis-local/SKILL.md`:
 ## Hooks Changed
 
 #### session-start.py
+
 - **Hook Event**: SessionStart
 - **Change**: Added custom context injection
 - **Lines modified**: 45-60
@@ -183,6 +184,7 @@ Update `.claude/skills/trellis-local/SKILL.md`:
 - **Reason**: Need to inject project-specific context
 
 #### inject-subagent-context.py
+
 - **Hook Event**: PreToolUse:Task
 - **Change**: Added validation for implement agent
 - **Lines modified**: 120-135

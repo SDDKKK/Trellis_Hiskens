@@ -12,7 +12,7 @@ Complete guide to `.trellis/worktree.yaml` configuration.
 # .trellis/worktree.yaml
 
 # Multi-Session only
-worktree_dir: ../worktrees    # Default value
+worktree_dir: ../worktrees # Default value
 copy:
   - .trellis/.developer
   - .env
@@ -33,12 +33,12 @@ verify:
 
 ### Which Config Affects What?
 
-| Config | Multi-Agent (current dir) | Multi-Session (worktree) |
-|--------|---------------------------|--------------------------|
-| `worktree_dir` | ❌ Not used | ✅ Worktree location |
-| `copy` | ❌ Not used | ✅ Files copied to worktree |
-| `post_create` | ❌ Not used | ✅ Commands after worktree creation |
-| `verify` | ✅ Used by Ralph Loop | ✅ Used by Ralph Loop |
+| Config         | Multi-Agent (current dir) | Multi-Session (worktree)            |
+| -------------- | ------------------------- | ----------------------------------- |
+| `worktree_dir` | ❌ Not used               | ✅ Worktree location                |
+| `copy`         | ❌ Not used               | ✅ Files copied to worktree         |
+| `post_create`  | ❌ Not used               | ✅ Commands after worktree creation |
+| `verify`       | ✅ Used by Ralph Loop     | ✅ Used by Ralph Loop               |
 
 **Key point**: `verify` config applies to BOTH modes!
 
@@ -59,9 +59,9 @@ worktree_dir: ../worktrees
 # These files are not in git, need manual copy
 # Default: [] (empty array)
 copy:
-  - .trellis/.developer      # Developer identity
-  - .env                      # Environment variables
-  - .env.local                # Local overrides
+  - .trellis/.developer # Developer identity
+  - .env # Environment variables
+  - .env.local # Local overrides
   # - .npmrc                  # npm config
   # - credentials.json        # Credential files
 
@@ -69,7 +69,7 @@ copy:
 # Runs in order, stops on first failure
 # Default: [] (empty array)
 post_create:
-  - npm install               # or pnpm install
+  - npm install # or pnpm install
   # - pnpm install --frozen-lockfile
   # - cp .env.example .env
   # - npm run db:migrate
@@ -91,12 +91,12 @@ verify:
 
 ### Default Values
 
-| Config | Default | Notes |
-|--------|---------|-------|
-| `worktree_dir` | `../worktrees` | Relative to project root |
-| `copy` | `[]` | Empty array, no files copied |
-| `post_create` | `[]` | Empty array, no commands run |
-| `verify` | `[]` | Empty array, Ralph Loop uses completion markers |
+| Config         | Default        | Notes                                           |
+| -------------- | -------------- | ----------------------------------------------- |
+| `worktree_dir` | `../worktrees` | Relative to project root                        |
+| `copy`         | `[]`           | Empty array, no files copied                    |
+| `post_create`  | `[]`           | Empty array, no commands run                    |
+| `verify`       | `[]`           | Empty array, Ralph Loop uses completion markers |
 
 ---
 
@@ -105,6 +105,7 @@ verify:
 **Requirement**: Run dispatch → implement → check in current directory, no worktree
 
 **worktree.yaml config**:
+
 ```yaml
 # These can be omitted (not used in current directory mode)
 # worktree_dir: ...
@@ -118,7 +119,8 @@ verify:
 ```
 
 **Workflow**:
-1. Set the session-scoped active task
+
+1. Set `.trellis/.current-task`
 2. Call `Task(subagent_type="implement")`
 3. Call `Task(subagent_type="check")`
 4. When Check Agent completes, Ralph Loop runs `verify` commands
@@ -134,7 +136,7 @@ verify:
 verify:
   - pnpm lint
   - pnpm typecheck
-  - pnpm test          # Add tests
+  - pnpm test # Add tests
 ```
 
 ### Add build verification
@@ -143,7 +145,7 @@ verify:
 verify:
   - pnpm lint
   - pnpm typecheck
-  - pnpm build         # Add build check
+  - pnpm build # Add build check
 ```
 
 ### Go projects
@@ -219,9 +221,9 @@ copy:
   - .trellis/.developer
   - .env
   - .env.local
-  - .npmrc                    # npm private registry config
+  - .npmrc # npm private registry config
   - firebase-credentials.json # Firebase credentials
-  - google-cloud-key.json     # GCP credentials
+  - google-cloud-key.json # GCP credentials
 ```
 
 ---
@@ -230,12 +232,13 @@ copy:
 
 If `worktree.yaml` doesn't exist:
 
-| Feature | Behavior |
-|---------|----------|
-| Multi-Session | ❌ Cannot start (start.py requires config) |
-| Multi-Agent | ⚠️ Works, but Ralph Loop uses completion markers |
+| Feature       | Behavior                                         |
+| ------------- | ------------------------------------------------ |
+| Multi-Session | ❌ Cannot start (start.py requires config)       |
+| Multi-Agent   | ⚠️ Works, but Ralph Loop uses completion markers |
 
 **Ralph Loop fallback behavior**:
+
 - Without `verify` config, uses completion markers
 - Generates markers from `check.jsonl` reason field
 - Example: `{"reason": "typecheck"}` → expects `TYPECHECK_FINISH`
@@ -298,7 +301,7 @@ worktree_dir: ../worktrees
 copy:
   - .trellis/.developer
   - .env
-  - venv/              # or recreate venv
+  - venv/ # or recreate venv
 
 post_create:
   - python -m venv venv
@@ -341,7 +344,7 @@ copy:
 
 post_create:
   - pnpm install --frozen-lockfile
-  - pnpm -r build  # Build all packages
+  - pnpm -r build # Build all packages
 
 verify:
   - pnpm -r lint
@@ -355,15 +358,16 @@ verify:
 
 ### Ralph Loop Constants
 
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `MAX_ITERATIONS` | 5 | Maximum loop iterations |
-| `STATE_TIMEOUT_MINUTES` | 30 | State timeout (minutes) |
-| Command timeout | 120s | Per verify command timeout |
+| Constant                | Value | Description                |
+| ----------------------- | ----- | -------------------------- |
+| `MAX_ITERATIONS`        | 5     | Maximum loop iterations    |
+| `STATE_TIMEOUT_MINUTES` | 30    | State timeout (minutes)    |
+| Command timeout         | 120s  | Per verify command timeout |
 
 ### Timeout
 
 Each verify command has **120 seconds** (2 minutes) timeout. Long-running tests may need:
+
 - Split tests
 - Run only fast tests
 - Modify `COMMAND_TIMEOUT` constant in `ralph-loop.py`
@@ -378,11 +382,12 @@ Each verify command has **120 seconds** (2 minutes) timeout. Long-running tests 
 Commands run in config order, stops on first failure.
 
 Recommended order: fast → slow
+
 ```yaml
 verify:
-  - pnpm lint        # Fast (seconds)
-  - pnpm typecheck   # Medium (seconds-minutes)
-  - pnpm test        # Slow (minutes)
+  - pnpm lint # Fast (seconds)
+  - pnpm typecheck # Medium (seconds-minutes)
+  - pnpm test # Slow (minutes)
 ```
 
 ---

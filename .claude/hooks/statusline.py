@@ -4,18 +4,22 @@
 Trellis StatusLine — project-level status display for Claude Code.
 
 Reads Claude Code session JSON from stdin + Trellis task data from filesystem.
-Outputs 1-2 lines:
-  With active task:  [P1] Task title (status)  +  info line
-  Without task:      info line only
+Outputs 1-3 lines:
+  With active task:  [P1] Task title (status) + info line [+ Sub2API line]
+  Without task:      info line [+ Sub2API line]
 Info line: model · ctx% · branch · duration · developer · tasks · rate limits
 """
 from __future__ import annotations
 
+import hashlib
 import io
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
+import time
 from pathlib import Path
 
 # Fix: Windows Python defaults to GBK encoding, which corrupts UTF-8
@@ -23,6 +27,10 @@ from pathlib import Path
 if sys.platform == "win32":
     sys.stdout = io.TextIOWrapper(sys.stdout.detach(), encoding="utf-8")
     sys.stderr = io.TextIOWrapper(sys.stderr.detach(), encoding="utf-8")
+
+
+SUB2API_KEY_ENV = "SUB2API_KEY"
+SUB2API_CACHE_TTL_SECONDS = 60
 
 
 def _read_text(path: Path) -> str:
@@ -150,6 +158,86 @@ def _format_duration(ms: int) -> str:
     return f"{mins}m"
 
 
+def _get_sub2api_cache_path(repo_root: Path) -> Path:
+    key = os.environ.get(SUB2API_KEY_ENV, "")
+    digest = hashlib.sha256(f"{repo_root}:{key}".encode("utf-8")).hexdigest()[:12]
+    return Path(tempfile.gettempdir()) / f"claude-sub2api-status-{digest}.json"
+
+
+def _read_sub2api_cache(cache_path: Path) -> str:
+    if not cache_path.is_file():
+        return ""
+
+    try:
+        data = json.loads(cache_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return ""
+
+    text = data.get("text", "")
+    timestamp = data.get("timestamp", 0)
+    if not isinstance(text, str) or not text:
+        return ""
+    if not isinstance(timestamp, (int, float)):
+        return ""
+    if time.time() - float(timestamp) > SUB2API_CACHE_TTL_SECONDS:
+        return ""
+    return text
+
+
+def _write_sub2api_cache(cache_path: Path, text: str) -> None:
+    if not text:
+        return
+
+    payload = {"text": text, "timestamp": int(time.time())}
+    try:
+        cache_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _get_sub2api_status(repo_root: Path) -> str:
+    api_key = os.environ.get(SUB2API_KEY_ENV, "")
+    if not api_key:
+        return ""
+
+    parser_path = Path(__file__).with_name("parse_sub2api_usage.py")
+    if not parser_path.is_file():
+        return ""
+
+    cache_path = _get_sub2api_cache_path(repo_root)
+    cached = _read_sub2api_cache(cache_path)
+    if cached:
+        return cached
+
+    commands = [
+        ["uv", "run", "python", str(parser_path), "--output", "statusline"],
+        [sys.executable, str(parser_path), "--output", "statusline"],
+    ]
+
+    result: subprocess.CompletedProcess[str] | None = None
+    for command in commands:
+        try:
+            candidate = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=3,
+                cwd=repo_root,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            continue
+        if candidate.returncode == 0:
+            result = candidate
+            break
+
+    if result is None:
+        return ""
+
+    text = result.stdout.strip()
+    _write_sub2api_cache(cache_path, text)
+    return text
+
+
 def main() -> None:
     # Read Claude Code session JSON from stdin
     try:
@@ -158,6 +246,7 @@ def main() -> None:
         cc_data = {}
 
     trellis_dir = _find_trellis_dir()
+    repo_root = trellis_dir.parent if trellis_dir else Path.cwd()
     SEP = " \033[90m·\033[0m "
 
     # --- Trellis data ---
@@ -212,6 +301,10 @@ def main() -> None:
     if task:
         print(f"\033[36m[{task['priority']}]\033[0m {task['title']} \033[33m({task['status']})\033[0m")
     print(info_line)
+
+    sub2api_line = _get_sub2api_status(repo_root)
+    if sub2api_line:
+        print(sub2api_line)
 
 
 if __name__ == "__main__":

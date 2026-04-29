@@ -1,6 +1,6 @@
 ---
 name: brainstorm
-description: "Collaborative requirements discovery session optimized for AI coding workflows. Creates task directories, seeds PRDs, runs codebase research, proposes concrete implementation approaches with trade-offs, and converges on MVP scope through structured Q&A. Use when requirements are unclear, multiple implementation paths exist, trade-offs need evaluation, or a complex feature needs scoping before development."
+description: "Brainstorm - Requirements Discovery (AI Coding Enhanced)"
 ---
 
 # Brainstorm - Requirements Discovery (AI Coding Enhanced)
@@ -16,7 +16,7 @@ Guide AI through collaborative requirements discovery **before implementation**,
 
 ## When to Use
 
-Triggered from `$start` when the user describes a development task, especially when:
+Triggered from `$trellis:start` when the user describes a development task, especially when:
 
 * requirements are unclear or evolving
 * there are multiple valid implementation paths
@@ -95,7 +95,7 @@ Create/seed `prd.md` immediately with what you know:
 ## Definition of Done (team quality bar)
 
 * Tests added/updated (unit/integration where appropriate)
-* Lint / typecheck / CI green
+* uv run ruff check . / uv run ruff format --check . / uv run pytest green
 * Docs/notes updated if behavior changes
 * Rollout/rollback considered if risky
 
@@ -351,6 +351,53 @@ Record the outcome in PRD as an ADR-lite section:
 
 ---
 
+## Step 7b: Engineering Depth Check (Moderate/Complex tasks)
+
+**Trigger**: Required for Moderate/Complex tasks. Skip for Trivial/Simple tasks.
+
+After requirements are clear but before final confirmation, walk through implementation details:
+
+### 7b-1. Temporal Walk-through
+
+Walk through the implementation timeline hour by hour:
+
+| Time Window | Focus Question |
+|-------------|----------------|
+| **HOUR 1** (Foundation) | What does the implementer need to know first? |
+| **HOUR 2-3** (Core) | What ambiguities will they encounter? |
+| **HOUR 4-5** (Integration) | What will be surprising or unexpected? |
+| **HOUR 6+** (Finish/Test) | What will they regret not planning earlier? |
+
+**Record**: Add findings to `prd.md` under `## Temporal Notes`.
+
+### 7b-2. Error & Rescue Map
+
+For each major operation, identify failure modes:
+
+| Operation | Failure Mode | Impact | Rescue Strategy |
+|-----------|--------------|--------|-----------------|
+| XML parsing | File not found | Missing feeder data | Skip + log warning |
+| FMEA calculation | Singular matrix | NaN results | Fallback to zero |
+| Solver iteration | No solution within budget | Empty result list | Return partial solution |
+
+**Record**: Add table to `prd.md` under `## Error & Rescue Map`.
+
+### 7b-3. Architecture Sketch (3+ modules)
+
+**Trigger**: Required when task involves 3+ modules or significant data flow.
+
+Create a lightweight architecture snapshot:
+
+1. **Data Flow Diagram** (ASCII): Input → Processing Steps → Output
+2. **Dependency Map**: What existing/new components are involved?
+3. **Boundary Conditions**: Empty input, large input, invalid input behavior
+
+**Record**: Add to `prd.md` under `## Architecture`.
+
+**Reference**: See `.trellis/spec/guides/thinking-framework.md` for detailed methodology.
+
+---
+
 ## Step 8: Final Confirmation + Implementation Plan
 
 When open questions are resolved, confirm complete requirements with a structured summary:
@@ -461,25 +508,27 @@ Context / Decision / Consequences
 
 ## Integration with Start Workflow
 
-After brainstorm completes (Step 8 confirmation approved), the flow continues to the Task Workflow's **Phase 2: Prepare for Implementation**:
+High-level flow:
 
 ```text
-Brainstorm
-  Step 0: Create task directory + seed PRD
-  Step 1–7: Discover requirements, research, converge
-  Step 8: Final confirmation → user approves
-  ↓
-Task Workflow Phase 2 (Prepare for Implementation)
-  Code-Spec Depth Check (if applicable)
-  → Research codebase (based on confirmed PRD)
-  → Configure code-spec context (jsonl files)
-  → Activate task
-  ↓
-Task Workflow Phase 3 (Execute)
-  Implement → Check → Complete
+User describes task
+↓
+Step 0: Ensure task exists (create if missing)
+↓
+Step 1: Auto-context (inspect repo/docs, research if needed)
+↓
+Step 2: Classify complexity
+↓
+Step 4 (if triggered): Research-first → propose options
+↓
+Step 5: Expansion sweep (diverge)
+↓
+Step 6: Q&A loop (converge; update PRD each turn)
+↓
+Step 8: Final confirmation + small-PR plan
+↓
+Implement
 ```
-
-The task directory and PRD already exist from brainstorm, so Phase 1 of the Task Workflow is skipped entirely.
 
 ---
 
@@ -487,6 +536,6 @@ The task directory and PRD already exist from brainstorm, so Phase 1 of the Task
 
 | Command | When to Use |
 |---------|-------------|
-| `$start` | Entry point that triggers brainstorm |
-| `$finish-work` | After implementation is complete |
-| `$update-spec` | If new patterns emerge during work |
+| `$trellis:start` | Entry point that triggers brainstorm |
+| `$trellis:finish-work` | After implementation is complete |
+| `$trellis:update-spec` | If new patterns emerge during work |

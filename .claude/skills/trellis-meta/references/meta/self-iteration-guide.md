@@ -67,6 +67,7 @@ Open `.claude/skills/trellis-local/SKILL.md` and:
 ### Step 4: Verify Documentation
 
 Ask yourself:
+
 - [ ] Would another AI understand what was changed?
 - [ ] Is the "why" documented?
 - [ ] Are affected files listed?
@@ -80,6 +81,7 @@ Ask yourself:
 
 ```markdown
 #### /trellis:my-command
+
 - **File**: `.claude/commands/trellis/my-command.md`
 - **Purpose**: Brief description of what it does
 - **Added**: 2026-01-31
@@ -87,7 +89,9 @@ Ask yourself:
 
 **Usage**:
 ```
+
 /trellis:my-command [args]
+
 ```
 
 **Example**:
@@ -98,6 +102,7 @@ User asks "..." → Command does "..."
 
 ```markdown
 #### my-agent
+
 - **File**: `.claude/agents/my-agent.md`
 - **Purpose**: What this agent specializes in
 - **Tools**: Read, Write, Edit, Bash, Glob, Grep
@@ -106,19 +111,24 @@ User asks "..." → Command does "..."
 - **Reason**: Why this agent was needed
 
 **Hook Integration**:
+
 - Added to `inject-subagent-context.py` at line X
 - Uses `my-agent.jsonl` for context
 
 **Invocation**:
 ```
+
 Task(subagent_type="my-agent", prompt="...")
+
 ```
+
 ```
 
 ### Hook Modification
 
-```markdown
+````markdown
 #### inject-subagent-context.py
+
 - **Hook Event**: PreToolUse:Task
 - **Change**: Added handling for `my-agent` subagent type
 - **Lines Modified**: 45-67, 120-135
@@ -138,7 +148,9 @@ AGENTS_ALL = (..., AGENT_MY_AGENT)
 def get_my_agent_context(repo_root, task_dir):
     ...
 ```
-```
+````
+
+````
 
 ### Spec Category Addition
 
@@ -156,8 +168,9 @@ def get_my_agent_context(repo_root, task_dir):
 **JSONL Integration**:
 ```jsonl
 {"file": ".trellis/spec/security/index.md", "reason": "Security guidelines"}
-```
-```
+````
+
+````
 
 ### Workflow Change
 
@@ -179,8 +192,9 @@ def get_my_agent_context(repo_root, task_dir):
   {"phase": 4, "action": "finish"},
   {"phase": 5, "action": "create-pr"}
 ]
-```
-```
+````
+
+````
 
 ---
 
@@ -200,7 +214,7 @@ def get_my_agent_context(repo_root, task_dir):
 ### 2026-01-29 - Initial Setup
 - Initialized trellis-local skill
 - Base Trellis version: 0.3.0
-```
+````
 
 ---
 
@@ -242,6 +256,7 @@ diff -r ~/.claude/skills/trellis-meta/references/ \
 ### 2. Check for Conflicts
 
 Review each customization in `trellis-local`:
+
 - Does new version include this feature natively?
 - Does new version break this customization?
 - Can this customization be simplified?
@@ -262,6 +277,7 @@ Add migration note to `trellis-local`:
 
 ```markdown
 ### 2026-02-01 - Upgraded to Trellis 0.4.0
+
 - Updated meta-skill to 0.4.0
 - Kept custom `security-agent` (not in vanilla)
 - Migrated `my-command` to new command format
@@ -285,4 +301,5 @@ When an AI modifies Trellis, it MUST:
 **Always** tell the user what was documented.
 
 Example AI response:
+
 > "I've added the `/trellis:deploy` command and documented it in `.claude/skills/trellis-local/SKILL.md` under the Commands section."

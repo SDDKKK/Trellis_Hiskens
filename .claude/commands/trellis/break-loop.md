@@ -37,7 +37,7 @@ What mechanisms would prevent this from happening again?
 |------|-------------|---------|
 | **Documentation** | Write it down so people know | Update thinking guide |
 | **Architecture** | Make the error impossible structurally | Type-safe wrappers |
-| **Compile-time** | TypeScript strict, no any | Signature change causes compile error |
+| **Static Analysis** | ruff check, checkcode | Linting catches issues early |
 | **Runtime** | Monitoring, alerts, scans | Detect orphan entities |
 | **Test Coverage** | E2E tests, integration tests | Verify full flow |
 | **Code Review** | Checklist, PR template | "Did you check X?" |
@@ -56,7 +56,8 @@ What broader problems does this bug reveal?
 Solidify insights into the system:
 
 - [ ] Update `.trellis/spec/guides/` thinking guides
-- [ ] Update `.trellis/spec/cli/backend/` or `cli/frontend/` docs
+- [ ] Update `.trellis/spec/<package>/python/` or `.trellis/spec/<package>/matlab/` docs
+- [ ] Record root cause and workaround in `.trellis/memory/known-issues.md`
 - [ ] Create issue record (if applicable)
 - [ ] Create feature ticket for root fix
 - [ ] Update check commands if needed
@@ -113,13 +114,11 @@ Three levels of insight:
 **IMPORTANT**: After completing the analysis above, you MUST immediately:
 
 1. **Update spec/guides** - Don't just list TODOs, actually update the relevant files:
-   - If it's a cross-platform issue → update `cross-platform-thinking-guide.md`
-   - If it's a cross-layer issue → update `cross-layer-thinking-guide.md`
-   - If it's a code reuse issue → update `code-reuse-thinking-guide.md`
-   - If it's domain-specific → update `backend/*.md` or `frontend/*.md`
+   - Cross-layer issue → update `guides/cross-layer-thinking-guide.md`
+   - Python code issue → update `<package>/python/*.md`
+   - MATLAB code issue → update `<package>/matlab/*.md`
+   - Code reuse issue → update `guides/code-reuse-thinking-guide.md`
 
-2. **Sync templates** - After updating `.trellis/spec/`, sync to `src/templates/markdown/spec/`
-
-3. **Commit the spec updates** - This is the primary output, not just the analysis text
+2. **Commit the spec updates** - This is the primary output, not just the analysis text
 
 > **The analysis is worthless if it stays in chat. The value is in the updated specs.**

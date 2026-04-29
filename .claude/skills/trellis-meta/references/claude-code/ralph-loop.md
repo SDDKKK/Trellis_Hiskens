@@ -60,11 +60,11 @@ verify:
 
 ## Constants
 
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `MAX_ITERATIONS` | 5 | Maximum loop attempts |
-| `STATE_TIMEOUT_MINUTES` | 30 | State file timeout |
-| `COMMAND_TIMEOUT` | 120s | Per-command timeout |
+| Constant                | Value | Description           |
+| ----------------------- | ----- | --------------------- |
+| `MAX_ITERATIONS`        | 5     | Maximum loop attempts |
+| `STATE_TIMEOUT_MINUTES` | 30    | State file timeout    |
+| `COMMAND_TIMEOUT`       | 120s  | Per-command timeout   |
 
 ---
 
@@ -124,9 +124,9 @@ Commands run in config order. First failure stops execution.
 
 ```yaml
 verify:
-  - pnpm lint        # Runs first (fast)
-  - pnpm typecheck   # Runs second
-  - pnpm test        # Runs third (slow)
+  - pnpm lint # Runs first (fast)
+  - pnpm typecheck # Runs second
+  - pnpm test # Runs third (slow)
 ```
 
 **Recommendation**: Order fast → slow
@@ -139,6 +139,7 @@ verify:
 ### Timeout
 
 Each command has 120 second timeout. Long-running tests may need:
+
 - Splitting into smaller test suites
 - Running only fast tests in Ralph Loop
 - Adjusting `COMMAND_TIMEOUT` in script
@@ -164,6 +165,7 @@ If `worktree.yaml` has no `verify` config, Ralph Loop uses completion markers.
 ```
 
 Expected markers:
+
 - `TYPECHECK_FINISH`
 - `LINT_FINISH`
 
@@ -193,6 +195,7 @@ rm .trellis/.ralph-state.json
 ### View Hook Output
 
 Check agent output for Ralph Loop messages:
+
 - "Verification passed" = all commands succeeded
 - "Verification failed" = blocking, shows errors
 - "Max iterations reached" = giving up
@@ -222,6 +225,7 @@ verify:
 ### Different Languages
 
 **Go:**
+
 ```yaml
 verify:
   - go fmt ./...
@@ -230,6 +234,7 @@ verify:
 ```
 
 **Python:**
+
 ```yaml
 verify:
   - ruff check .
@@ -238,6 +243,7 @@ verify:
 ```
 
 **Rust:**
+
 ```yaml
 verify:
   - cargo fmt --check

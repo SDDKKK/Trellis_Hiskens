@@ -9,8 +9,7 @@ Complete reference of all files in the `.trellis/` directory.
 ```
 .trellis/
 ├── .developer              # Developer identity (gitignored)
-├── .runtime/               # Session-scoped runtime state (gitignored)
-├── .current-task           # Legacy ignored pointer; not an active-task source
+├── .current-task           # Active task pointer (gitignored)
 ├── .ralph-state.json       # Ralph Loop state (gitignored)
 ├── .template-hashes.json   # Template version tracking
 ├── .version                # Installed Trellis version
@@ -44,35 +43,24 @@ taosu
 
 ---
 
-### `.runtime/sessions/<session-key>.json`
+### `.current-task`
 
-**Purpose**: Store active task state for one AI session/window.
+**Purpose**: Point to the active task directory.
 
 **Created by**: `task.py start <task-dir>`
 
-**Format**: JSON runtime context.
+**Format**: Plain text, relative path to task directory.
 
-```json
-{
-  "current_task": ".trellis/tasks/01-31-add-login-taosu",
-  "current_run": null,
-  "platform": "claude",
-  "last_seen_at": "2026-04-27T00:00:00Z"
-}
+```
+.trellis/tasks/01-31-add-login-taosu
 ```
 
-**Gitignored**: Yes - each session/window has its own active task.
+**Gitignored**: Yes - each developer works on different tasks.
 
 **Used by**:
-- Hooks resolve this through `common.active_task`
-- Scripts use this for active task operations
 
-### `.current-task`
-
-**Purpose**: Legacy ignored pointer from older Trellis versions.
-
-**Active-task behavior**: Not read or written as a fallback. Current Trellis
-uses `.runtime/sessions/<session-key>.json` only.
+- Hooks read this to find task context
+- Scripts use this for current task operations
 
 ---
 
@@ -95,11 +83,12 @@ uses `.runtime/sessions/<session-key>.json` only.
 **Gitignored**: Yes - runtime state.
 
 **Fields**:
-| Field | Type | Description |
-|-------|------|-------------|
-| `task` | string | Task directory path |
-| `iteration` | number | Current iteration (1-5) |
-| `started_at` | ISO date | When loop started |
+
+| Field        | Type     | Description             |
+| ------------ | -------- | ----------------------- |
+| `task`       | string   | Task directory path     |
+| `iteration`  | number   | Current iteration (1-5) |
+| `started_at` | ISO date | When loop started       |
 
 ---
 
@@ -120,10 +109,12 @@ uses `.runtime/sessions/<session-key>.json` only.
 ```
 
 **Used by**:
+
 - `trellis update` - Detect which files have been modified
 - Determines if files can be auto-updated or need conflict resolution
 
 **Behavior**:
+
 - File hash matches template → Safe to update
 - File hash differs → User modified, needs manual merge
 
@@ -142,6 +133,7 @@ uses `.runtime/sessions/<session-key>.json` only.
 ```
 
 **Used by**:
+
 - `trellis update` - Determine if update is needed
 - Version mismatch detection
 
@@ -152,15 +144,13 @@ uses `.runtime/sessions/<session-key>.json` only.
 **Purpose**: Define which files to exclude from git.
 
 **Default content**:
+
 ```gitignore
 # Developer identity (local only)
 .developer
 
-# Legacy current task pointer
+# Current task pointer
 .current-task
-
-# Session runtime state
-.runtime/
 
 # Ralph Loop state
 .ralph-state.json
@@ -193,6 +183,7 @@ uses `.runtime/sessions/<session-key>.json` only.
 **Created by**: `trellis init`
 
 **Content sections**:
+
 1. Quick Start guide
 2. Workflow overview
 3. Session start process
@@ -279,7 +270,7 @@ Developer workspaces with journals and indexes.
 
 ### `tasks/`
 
-Task directories with PRDs and session files.
+Task directories with PRDs and context files.
 
 → See `core/tasks.md`
 
@@ -301,17 +292,18 @@ Automation scripts.
 
 These files are managed by `trellis update`:
 
-| File | Purpose |
-|------|---------|
-| `.trellis/workflow.md` | Workflow documentation |
-| `.trellis/worktree.yaml` | Multi-session config |
-| `.trellis/.gitignore` | Git ignore rules |
-| `.claude/hooks/*.py` | Hook scripts |
-| `.claude/commands/*.md` | Slash commands |
-| `.claude/agents/*.md` | Agent definitions |
-| `.cursor/commands/*.md` | Cursor commands (mirror) |
+| File                     | Purpose                  |
+| ------------------------ | ------------------------ |
+| `.trellis/workflow.md`   | Workflow documentation   |
+| `.trellis/worktree.yaml` | Multi-session config     |
+| `.trellis/.gitignore`    | Git ignore rules         |
+| `.claude/hooks/*.py`     | Hook scripts             |
+| `.claude/commands/*.md`  | Slash commands           |
+| `.claude/agents/*.md`    | Agent definitions        |
+| `.cursor/commands/*.md`  | Cursor commands (mirror) |
 
 **Update behavior**:
+
 1. Compare file hash with `.template-hashes.json`
 2. If unchanged → Auto-update
 3. If modified → Create `.new` file for manual merge
@@ -342,8 +334,7 @@ These files are managed by `trellis update`:
 ```
 .trellis/
 ├── .developer           # init_developer.py
-├── .runtime/sessions/   # task.py start
-├── .current-task        # legacy ignored file, not active-task source
+├── .current-task        # task.py start
 ├── .ralph-state.json    # ralph-loop.py
 ├── workspace/{dev}/     # init_developer.py
 │   ├── index.md
