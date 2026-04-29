@@ -225,8 +225,8 @@
     ".agents/skills/trellis-meta/references/meta/self-iteration-guide.md": "31b6ebb32e697ab860ac8ead15c2200a376acecfa54b53dd2a58fb96033a2a5e",
     ".agents/skills/trellis-meta/references/meta/trellis-local-template.md": "54085410421cba41ba139d62b51a02b9e6799859156c8f55164c97e3cc554f54",
     ".pi/prompts/trellis-finish-work.md": "e5f1fef14dda2b5f143f8ff8e3269e28da50f64e36e445f5a38da5bfa521bd8c",
-    ".opencode/agents/debug.md": "0bac1d723fb3634ea95c471a22245eff2b4c9d6bd98bc66cafacf6a0092609bb",
-    ".opencode/agents/dispatch.md": "f1e90f5967c7c4d61fce58df2a1e8592d1bfd4e76f2d1761916b8dc3b0b435b9",
-    ".opencode/agents/trellis-plan.md": "36de06c7eddbff290acb3c200f30af96291048e492ce2f2d8b7038662eeb572b"
+    ".claude/agents/trellis-check.md": "dec6e9f22a8f96d26f8e3412c4647b7f2792edb1ef6cd4ec86bd2958112d7834",
+    ".claude/agents/trellis-implement.md": "8de8daeb383275a1b5b497f8b12c10d8547c581761f825d56c42ec71075e0827",
+    ".claude/agents/trellis-research.md": "46e04152bd1df977ac957a8356f7d68f011ed337f7893648d3ed488c42e4b548"
   }
 }
