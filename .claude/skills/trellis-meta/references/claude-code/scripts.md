@@ -7,6 +7,7 @@ Scripts that require Claude Code CLI and hook system.
 ## Overview
 
 These scripts require:
+
 - `claude` CLI command
 - Hook system for context injection
 - `--resume` for session persistence
@@ -41,11 +42,13 @@ python3 .trellis/scripts/multi_agent/plan.py \
 ```
 
 **Options:**
+
 - `--name` - Task slug
 - `--type` - `frontend`, `backend`, `fullstack`
 - `--requirement` - Task description
 
 **Actions:**
+
 1. Creates task directory
 2. Launches Plan Agent via `claude`
 3. Plan Agent can REJECT unclear requirements
@@ -62,6 +65,7 @@ python3 .trellis/scripts/multi_agent/start.py <task-dir>
 ```
 
 **Actions:**
+
 1. Read `task.json` for branch name
 2. Create git worktree:
    ```bash
@@ -70,7 +74,7 @@ python3 .trellis/scripts/multi_agent/start.py <task-dir>
 3. Copy files from `worktree.yaml` copy list
 4. Copy task directory to worktree
 5. Run `post_create` commands
-6. Set the session-scoped active task
+6. Set `.trellis/.current-task`
 7. Start Claude Dispatch Agent:
    ```bash
    claude -p --agent dispatch \
@@ -105,6 +109,7 @@ python3 .trellis/scripts/multi_agent/status.py --registry
 ```
 
 **Output:**
+
 ```
 Active Sessions:
 ┌──────────────┬──────────┬────────────────┬──────────┬───────────┐
@@ -126,6 +131,7 @@ python3 .trellis/scripts/multi_agent/create_pr.py [--dry-run]
 ```
 
 **Actions:**
+
 1. Stage changes: `git add -A`
 2. Exclude workspace: `git reset .trellis/workspace/`
 3. Commit with conventional format
@@ -151,6 +157,7 @@ python3 .trellis/scripts/multi_agent/cleanup.py --all
 ```
 
 **Actions:**
+
 1. Archive task to `.trellis/tasks/archive/YYYY-MM/`
 2. Remove from registry
 3. Remove worktree: `git worktree remove <path>`

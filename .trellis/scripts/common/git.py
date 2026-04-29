@@ -2,6 +2,8 @@
 Git command execution utility.
 
 Single source of truth for running git commands across all Trellis scripts.
+
+Ported from upstream v0.4.0-beta.7.
 """
 
 from __future__ import annotations

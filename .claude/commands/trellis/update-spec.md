@@ -1,6 +1,6 @@
-# Update Code-Spec - Capture Executable Contracts
+# Update Spec - Capture Executable Contracts
 
-When you learn something valuable (from debugging, implementing, or discussion), use this command to update the relevant code-spec documents.
+When you learn something valuable (from debugging, implementing, or discussion), use this command to update the relevant spec documents.
 
 **Timing**: After completing a task, fixing a bug, or discovering a new pattern
 
@@ -19,13 +19,14 @@ If the change touches infra or cross-layer contracts, code-spec depth is mandato
 
 Apply code-spec depth when the change includes any of:
 - New/changed command or API signature
-- Cross-layer request/response contract change
-- Database schema/migration change
-- Infra integration (storage, queue, cache, secrets, env wiring)
+- Cross-layer request/response contract change (Python↔MATLAB)
+- Data format/schema change (CSV, Excel, MAT files)
+- Infra integration (storage, data pipeline, env wiring)
 
 ### Mandatory Output (7 Sections)
 
 For triggered tasks, include all sections below:
+
 1. Scope / Trigger
 2. Signatures (command/API/DB)
 3. Contracts (request/response/env)
@@ -36,17 +37,18 @@ For triggered tasks, include all sections below:
 
 ---
 
-## When to Update Code-Specs
+## When to Update Specs
 
 | Trigger | Example | Target Spec |
 |---------|---------|-------------|
-| **Implemented a feature** | Added template download with giget | Relevant `backend/` or `frontend/` file |
-| **Made a design decision** | Used type field + mapping table for extensibility | Relevant code-spec + "Design Decisions" section |
-| **Fixed a bug** | Found a subtle issue with error handling | `backend/error-handling.md` |
-| **Discovered a pattern** | Found a better way to structure code | Relevant `backend/` or `frontend/` file |
-| **Hit a gotcha** | Learned that X must be done before Y | Relevant code-spec + "Common Mistakes" section |
+| **Implemented a feature** | Added new data processing pipeline | Relevant `python/` or `matlab/` file |
+| **Made a design decision** | Chose approach X over Y for reliability calc | Relevant spec + "Design Decisions" section |
+| **Fixed a bug** | Found a subtle issue with error handling | `python/quality-guidelines.md` |
+| **Discovered a pattern** | Found a better way to structure code | Relevant guidelines file |
+| **Hit a gotcha** | Learned that X must be done before Y | Relevant spec + "Common Mistakes" section |
 | **Established a convention** | Team agreed on naming pattern | `quality-guidelines.md` |
-| **New thinking trigger** | "Don't forget to check X before doing Y" | `guides/*.md` (as a checklist item, not detailed rules) |
+| **Cross-layer insight** | Understood how data flows between layers | `guides/cross-layer-thinking-guide.md` |
+| **Accumulated learnings** | Multiple learnings in same area | Review `.trellis/memory/learnings.md` |
 
 **Key Insight**: Code-spec updates are NOT just for problems. Every feature implementation contains design decisions and contracts that future AI/developers need to execute safely.
 
@@ -56,13 +58,13 @@ For triggered tasks, include all sections below:
 
 ```
 .trellis/spec/
-├── backend/           # Backend coding standards
+├── python/            # Python development standards
 │   ├── index.md       # Overview and links
 │   └── *.md           # Topic-specific guidelines
-├── frontend/          # Frontend coding standards
+├── matlab/            # MATLAB development standards
 │   ├── index.md       # Overview and links
 │   └── *.md           # Topic-specific guidelines
-└── guides/            # Thinking checklists (NOT coding specs!)
+└── guides/            # Thinking guides
     ├── index.md       # Guide index
     └── *.md           # Topic-specific guides
 ```
@@ -71,20 +73,12 @@ For triggered tasks, include all sections below:
 
 | Type | Location | Purpose | Content Style |
 |------|----------|---------|---------------|
-| **Code-Spec** | `backend/*.md`, `frontend/*.md` | Tell AI "how to implement safely" | Signatures, contracts, matrices, cases, test points |
+| **Code-Spec** | `python/*.md`, `matlab/*.md` | Tell AI "how to implement safely" | Signatures, contracts, matrices, cases, test points |
 | **Guide** | `guides/*.md` | Help AI "what to think about" | Checklists, questions, pointers to specs |
 
 **Decision Rule**: Ask yourself:
-
-- "This is **how to write** the code" → Put in `backend/` or `frontend/`
+- "This is **how to write** the code" → Put in `python/` or `matlab/`
 - "This is **what to consider** before writing" → Put in `guides/`
-
-**Example**:
-
-| Learning | Wrong Location | Correct Location |
-|----------|----------------|------------------|
-| "Use `reconfigure()` not `TextIOWrapper` for Windows stdout" | ❌ `guides/cross-platform-thinking-guide.md` | ✅ `backend/script-conventions.md` |
-| "Remember to check encoding when writing cross-platform code" | ❌ `backend/script-conventions.md` | ✅ `guides/cross-platform-thinking-guide.md` |
 
 **Guides should be short checklists that point to specs**, not duplicate the detailed rules.
 
@@ -99,6 +93,7 @@ Answer these questions:
 1. **What did you learn?** (Be specific)
 2. **Why is it important?** (What problem does it prevent?)
 3. **Where does it belong?** (Which spec file?)
+4. **Check learnings.md** — Recent learnings in `.trellis/memory/learnings.md` that should become spec entries?
 
 ### Step 2: Classify the Update Type
 
@@ -112,9 +107,9 @@ Answer these questions:
 | **Convention** | Agreed-upon standard | Add to relevant section |
 | **Gotcha** | Non-obvious behavior | Add warning callout |
 
-### Step 3: Read the Target Code-Spec
+### Step 3: Read the Target Spec
 
-Before editing, read the current code-spec to:
+Before editing, read the current spec to:
 - Understand existing structure
 - Avoid duplicating content
 - Find the right section for your update
@@ -129,13 +124,12 @@ Follow these principles:
 
 1. **Be Specific**: Include concrete examples, not just abstract rules
 2. **Explain Why**: State the problem this prevents
-3. **Show Contracts**: Add signatures, payload fields, and error behavior
-4. **Show Code**: Add code snippets for key patterns
-5. **Keep it Short**: One concept per section
+3. **Show Code**: Add code snippets for patterns
+4. **Keep it Short**: One concept per section
 
 ### Step 5: Update the Index (if needed)
 
-If you added a new section or the code-spec status changed, update the category's `index.md`.
+If you added a new section or the spec status changed, update the category's `index.md`.
 
 ---
 
@@ -144,13 +138,13 @@ If you added a new section or the code-spec status changed, update the category'
 ### Mandatory Template for Infra/Cross-Layer Work
 
 ```markdown
-## Scenario: <name>
+## Scenario: <title>
 
 ### 1. Scope / Trigger
-- Trigger: <why this requires code-spec depth>
+- Trigger: <what triggered this>
 
 ### 2. Signatures
-- Backend command/API/DB signature(s)
+- Command/API/DB signature(s)
 
 ### 3. Contracts
 - Request fields (name, type, constraints)
@@ -158,7 +152,7 @@ If you added a new section or the code-spec status changed, update the category'
 - Environment keys (required/optional)
 
 ### 4. Validation & Error Matrix
-- <condition> -> <error>
+- <input> -> <error>
 
 ### 5. Good/Base/Bad Cases
 - Good: ...
@@ -166,7 +160,7 @@ If you added a new section or the code-spec status changed, update the category'
 - Bad: ...
 
 ### 6. Tests Required
-- Unit/Integration/E2E with assertion points
+- Unit/Integration with assertion points
 
 ### 7. Wrong vs Correct
 #### Wrong
@@ -188,31 +182,7 @@ If you added a new section or the code-spec status changed, update the category'
 
 **Decision**: We chose Option X because...
 
-**Example**:
-\`\`\`typescript
-// How it's implemented
-code example
-\`\`\`
-
 **Extensibility**: How to extend this in the future...
-```
-
-### Adding a Project Convention
-
-```markdown
-### Convention: [Convention Name]
-
-**What**: Brief description of the convention.
-
-**Why**: Why we do it this way in this project.
-
-**Example**:
-\`\`\`typescript
-// How to follow this convention
-code example
-\`\`\`
-
-**Related**: Links to related conventions or specs.
 ```
 
 ### Adding a New Pattern
@@ -290,21 +260,16 @@ If you're unsure what to update, answer these prompts:
    - [ ] Refactored code
    - [ ] Had a discussion about approach
 
-2. **What did you learn or decide?**
-   - Design decision (why X over Y)
-   - Project convention (how we do X)
-   - Non-obvious behavior (gotcha)
-   - Better approach (pattern)
+2. **What surprised you or was non-obvious?**
+   - (Describe the insight)
 
-3. **Would future AI/developers need to know this?**
-   - To understand how the code works → Yes, update spec
-   - To maintain or extend the feature → Yes, update spec
-   - To avoid repeating mistakes → Yes, update spec
-   - Purely one-off implementation detail → Maybe skip
+3. **Would this help someone else avoid the same problem?**
+   - Yes → Proceed to update spec
+   - No → Maybe not worth documenting
 
 4. **Which area does it relate to?**
-   - [ ] Backend code
-   - [ ] Frontend code
+   - [ ] Python code
+   - [ ] MATLAB code
    - [ ] Cross-layer data flow
    - [ ] Code organization/reuse
    - [ ] Quality/testing
@@ -313,16 +278,15 @@ If you're unsure what to update, answer these prompts:
 
 ## Quality Checklist
 
-Before finishing your code-spec update:
+Before finishing your spec update:
 
 - [ ] Is the content specific and actionable?
 - [ ] Did you include a code example?
 - [ ] Did you explain WHY, not just WHAT?
-- [ ] Did you include executable signatures/contracts?
-- [ ] Did you include validation and error matrix?
-- [ ] Did you include Good/Base/Bad cases?
-- [ ] Did you include required tests with assertion points?
-- [ ] Is it in the right code-spec file?
+- [ ] Did you include executable signatures/contracts (if infra/cross-layer)?
+- [ ] Did you include validation and error matrix (if infra/cross-layer)?
+- [ ] Did you include Good/Base/Bad cases (if infra/cross-layer)?
+- [ ] Is it in the right spec file?
 - [ ] Does it duplicate existing content?
 - [ ] Would a new team member understand it?
 
@@ -346,7 +310,7 @@ Development Flow:
 
 ## Core Philosophy
 
-> **Code-specs are living documents. Every debugging session, every "aha moment" is an opportunity to make the implementation contract clearer.**
+> **Specs are living documents. Every debugging session, every "aha moment" is an opportunity to make the spec better.**
 
 The goal is **institutional memory**:
 - What one person learns, everyone benefits from

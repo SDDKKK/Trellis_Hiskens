@@ -1,2 +1,15 @@
-# Hiskens overlay v0.5 does not exclude upstream base templates by default.
-exclude: []
+# Hiskens overlay v0.5 exclusions.
+#
+# Files listed here are present in overlays/hiskens/templates/ but should NOT
+# be installed into the user project. They serve as reference templates only
+# or are intentionally shipped for local/manual use.
+exclude:
+  # review.md is kept as a reference agent definition for manual use.
+  # Hiskens routes review work through /codex:adversarial-review instead.
+  - claude/agents/review.md
+
+  # worktree.yaml is shipped as a starting point for projects that use
+  # git worktrees, but it must be manually activated (copy to .trellis/).
+  # Auto-installing a worktree config would break projects that don't use
+  # the Hiskens worktree layout.
+  - trellis/worktree.yaml

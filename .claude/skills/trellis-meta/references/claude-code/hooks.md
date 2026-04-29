@@ -81,14 +81,16 @@ Inject initial context when a Claude Code session starts.
 ### Script: `session-start.py`
 
 **Injects:**
+
 - Developer identity from `.trellis/.developer`
 - Git status and recent commits
-- Current task (if the session-scoped resolver finds one)
+- Current task (if `.trellis/.current-task` exists)
 - `workflow.md` content
 - All `spec/*/index.md` files
 - Start instructions
 
 **Output format:**
+
 ```json
 {
   "result": "continue",
@@ -109,14 +111,16 @@ Inject relevant specs when a subagent is invoked.
 **Trigger:** When `Task(subagent_type="...")` is called.
 
 **Flow:**
+
 1. Read `subagent_type` from tool input
-2. Find active task through the session-scoped resolver
+2. Find current task from `.trellis/.current-task`
 3. Load `{subagent_type}.jsonl` from task directory
 4. Read each file listed in JSONL
 5. Build augmented prompt with context
 6. Update `task.json` with current phase
 
 **Output format:**
+
 ```json
 {
   "result": "continue",
@@ -129,7 +133,7 @@ Inject relevant specs when a subagent is invoked.
 ### JSONL Format
 
 ```jsonl
-{"file": ".trellis/spec/cli/backend/index.md", "reason": "Backend guidelines"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend guidelines"}
 {"file": "src/services/auth.ts", "reason": "Existing pattern"}
 {"file": ".trellis/tasks/01-31-add-login/prd.md", "reason": "Requirements"}
 ```
@@ -147,6 +151,7 @@ Quality enforcement via Ralph Loop.
 **Trigger:** When Check Agent tries to stop.
 
 **Flow:**
+
 1. Read verify commands from `worktree.yaml`
 2. Execute each command (pnpm lint, pnpm typecheck, etc.)
 3. If all pass → allow stop
@@ -171,13 +176,13 @@ Quality enforcement via Ralph Loop.
 
 Available in hook scripts:
 
-| Variable | Description |
-|----------|-------------|
-| `CLAUDE_PROJECT_DIR` | Project root directory |
-| `HOOK_EVENT` | Event type (SessionStart, PreToolUse, etc.) |
-| `TOOL_NAME` | Tool being called (for PreToolUse) |
-| `TOOL_INPUT` | JSON string of tool input |
-| `SUBAGENT_TYPE` | Agent type (for SubagentStop) |
+| Variable             | Description                                 |
+| -------------------- | ------------------------------------------- |
+| `CLAUDE_PROJECT_DIR` | Project root directory                      |
+| `HOOK_EVENT`         | Event type (SessionStart, PreToolUse, etc.) |
+| `TOOL_NAME`          | Tool being called (for PreToolUse)          |
+| `TOOL_INPUT`         | JSON string of tool input                   |
+| `SUBAGENT_TYPE`      | Agent type (for SubagentStop)               |
 
 ---
 
@@ -232,9 +237,9 @@ TOOL_INPUT='{"subagent_type":"implement","prompt":"test"}' \
 
 ### Common Issues
 
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| Hook not running | Wrong matcher | Check settings.json matcher |
-| Timeout | Script too slow | Increase timeout or optimize |
-| No context injected | Missing session active task | Run `task.py start` with session identity |
-| JSONL not found | Wrong task directory | Check `task.py current --source` |
+| Issue               | Cause                 | Solution                     |
+| ------------------- | --------------------- | ---------------------------- |
+| Hook not running    | Wrong matcher         | Check settings.json matcher  |
+| Timeout             | Script too slow       | Increase timeout or optimize |
+| No context injected | Missing .current-task | Run `task.py start`          |
+| JSONL not found     | Wrong task directory  | Check .current-task path     |

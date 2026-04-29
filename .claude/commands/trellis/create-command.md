@@ -101,8 +101,8 @@ Description:
 | Command Type | Prefix | Example |
 |--------------|--------|---------|
 | Session Start | `start` | `start` |
-| Pre-development | `before-` | `before-dev` |
-| Check | `check-` | `check`, `check-cross-layer` |
+| Pre-development | `before-` | `before-matlab-dev` |
+| Check | `check-` | `check-matlab` |
 | Record | `record-` | `record-session` |
 | Generate | `generate-` | `generate-api-doc` |
 | Update | `update-` | `update-changelog` |
@@ -130,11 +130,13 @@ git diff main...HEAD --name-only
 
 ### 2. Categorized Review
 
-**Frontend files** (`apps/web/`):
-- Reference `.trellis/spec/cli/frontend/index.md`
+**MATLAB files** (`MATLAB/`):
+- First discover packages with `uv run python ./.trellis/scripts/get_context.py --mode packages`
+- Reference `.trellis/spec/<package>/matlab/index.md`
 
-**Backend files** (`packages/api/`):
-- Reference `.trellis/spec/cli/backend/index.md`
+**Python files** (`src/`, `scripts/`):
+- First discover packages with `uv run python ./.trellis/scripts/get_context.py --mode packages`
+- Reference `.trellis/spec/<package>/python/index.md`
 
 ### 3. Output Review Report
 

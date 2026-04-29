@@ -31,24 +31,24 @@ Based on your change type, execute relevant checks below:
 
 ---
 
-## Dimension A: Cross-Layer Data Flow (Required when 3+ layers)
+## Dimension A: Python↔MATLAB Data Flow (Required when both languages involved)
 
-**Trigger**: Changes involve 3 or more layers
+**Trigger**: Changes involve both Python (.py) and MATLAB (.m) code
 
 | Layer | Common Locations |
 |-------|------------------|
-| API/Routes | `routes/`, `api/`, `handlers/`, `controllers/` |
-| Service/Business Logic | `services/`, `lib/`, `core/`, `domain/` |
-| Database/Storage | `db/`, `models/`, `repositories/`, `schema/` |
-| UI/Presentation | `components/`, `views/`, `templates/`, `pages/` |
-| Utility | `utils/`, `helpers/`, `common/` |
+| Python data processing | `src/`, `scripts/` (.py files) |
+| MATLAB scientific computing | `MATLAB/` (.m files) |
+| Data files / interchange | `data/`, `output/` (.mat, .csv, .json, .h5) |
+| Configuration | `config/` |
 
 **Checklist**:
-- [ ] Read flow: Database -> Service -> API -> UI
-- [ ] Write flow: UI -> API -> Service -> Database
-- [ ] Types/schemas correctly passed between layers?
-- [ ] Errors properly propagated to caller?
-- [ ] Loading/pending states handled at each layer?
+- [ ] Read flow: Data files → Python processing → MATLAB computation (or vice versa)
+- [ ] Write flow: MATLAB output → Python post-processing → Results
+- [ ] Data formats compatible between Python and MATLAB? (.mat, .csv, .json, .h5)
+- [ ] Variable naming consistent across languages?
+- [ ] Array dimensions/indexing conventions handled? (Python 0-based vs MATLAB 1-based)
+- [ ] Errors properly logged on both sides?
 
 **Detailed Guide**: `.trellis/spec/guides/cross-layer-thinking-guide.md`
 
@@ -57,7 +57,7 @@ Based on your change type, execute relevant checks below:
 ## Dimension B: Code Reuse (Required when modifying constants/config)
 
 **Trigger**: 
-- Modifying UI constants (label, icon, color)
+- Modifying shared constants or configuration values
 - Modifying any hardcoded value
 - Seeing similar code in multiple places
 - Creating a new utility/helper function
@@ -66,10 +66,10 @@ Based on your change type, execute relevant checks below:
 **Checklist**:
 - [ ] Search first: How many places define this value?
   ```bash
-  # Search in source files (adjust extensions for your project)
-  grep -r "value-to-change" src/
+  # Search in source files
+  grep -r "value-to-change" src/ MATLAB/
   ```
-- [ ] If 2+ places define same value -> Should extract to shared constant
+- [ ] If 2+ places define same value -> Should extract to shared config
 - [ ] After modification, all usage sites updated?
 - [ ] If creating utility: Does similar utility already exist?
 
@@ -84,7 +84,7 @@ Based on your change type, execute relevant checks below:
 **Checklist**:
 - [ ] Search for existing similar utilities first
   ```bash
-  grep -r "functionNamePattern" src/
+  grep -r "functionNamePattern" src/ MATLAB/
   ```
 - [ ] If similar exists, can you extend it instead?
 - [ ] If creating new, is it in the right location (shared vs domain-specific)?
@@ -98,7 +98,7 @@ Based on your change type, execute relevant checks below:
 **Checklist**:
 - [ ] Did you check ALL files with similar patterns?
   ```bash
-  grep -r "patternYouChanged" src/
+  grep -r "patternYouChanged" src/ MATLAB/
   ```
 - [ ] Any files missed that should also be updated?
 - [ ] Should this pattern be abstracted to prevent future duplication?
@@ -110,8 +110,9 @@ Based on your change type, execute relevant checks below:
 **Trigger**: Creating new source files
 
 **Checklist**:
-- [ ] Using correct import paths (relative vs absolute)?
-- [ ] No circular dependencies?
+- [ ] Python: Using correct import paths (relative vs absolute)?
+- [ ] Python: No circular dependencies?
+- [ ] MATLAB: Functions on MATLAB path? (`addpath` if needed)
 - [ ] Consistent with project's module organization?
 
 ---
@@ -125,7 +126,7 @@ Based on your change type, execute relevant checks below:
 **Checklist**:
 - [ ] Search for other places using same concept
   ```bash
-  grep -r "ConceptName" src/
+  grep -r "ConceptName" src/ MATLAB/
   ```
 - [ ] Are these usages consistent?
 - [ ] Should they share configuration/constants?
@@ -137,11 +138,11 @@ Based on your change type, execute relevant checks below:
 | Issue | Root Cause | Prevention |
 |-------|------------|------------|
 | Changed one place, missed others | Didn't search impact scope | `grep` before changing |
-| Data lost at some layer | Didn't check data flow | Trace data source to destination |
-| Type/schema mismatch | Cross-layer types inconsistent | Use shared type definitions |
-| UI/output inconsistent | Same concept in multiple places | Extract shared constants |
+| Data lost between Python↔MATLAB | Format mismatch or index offset | Verify data interchange format |
+| Variable naming mismatch | Inconsistent across languages | Use shared naming convention |
 | Similar utility exists | Didn't search first | Search before creating |
 | Batch fix incomplete | Didn't verify all occurrences | grep after fixing |
+| Array index off-by-one | Python 0-based vs MATLAB 1-based | Document index conventions |
 
 ---
 

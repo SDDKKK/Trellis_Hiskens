@@ -8,13 +8,13 @@ Add a new agent type like `my-agent`.
 
 ## Files to Modify
 
-| File | Action | Required |
-|------|--------|----------|
-| `.claude/agents/my-agent.md` | Create | Yes |
-| `.claude/hooks/inject-subagent-context.py` | Modify | Yes |
-| `.trellis/tasks/{template}/my-agent.jsonl` | Create | Yes |
-| `trellis-local/SKILL.md` | Update | Yes |
-| `.claude/agents/dispatch.md` | Modify | If adding to pipeline |
+| File                                       | Action | Required              |
+| ------------------------------------------ | ------ | --------------------- |
+| `.claude/agents/my-agent.md`               | Create | Yes                   |
+| `.claude/hooks/inject-subagent-context.py` | Modify | Yes                   |
+| `.trellis/tasks/{template}/my-agent.jsonl` | Create | Yes                   |
+| `trellis-local/SKILL.md`                   | Update | Yes                   |
+| `.claude/agents/dispatch.md`               | Modify | If adding to pipeline |
 
 ---
 
@@ -59,12 +59,12 @@ What the agent should produce.
 
 ### Agent Definition Fields
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | Yes | Agent identifier |
-| `description` | Yes | What the agent does |
-| `tools` | Yes | Allowed tools |
-| `model` | No | Model to use (opus, sonnet) |
+| Field         | Required | Description                 |
+| ------------- | -------- | --------------------------- |
+| `name`        | Yes      | Agent identifier            |
+| `description` | Yes      | What the agent does         |
+| `tools`       | Yes      | Allowed tools               |
+| `model`       | No       | Model to use (opus, sonnet) |
 
 ---
 
@@ -165,6 +165,7 @@ Add handling for the new phase:
 ...
 
 ### my-agent Phase
+
 - Call `Task(subagent_type="my-agent")`
 - Wait for completion
 - Proceed to next phase
@@ -182,6 +183,7 @@ Update `.claude/skills/trellis-local/SKILL.md`:
 ### Added Agents
 
 #### my-agent
+
 - **File**: `.claude/agents/my-agent.md`
 - **Platform**: [CC]
 - **Purpose**: What it does
@@ -192,6 +194,7 @@ Update `.claude/skills/trellis-local/SKILL.md`:
 ### Hooks Changed
 
 #### inject-subagent-context.py
+
 - **Change**: Added support for `my-agent` type
 - **Lines modified**: XX-YY
 - **Date**: 2026-01-31

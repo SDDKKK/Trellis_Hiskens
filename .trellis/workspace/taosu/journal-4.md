@@ -1867,3 +1867,74 @@ Installed trellis-meta as a bundled built-in skill, hardened Pi subagent launch/
 ### Next Steps
 
 - None - task complete
+
+
+## Session 135: Fix parent-child task progress regression on child archive
+
+**Date**: 2026-04-29
+**Task**: Fix parent-child task progress regression on child archive
+**Branch**: `feat/v0.5.0-beta`
+
+### Summary
+
+Children list was being pruned on archive, shrinking both numerator and denominator in children_progress and hiding completed work. Stop pruning; treat archived (missing-from-active) entries as done. Sync to template source. Document invariant in script-conventions spec.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e25d7db` | (see git log) |
+| `4d550d0` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 136: Redesign Phase 3.4 commit + /finish-work refocuses on record-session
+
+**Date**: 2026-04-29
+**Task**: Redesign Phase 3.4 commit + /finish-work refocuses on record-session
+**Branch**: `feat/v0.5.0-beta`
+
+### Summary
+
+Re-brainstormed the rolled-back 04-22 task and locked in option 2: workflow.md gains Phase 3.4 (AI-driven batched commit with one-shot user confirmation), and /trellis:finish-work refocuses on archive + journal, refusing to run on a dirty working tree. Updated workflow.md (canonical + local + bundled-skill copy), rewrote finish-work skill across common/copilot/codex variants, refreshed the [workflow-state:completed] breadcrumb in workflow.md and the four hook fallbacks. Used CMD_REF placeholder so platform-specific prefixes resolve correctly. Side fix: vitest test/setup.ts strips host-shell TRELLIS_CONTEXT_ID and OPENCODE_RUN_ID env vars at process start, eliminating 6 deterministic test failures caused by Claude/OpenCode session env leaking into the resolver. Documented the env-isolation pattern in unit-test/conventions.md.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `d2849f9` | (see git log) |
+| `a97b649` | (see git log) |
+| `ff07846` | (see git log) |
+| `1aa2a13` | (see git log) |
+| `446379e` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

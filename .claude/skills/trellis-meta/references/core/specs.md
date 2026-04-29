@@ -8,26 +8,21 @@ Maintain coding standards that guide AI development.
 
 ```
 .trellis/spec/
-├── cli/                        # Per-package specs (e.g. packages/cli/)
-│   ├── frontend/               # Frontend guidelines
-│   │   ├── index.md
-│   │   ├── component-guidelines.md
-│   │   ├── hook-guidelines.md
-│   │   ├── state-management.md
-│   │   └── ...
-│   │
-│   ├── backend/                # Backend guidelines
-│   │   ├── index.md
-│   │   ├── directory-structure.md
-│   │   ├── error-handling.md
-│   │   ├── api-patterns.md
-│   │   └── ...
-│   │
-│   └── unit-test/              # Unit test guidelines
-│       ├── index.md
-│       └── ...
+├── frontend/                   # Frontend guidelines
+│   ├── index.md                # Overview and quick reference
+│   ├── component-guidelines.md
+│   ├── hook-guidelines.md
+│   ├── state-management.md
+│   └── ...
 │
-└── guides/                     # Thinking guides (cross-package)
+├── backend/                    # Backend guidelines
+│   ├── index.md
+│   ├── directory-structure.md
+│   ├── error-handling.md
+│   ├── api-patterns.md
+│   └── ...
+│
+└── guides/                     # Thinking guides
     ├── index.md
     ├── cross-layer-thinking-guide.md
     ├── code-reuse-thinking-guide.md
@@ -38,18 +33,20 @@ Maintain coding standards that guide AI development.
 
 ## Spec Categories
 
-### Frontend (`cli/frontend/`)
+### Frontend (`frontend/`)
 
 UI and client-side patterns:
+
 - Component structure
 - React hooks usage
 - State management
 - Styling conventions
 - Accessibility
 
-### Backend (`cli/backend/`)
+### Backend (`backend/`)
 
 Server-side patterns:
+
 - Directory structure
 - API design
 - Error handling
@@ -59,6 +56,7 @@ Server-side patterns:
 ### Guides (`guides/`)
 
 Cross-cutting thinking guides:
+
 - How to think about cross-layer changes
 - Code reuse strategies
 - Platform considerations
@@ -68,6 +66,7 @@ Cross-cutting thinking guides:
 ## Index Files
 
 Each category has an `index.md` that:
+
 1. Provides category overview
 2. Lists all specs in the category
 3. Gives quick reference for common patterns
@@ -79,11 +78,11 @@ Each category has an `index.md` that:
 
 ## Quick Reference
 
-| Topic | Guideline |
-|-------|-----------|
-| Components | Functional components only |
-| State | Use React Query for server state |
-| Styling | Tailwind CSS |
+| Topic      | Guideline                        |
+| ---------- | -------------------------------- |
+| Components | Functional components only       |
+| State      | Use React Query for server state |
+| Styling    | Tailwind CSS                     |
 
 ## Specifications
 
@@ -96,33 +95,41 @@ Each category has an `index.md` that:
 
 ## Spec File Format
 
-```markdown
+````markdown
 # [Spec Title]
 
 ## Overview
+
 Brief description of what this spec covers.
 
 ## Guidelines
 
 ### 1. [Guideline Name]
+
 Detailed explanation...
 
 **Do:**
+
 ```typescript
 // Good example
 ```
+````
 
 **Don't:**
+
 ```typescript
 // Bad example
 ```
 
 ### 2. [Another Guideline]
+
 ...
 
 ## Related Specs
+
 - [Related Spec 1](./related-spec.md)
-```
+
+````
 
 ---
 
@@ -133,13 +140,14 @@ Detailed explanation...
 Reference specs in task context:
 
 ```jsonl
-{"file": ".trellis/spec/cli/frontend/index.md", "reason": "Frontend overview"}
-{"file": ".trellis/spec/cli/frontend/component-guidelines.md", "reason": "Component patterns"}
-```
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend overview"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Component patterns"}
+````
 
 ### Manual Reading (Cursor)
 
 Read specs at session start:
+
 ```
 1. Read .trellis/spec/{category}/index.md
 2. Read specific guidelines as needed
@@ -159,7 +167,7 @@ Read specs at session start:
 ### 2. Create Spec File
 
 ```bash
-touch .trellis/spec/cli/frontend/new-pattern.md
+touch .trellis/spec/frontend/new-pattern.md
 ```
 
 ### 3. Follow Format
@@ -172,6 +180,7 @@ Add to category's `index.md`:
 
 ```markdown
 ## Specifications
+
 ...
 N. [New Pattern](./new-pattern.md)
 ```

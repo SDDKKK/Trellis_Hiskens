@@ -51,42 +51,43 @@ The key differentiator is **hooks support** - Claude Code's hook system enables 
 
 These features work on all platforms because they're file-based.
 
-| Feature | Location | Description |
-|---------|----------|-------------|
-| Workspace system | `.trellis/workspace/` | Journals, session history |
-| Task system | `.trellis/tasks/` | Task tracking, requirements |
-| Spec system | `.trellis/spec/` | Coding guidelines |
-| Slash commands | `.claude/commands/` | Command prompts (read manually on Cursor) |
-| JSONL context | `*.jsonl` in task dirs | Context file lists |
-| Developer identity | `.trellis/.developer` | Who is working |
-| Current task | `.trellis/.runtime/sessions/` | Session-scoped active task state |
+| Feature            | Location                 | Description                               |
+| ------------------ | ------------------------ | ----------------------------------------- |
+| Workspace system   | `.trellis/workspace/`    | Journals, session history                 |
+| Task system        | `.trellis/tasks/`        | Task tracking, requirements               |
+| Spec system        | `.trellis/spec/`         | Coding guidelines                         |
+| Slash commands     | `.claude/commands/`      | Command prompts (read manually on Cursor) |
+| JSONL context      | `*.jsonl` in task dirs   | Context file lists                        |
+| Developer identity | `.trellis/.developer`    | Who is working                            |
+| Current task       | `.trellis/.current-task` | Active task pointer                       |
 
 **Cursor workaround**: Manually read these files at session start.
 
 ### Layer 2: Agents (Claude Code Full, Cursor Limited)
 
-| Feature | Claude Code | Cursor |
-|---------|-------------|--------|
-| Agent definitions | Auto-loaded via `--agent` flag | Read `.claude/agents/*.md` manually |
-| Task tool | Full subagent support | No Task tool |
-| Context injection | Automatic via hooks | Manual copy-paste |
-| Agent restrictions | Enforced by definition | Honor code only |
+| Feature            | Claude Code                    | Cursor                              |
+| ------------------ | ------------------------------ | ----------------------------------- |
+| Agent definitions  | Auto-loaded via `--agent` flag | Read `.claude/agents/*.md` manually |
+| Task tool          | Full subagent support          | No Task tool                        |
+| Context injection  | Automatic via hooks            | Manual copy-paste                   |
+| Agent restrictions | Enforced by definition         | Honor code only                     |
 
 **Cursor workaround**:
+
 1. Read the agent definition file manually
 2. Copy relevant context from JSONL files
 3. Follow agent restrictions manually
 
 ### Layer 3: Automation (Claude Code Only)
 
-| Feature | Dependency | Why Claude Code Only |
-|---------|------------|---------------------|
-| SessionStart hook | `.claude/settings.json` | Claude Code hook system |
-| PreToolUse hook | Hook system | Intercepts tool calls |
-| SubagentStop hook | Hook system | Controls agent lifecycle |
-| Auto context injection | PreToolUse:Task | Hooks inject JSONL content |
-| Ralph Loop | SubagentStop:check | Blocks agent until verify passes |
-| Multi-Session | claude CLI + hooks | `claude --resume`, worktree scripts |
+| Feature                | Dependency              | Why Claude Code Only                |
+| ---------------------- | ----------------------- | ----------------------------------- |
+| SessionStart hook      | `.claude/settings.json` | Claude Code hook system             |
+| PreToolUse hook        | Hook system             | Intercepts tool calls               |
+| SubagentStop hook      | Hook system             | Controls agent lifecycle            |
+| Auto context injection | PreToolUse:Task         | Hooks inject JSONL content          |
+| Ralph Loop             | SubagentStop:check      | Blocks agent until verify passes    |
+| Multi-Session          | claude CLI + hooks      | `claude --resume`, worktree scripts |
 
 **No workaround**: These features fundamentally require Claude Code's hook system.
 
@@ -111,13 +112,13 @@ Claude Code executes these hooks at specific lifecycle points. No other platform
 
 ### CLI Features
 
-| Command | Purpose |
-|---------|---------|
-| `claude --agent <name>` | Load agent definition |
-| `claude --resume <id>` | Resume session |
-| `claude -p` | Print mode (non-interactive) |
-| `claude --dangerously-skip-permissions` | Automation mode |
-| `claude --output-format stream-json` | Machine-readable output |
+| Command                                 | Purpose                      |
+| --------------------------------------- | ---------------------------- |
+| `claude --agent <name>`                 | Load agent definition        |
+| `claude --resume <id>`                  | Resume session               |
+| `claude -p`                             | Print mode (non-interactive) |
+| `claude --dangerously-skip-permissions` | Automation mode              |
+| `claude --output-format stream-json`    | Machine-readable output      |
 
 ### Task Tool
 
@@ -150,10 +151,10 @@ For teams using Cursor, here's how to get partial Trellis benefits:
 1. Session Start
    - Read .trellis/workflow.md
    - Read relevant specs from .trellis/spec/
-   - Run `task.py current --source`
+   - Check .trellis/.current-task
 
 2. Before Implementation
-   - Read implement.jsonl for session files
+   - Read implement.jsonl for context files
    - Manually read each file listed
    - Follow spec guidelines
 
@@ -183,12 +184,12 @@ To support OpenCode, we would need:
 
 ### Potential Approaches
 
-| Approach | Pros | Cons |
-|----------|------|------|
-| Native integration | Best UX, full features | Requires OpenCode changes |
-| Adapter layer | Works with current OpenCode | Maintenance burden |
-| File-based polling | No OpenCode changes needed | Hacky, latency issues |
-| MCP server | Standard protocol | May not cover all hooks |
+| Approach           | Pros                        | Cons                      |
+| ------------------ | --------------------------- | ------------------------- |
+| Native integration | Best UX, full features      | Requires OpenCode changes |
+| Adapter layer      | Works with current OpenCode | Maintenance burden        |
+| File-based polling | No OpenCode changes needed  | Hacky, latency issues     |
+| MCP server         | Standard protocol           | May not cover all hooks   |
 
 ### Minimum Viable Support
 
@@ -204,17 +205,17 @@ Without hooks, only Layer 1 (persistence) features would work.
 
 ## Version Compatibility Matrix
 
-| Trellis Version | Claude Code | Cursor | OpenCode |
-|-----------------|-------------|--------|----------|
-| 0.3.x | Full support | Partial | Not supported |
-| 0.4.x (planned) | Full support | Partial | TBD |
+| Trellis Version | Claude Code  | Cursor  | OpenCode      |
+| --------------- | ------------ | ------- | ------------- |
+| 0.3.x           | Full support | Partial | Not supported |
+| 0.4.x (planned) | Full support | Partial | TBD           |
 
 ### Breaking Changes
 
-| Version | Change | Impact |
-|---------|--------|--------|
-| 0.3.0 | New hook format | Update settings.json |
-| 0.3.0-beta.3 | worktree.yaml schema | Update config |
+| Version      | Change               | Impact               |
+| ------------ | -------------------- | -------------------- |
+| 0.3.0        | New hook format      | Update settings.json |
+| 0.3.0-beta.3 | worktree.yaml schema | Update config        |
 
 ---
 

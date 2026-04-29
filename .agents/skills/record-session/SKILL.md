@@ -1,29 +1,20 @@
 ---
 name: record-session
-description: "Records completed work progress to .trellis/workspace/ journal files after human testing and commit. Captures session summaries, commit hashes, and updates developer index files for future session context. Use when a coding session is complete, after the human has committed code, or to persist session knowledge for future AI sessions."
+description: "Method 1: Simple parameters"
 ---
 
-[!] **Prerequisite**: This skill should only be used AFTER the human has tested and committed the code.
+[!] **Prerequisite**: This command should only be used AFTER the human has tested and committed the code.
 
-**Do NOT run `git commit` directly** — the scripts below handle their own commits for `.trellis/` metadata. You only need to read git history (`git log`, `git status`, `git diff`) and run the Python scripts.
+**AI must NOT execute git commit** - only read history (`git log`, `git status`, `git diff`).
 
 ---
 
-## Record Work Progress
+## Record Work Progress (Simplified - Only 2 Steps)
 
-### Step 1: Get Context & Check Tasks
-
-```bash
-python3 ./.trellis/scripts/get_context.py --mode record
-```
-
-[!] Archive tasks whose work is **actually done** — judge by work status, not the `status` field in task.json:
-- Code committed? → Archive it (don't wait for PR)
-- All acceptance criteria met? → Archive it
-- Don't skip archiving just because `status` still says `planning` or `in_progress`
+### Step 1: Get Context
 
 ```bash
-python3 ./.trellis/scripts/task.py archive <task-name>
+python3 ./.trellis/scripts/get_context.py
 ```
 
 ### Step 2: One-Click Add Session
@@ -35,8 +26,15 @@ python3 ./.trellis/scripts/add_session.py \
   --commit "hash1,hash2" \
   --summary "Brief summary of what was done"
 
-# Method 2: Pass detailed content via stdin
-cat << 'EOF' | python3 ./.trellis/scripts/add_session.py --stdin --title "Title" --commit "hash"
+# Method 2: With learning (captures knowledge for future sessions)
+python3 ./.trellis/scripts/add_session.py \
+  --title "Session Title" \
+  --commit "hash1,hash2" \
+  --summary "Brief summary" \
+  --learning "Discovered that X must be done before Y because..."
+
+# Method 3: Pass detailed content via stdin
+cat << 'EOF' | python3 ./.trellis/scripts/add_session.py --title "Title" --commit "hash"
 | Feature | Description |
 |---------|-------------|
 | New API | Added user authentication endpoint |
@@ -51,9 +49,28 @@ EOF
 **Auto-completes**:
 - [OK] Appends session to journal-N.md
 - [OK] Auto-detects line count, creates new file if >2000 lines
-- [OK] Auto-detects Branch context (`--branch` override; otherwise Branch = task.json -> current git branch; missing values are omitted gracefully)
 - [OK] Updates index.md (Total Sessions +1, Last Active, line stats, history)
-- [OK] Auto-commits .trellis/workspace and .trellis/tasks changes
+
+---
+
+## Step 3: Nocturne Memory Check
+
+> **Note**: Nocturne updates should have been done in `$trellis:finish-work` Step 6.
+> Only run this if finish-work was skipped or you have additional learnings from the commit/test cycle.
+
+If you still need to promote learnings:
+1. Read: `read_memory("trellis://projects/<project-id>/learnings")`
+2. Append: `update_memory(uri, append="## Title (Session N)\n\nContent...")`
+
+---
+
+## Archive Completed Task (if any)
+
+If a task was completed this session:
+
+```bash
+python3 ./.trellis/scripts/task.py archive <task-name>
+```
 
 ---
 
@@ -61,7 +78,8 @@ EOF
 
 | Command | Purpose |
 |---------|---------|
-| `python3 ./.trellis/scripts/get_context.py --mode record` | Get context for record-session |
-| `python3 ./.trellis/scripts/add_session.py --title "..." --commit "..."` | **One-click add session (recommended)** |
-| `python3 ./.trellis/scripts/task.py archive <name>` | Archive completed task (auto-commits) |
-| `python3 ./.trellis/scripts/task.py list` | List active tasks |
+| `get_context.py` | Get all context info |
+| `add_session.py --title "..." --commit "..."` | **One-click add session (recommended)** |
+| `task.py create "<title>" [--slug <name>]` | Create new task directory |
+| `task.py archive <name>` | Archive completed task |
+| `task.py list` | List active tasks |

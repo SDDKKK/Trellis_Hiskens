@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Multi-Platform Sub-Agent Context Injection Hook
+Trellis v0.5 Agent Context Injection Hook
 
-Injects task-specific context when sub-agents (implement, check, research) are spawned.
+Injects task-specific context for upstream Trellis agents (trellis-implement,
+trellis-check, trellis-research) without installing custom standalone agents.
 
 Core Design Philosophy:
-- Hook is responsible for injecting all context, subagent works autonomously with complete info
-- Each agent has a dedicated jsonl file defining its context
-- No resume needed, no segmentation, behavior controlled by code not prompt
+- Hook injects curated task context while upstream Trellis owns agent behavior
+- Task context files define the relevant implementation/checking inputs
+- CCR routing is injected as a lightweight model tag, not as a workflow fork
 
 Trigger: PreToolUse (before Task tool call)
 
@@ -50,7 +51,7 @@ DIR_SPEC = "spec"
 FILE_TASK_JSON = "task.json"
 
 # =============================================================================
-# Subagent Constants (change here to rename subagent types)
+# Trellis agent constants (change here only if upstream agent names change)
 # =============================================================================
 
 AGENT_IMPLEMENT = "trellis-implement"
@@ -128,6 +129,91 @@ def get_current_task(repo_root: str, input_data: dict) -> str | None:
         platform=_detect_platform(input_data),
     )
     return active.task_path
+
+
+
+def _load_features(repo_root: str) -> dict[str, bool]:
+    """Load Trellis feature flags with a tiny YAML parser.
+
+    Hooks must degrade gracefully because they run inside editor/agent hook
+    processes where optional project modules may not be importable yet.
+    """
+    config_path = Path(repo_root) / DIR_WORKFLOW / "config.yaml"
+    if not config_path.is_file():
+        return {}
+    try:
+        content = config_path.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+
+    features: dict[str, bool] = {}
+    in_features = False
+    for line in content.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("features"):
+            in_features = True
+            continue
+        if not in_features:
+            continue
+        if line[0] not in (" ", "\t"):
+            break
+        if ":" not in stripped:
+            continue
+        key, _, value = stripped.partition(":")
+        normalized = value.strip().lower()
+        if normalized in ("true", "yes", "1"):
+            features[key.strip()] = True
+        elif normalized in ("false", "no", "0", "", "[]"):
+            features[key.strip()] = False
+        else:
+            features[key.strip()] = bool(normalized)
+    return features
+
+
+def _ccr_model_keys(subagent_type: str) -> tuple[str, ...]:
+    aliases = {
+        AGENT_IMPLEMENT: (AGENT_IMPLEMENT, "implement"),
+        AGENT_CHECK: (AGENT_CHECK, "check"),
+        AGENT_RESEARCH: (AGENT_RESEARCH, "research"),
+        "implement": (AGENT_IMPLEMENT, "implement"),
+        "check": (AGENT_CHECK, "check"),
+        "research": (AGENT_RESEARCH, "research"),
+    }
+    return aliases.get(subagent_type, (subagent_type,))
+
+
+def get_ccr_model_tag(repo_root: str, subagent_type: str) -> str:
+    """Return a Claude Code Router model tag for v0.5 Trellis agents.
+
+    Injection is active only when all guardrails are true:
+    - .trellis/config.yaml has features.ccr_routing: true
+    - ANTHROPIC_BASE_URL points at localhost / 127.0.0.1
+    - .trellis/config/agent-models.json exists and contains a model mapping
+
+    The mapping accepts canonical v0.5 names plus legacy aliases:
+    trellis-implement/implement, trellis-check/check, trellis-research/research.
+    """
+    if not _load_features(repo_root).get("ccr_routing", False):
+        return ""
+    base_url = os.environ.get("ANTHROPIC_BASE_URL", "")
+    if "127.0.0.1" not in base_url and "localhost" not in base_url:
+        return ""
+    config_path = Path(repo_root) / DIR_WORKFLOW / "config" / "agent-models.json"
+    if not config_path.is_file():
+        return ""
+    try:
+        mapping = json.loads(config_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return ""
+    if not isinstance(mapping, dict):
+        return ""
+    for key in _ccr_model_keys(subagent_type):
+        model = mapping.get(key)
+        if isinstance(model, str) and model.strip():
+            return f"<CCR-SUBAGENT-MODEL>{model.strip()}</CCR-SUBAGENT-MODEL>\n"
+    return ""
 
 
 def read_file_content(base_path: str, file_path: str) -> str | None:
@@ -331,7 +417,7 @@ def build_implement_prompt(original_prompt: str, context: str) -> str:
     """Build complete prompt for Implement"""
     return f"""# Implement Agent Task
 
-You are the Implement Agent in the Multi-Agent Pipeline.
+You are trellis-implement in the upstream Trellis v0.5 workflow.
 
 ## Your Context
 
@@ -365,7 +451,7 @@ def build_check_prompt(original_prompt: str, context: str) -> str:
     """Build complete prompt for Check"""
     return f"""# Check Agent Task
 
-You are the Check Agent in the Multi-Agent Pipeline (code and cross-layer checker).
+You are trellis-check in the upstream Trellis v0.5 workflow (code and cross-layer checker).
 
 ## Your Context
 
@@ -486,7 +572,7 @@ def build_research_prompt(original_prompt: str, context: str) -> str:
     """Build complete prompt for Research"""
     return f"""# Research Agent Task
 
-You are the Research Agent in the Multi-Agent Pipeline (search researcher).
+You are trellis-research in the upstream Trellis v0.5 workflow (search researcher).
 
 ## Core Principle
 
@@ -659,6 +745,24 @@ def _parse_hook_input(input_data: dict) -> tuple[str, str, dict]:
     return "", "", tool_input
 
 
+
+def emit_updated_prompt(tool_input: dict, new_prompt: str) -> None:
+    """Emit an updated hook payload in all platform formats used by v0.5."""
+    updated = {**tool_input, "prompt": new_prompt}
+    output = {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "allow",
+            "updatedInput": updated,
+        },
+        "permission": "allow",
+        "updated_input": updated,
+        "updatedInput": updated,
+    }
+    print(json.dumps(output, ensure_ascii=False))
+    sys.exit(0)
+
+
 def main():
     try:
         input_data = json.load(sys.stdin)
@@ -677,16 +781,24 @@ def main():
     if not repo_root:
         sys.exit(0)
 
+    ccr_tag = get_ccr_model_tag(repo_root, subagent_type)
+
     # Get current task directory (research doesn't require it)
     task_dir = get_current_task(repo_root, input_data)
 
-    # implement/check need task directory
+    # implement/check need task directory for Trellis context. If CCR is active,
+    # still emit a tag-only prompt so router selection works for ad-hoc subagent
+    # calls that are not tied to a Trellis task yet.
     if subagent_type in AGENTS_REQUIRE_TASK:
         if not task_dir:
+            if ccr_tag:
+                emit_updated_prompt(tool_input, ccr_tag + original_prompt)
             sys.exit(0)
         # Check if task directory exists
         task_dir_full = os.path.join(repo_root, task_dir)
         if not os.path.exists(task_dir_full):
+            if ccr_tag:
+                emit_updated_prompt(tool_input, ccr_tag + original_prompt)
             sys.exit(0)
 
     # Check for [finish] marker in prompt (check agent with finish context)
@@ -715,28 +827,14 @@ def main():
         sys.exit(0)
 
     if not context:
+        if ccr_tag:
+            emit_updated_prompt(tool_input, ccr_tag + original_prompt)
         sys.exit(0)
 
-    # Return updated input — use a multi-format output that covers all platforms.
-    # Most platforms ignore unrecognized fields, so we include multiple formats.
-    # The platform picks whichever fields it understands.
-    updated = {**tool_input, "prompt": new_prompt}
-    output = {
-        # Claude Code / Qoder / CodeBuddy / Droid format
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "allow",
-            "updatedInput": updated,
-        },
-        # Cursor format
-        "permission": "allow",
-        "updated_input": updated,
-        # Gemini format
-        "updatedInput": updated,
-    }
+    if ccr_tag:
+        new_prompt = ccr_tag + new_prompt
 
-    print(json.dumps(output, ensure_ascii=False))
-    sys.exit(0)
+    emit_updated_prompt(tool_input, new_prompt)
 
 
 if __name__ == "__main__":

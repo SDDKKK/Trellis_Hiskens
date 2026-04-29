@@ -6,51 +6,55 @@ Add a new session to journal file and update index.md.
 Usage:
     python3 add_session.py --title "Title" --commit "hash" --summary "Summary" [--package cli]
     python3 add_session.py --title "Title" --branch "feat/my-branch"
-
-    # Pipe detailed content via stdin (use --stdin to opt in):
-    cat << 'EOF' | python3 add_session.py --stdin --title "Title" --summary "Summary"
-    <session content here>
-    EOF
-
-Branch resolution order:
-    1. --branch CLI arg (explicit)
-    2. task.json branch field (from active task)
-    3. git branch --show-current (auto-detect)
-    4. None (omitted gracefully)
+    echo "content" | python3 add_session.py --title "Title" --commit "hash"
 """
 
 from __future__ import annotations
 
+import sys
+
+# IMPORTANT: Force stdout to use UTF-8 on Windows
+# This fixes UnicodeEncodeError when outputting non-ASCII characters
+if sys.platform == "win32":
+    import io as _io
+
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+    elif hasattr(sys.stdout, "detach"):
+        sys.stdout = _io.TextIOWrapper(
+            sys.stdout.detach(), encoding="utf-8", errors="replace"
+        )  # type: ignore[union-attr]
+
 import argparse
 import re
 import subprocess
-import sys
 from datetime import datetime
 from pathlib import Path
 
-from common.paths import (
-    FILE_JOURNAL_PREFIX,
-    get_repo_root,
-    get_current_task,
-    get_developer,
-    get_workspace_dir,
-)
-from common.developer import ensure_developer
-from common.git import run_git
-from common.tasks import load_task
 from common.config import (
-    get_packages,
-    get_session_commit_message,
     get_max_journal_lines,
+    get_packages,
     is_monorepo,
     resolve_package,
     validate_package,
 )
-
+from common.developer import ensure_developer
+from common.git import run_git
+from common.paths import (
+    FILE_JOURNAL_PREFIX,
+    FILE_LEARNINGS,
+    ensure_memory_dir,
+    get_current_task,
+    get_developer,
+    get_repo_root,
+    get_workspace_dir,
+)
+from common.tasks import load_task
 
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
 
 def get_latest_journal_info(dev_dir: Path) -> tuple[Path | None, int, int]:
     """Get latest journal file info.
@@ -107,7 +111,7 @@ def count_journal_files(dev_dir: Path, active_num: int) -> str:
     files = sorted(
         [f for f in dev_dir.glob(f"{FILE_JOURNAL_PREFIX}*.md") if f.is_file()],
         key=lambda f: _extract_journal_num(f.stem),
-        reverse=True
+        reverse=True,
     )
 
     for f in files:
@@ -120,7 +124,7 @@ def count_journal_files(dev_dir: Path, active_num: int) -> str:
 
 
 def create_new_journal_file(
-    dev_dir: Path, num: int, developer: str, today: str, max_lines: int = 2000,
+    dev_dir: Path, num: int, developer: str, today: str, max_lines: int = 2000
 ) -> Path:
     """Create a new journal file."""
     prev_num = num - 1
@@ -202,7 +206,6 @@ def update_index(
     new_session: int,
     active_file: str,
     today: str,
-    branch: str | None = None,
 ) -> bool:
     """Update index.md with new session info."""
     # Format commit for display
@@ -224,7 +227,10 @@ def update_index(
     content = index_file.read_text(encoding="utf-8")
 
     if "@@@auto:current-status" not in content:
-        print("Error: Markers not found in index.md. Please ensure markers exist.", file=sys.stderr)
+        print(
+            "Error: Markers not found in index.md. Please ensure markers exist.",
+            file=sys.stderr,
+        )
         return False
 
     # Process sections
@@ -281,25 +287,12 @@ def update_index(
             continue
 
         if in_session_history:
-            # Migrate old 4/6-column headers to 5-column Branch-only history.
-            if re.match(
-                r"^\|\s*#\s*\|\s*Date\s*\|\s*Title\s*\|\s*Commits\s*\|\s*Branch\s*\|\s*Base Branch\s*\|\s*$",
-                line,
-            ):
-                new_lines.append("| # | Date | Title | Commits | Branch |")
-                continue
-            if re.match(r"^\|\s*#\s*\|\s*Date\s*\|\s*Title\s*\|\s*Commits\s*\|\s*Branch\s*\|\s*$", line):
-                new_lines.append("| # | Date | Title | Commits | Branch |")
-                continue
-            if re.match(r"^\|\s*#\s*\|\s*Date\s*\|\s*Title\s*\|\s*Commits\s*\|\s*$", line):
-                new_lines.append("| # | Date | Title | Commits | Branch |")
-                continue
-            if re.match(r"^\|[-| ]+\|\s*$", line) and not header_written:
-                new_lines.append("|---|------|-------|---------|--------|")
-                new_lines.append(f"| {new_session} | {today} | {title} | {commit_display} | `{branch or '-'}` |")
-                header_written = True
-                continue
             new_lines.append(line)
+            if re.match(r"^\|\s*-", line) and not header_written:
+                new_lines.append(
+                    f"| {new_session} | {today} | {title} | {commit_display} |"
+                )
+                header_written = True
             continue
 
         new_lines.append(line)
@@ -310,40 +303,98 @@ def update_index(
 
 
 # =============================================================================
-# Main Function
+# Learning Functions (Mod 3: Knowledge Harvesting)
 # =============================================================================
 
-def _auto_commit_workspace(repo_root: Path) -> None:
-    """Stage .trellis/workspace and .trellis/tasks, then commit with a configured message."""
-    commit_msg = get_session_commit_message(repo_root)
-    add_result = subprocess.run(
-        ["git", "add", "-A", ".trellis/workspace", ".trellis/tasks"],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
+
+def append_learning(repo_root: Path, title: str, learning_text: str) -> int | None:
+    """Append a learning entry to memory/learnings.md.
+
+    Args:
+        repo_root: Repository root path.
+        title: Session title (used as learning header).
+        learning_text: The learning content to append.
+
+    Returns:
+        The 1-based index of the new learning entry, or None on failure.
+    """
+    memory_dir = ensure_memory_dir(repo_root)
+    learnings_file = memory_dir / FILE_LEARNINGS
+
+    if not learnings_file.is_file():
+        print(
+            f"[WARN] {FILE_LEARNINGS} not found in memory dir, skipping",
+            file=sys.stderr,
+        )
+        return None
+
+    # Count existing entries to determine new index
+    content = learnings_file.read_text(encoding="utf-8")
+    entry_count = len(re.findall(r"^## \d", content, re.MULTILINE))
+    new_index = entry_count + 1
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    entry = (
+        f"\n## {today}: {title}\n\n"
+        f"**Category**: (pattern|gotcha|convention|mistake)\n\n"
+        f"{learning_text}\n"
     )
-    if add_result.returncode != 0:
-        print(f"[WARN] git add failed (exit {add_result.returncode}): {add_result.stderr.strip()}", file=sys.stderr)
-        print("[WARN] Please commit .trellis/ changes manually: git add .trellis && git commit", file=sys.stderr)
+
+    with learnings_file.open("a", encoding="utf-8") as f:
+        f.write(entry)
+
+    print(f"[OK] Learning appended to {FILE_LEARNINGS}", file=sys.stderr)
+    return new_index
+
+
+def promote_learning(repo_root: Path, learning_index: int) -> None:
+    """Promote a learning entry to Nocturne long-term memory.
+
+    Calls promote-to-nocturne.py via subprocess. Failures are non-fatal.
+
+    Args:
+        repo_root: Repository root path.
+        learning_index: 1-based index of the learning entry in learnings.md.
+    """
+    print("", file=sys.stderr)
+    print("Promoting learning to Nocturne...", file=sys.stderr)
+
+    promote_script = repo_root / ".trellis" / "scripts" / "promote-to-nocturne.py"
+    if not promote_script.is_file():
+        print(
+            "[WARN] promote-to-nocturne.py not found, skipping promotion",
+            file=sys.stderr,
+        )
         return
-    # Check if there are staged changes
-    result = subprocess.run(
-        ["git", "diff", "--cached", "--quiet", "--", ".trellis/workspace", ".trellis/tasks"],
-        cwd=repo_root,
-    )
-    if result.returncode == 0:
-        print("[OK] No workspace changes to commit.", file=sys.stderr)
-        return
-    commit_result = subprocess.run(
-        ["git", "commit", "-m", commit_msg],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-    )
-    if commit_result.returncode == 0:
-        print(f"[OK] Auto-committed: {commit_msg}", file=sys.stderr)
-    else:
-        print(f"[WARN] Auto-commit failed: {commit_result.stderr.strip()}", file=sys.stderr)
+
+    try:
+        subprocess.run(
+            [
+                sys.executable,
+                str(promote_script),
+                "--learning",
+                str(learning_index),
+                "--auto-uri",
+                "--priority",
+                "2",
+            ],
+            cwd=str(repo_root),
+            check=False,
+            timeout=30,
+        )
+        print(
+            "[OK] Learning promotion prepared. Use MCP create_memory to complete.",
+            file=sys.stderr,
+        )
+    except subprocess.TimeoutExpired:
+        print("[WARN] promote-to-nocturne.py timed out", file=sys.stderr)
+    except OSError as exc:
+        print(f"[WARN] Failed to run promote-to-nocturne.py: {exc}", file=sys.stderr)
+
+
+# =============================================================================
+# Main Function
+# =============================================================================
 
 
 def add_session(
@@ -351,7 +402,8 @@ def add_session(
     commit: str = "-",
     summary: str = "(Add summary)",
     extra_content: str = "(Add details)",
-    auto_commit: bool = True,
+    learning: str | None = None,
+    do_promote_learning: bool = False,
     package: str | None = None,
     branch: str | None = None,
 ) -> int:
@@ -379,8 +431,7 @@ def add_session(
     new_session = current_session + 1
 
     session_content = generate_session_content(
-        new_session, title, commit, summary, extra_content, today, package,
-        branch,
+        new_session, title, commit, summary, extra_content, today, package, branch
     )
     content_lines = len(session_content.splitlines())
 
@@ -392,7 +443,9 @@ def add_session(
     print(f"Title: {title}", file=sys.stderr)
     print(f"Commit: {commit}", file=sys.stderr)
     print("", file=sys.stderr)
-    print(f"Current journal file: {FILE_JOURNAL_PREFIX}{current_num}.md", file=sys.stderr)
+    print(
+        f"Current journal file: {FILE_JOURNAL_PREFIX}{current_num}.md", file=sys.stderr
+    )
     print(f"Current lines: {current_lines}", file=sys.stderr)
     print(f"New content lines: {content_lines}", file=sys.stderr)
     print(f"Total after append: {current_lines + content_lines}", file=sys.stderr)
@@ -403,8 +456,13 @@ def add_session(
 
     if current_lines + content_lines > max_lines:
         target_num = current_num + 1
-        print(f"[!] Exceeds {max_lines} lines, creating {FILE_JOURNAL_PREFIX}{target_num}.md", file=sys.stderr)
-        target_file = create_new_journal_file(dev_dir, target_num, developer, today, max_lines)
+        print(
+            f"[!] Exceeds {max_lines} lines, creating {FILE_JOURNAL_PREFIX}{target_num}.md",
+            file=sys.stderr,
+        )
+        target_file = create_new_journal_file(
+            dev_dir, target_num, developer, today, max_lines
+        )
         print(f"Created: {target_file}", file=sys.stderr)
 
     # Append session content
@@ -418,16 +476,15 @@ def add_session(
     # Update index.md
     active_file = f"{FILE_JOURNAL_PREFIX}{target_num}.md"
     if not update_index(
-        index_file,
-        dev_dir,
-        title,
-        commit,
-        new_session,
-        active_file,
-        today,
-        branch,
+        index_file, dev_dir, title, commit, new_session, active_file, today
     ):
         return 1
+
+    # Append learning if provided (Mod 3: Knowledge Harvesting)
+    if learning:
+        learning_index = append_learning(repo_root, title, learning)
+        if do_promote_learning and learning_index is not None:
+            promote_learning(repo_root, learning_index)
 
     print("", file=sys.stderr)
     print("========================================", file=sys.stderr)
@@ -437,11 +494,8 @@ def add_session(
     print("Files updated:", file=sys.stderr)
     print(f"  - {target_file.name if target_file else 'journal'}", file=sys.stderr)
     print("  - index.md", file=sys.stderr)
-
-    # Auto-commit workspace changes
-    if auto_commit:
-        print("", file=sys.stderr)
-        _auto_commit_workspace(repo_root)
+    if learning:
+        print(f"  - {FILE_LEARNINGS}", file=sys.stderr)
 
     return 0
 
@@ -449,6 +503,7 @@ def add_session(
 # =============================================================================
 # Main Entry
 # =============================================================================
+
 
 def main() -> int:
     """CLI entry point."""
@@ -461,10 +516,15 @@ def main() -> int:
     parser.add_argument("--content-file", help="Path to file with detailed content")
     parser.add_argument("--package", help="Package name tag (e.g., cli, docs-site)")
     parser.add_argument("--branch", help="Branch name (auto-detected if omitted)")
-    parser.add_argument("--no-commit", action="store_true",
-                        help="Skip auto-commit of workspace changes")
-    parser.add_argument("--stdin", action="store_true",
-                        help="Read extra content from stdin (explicit opt-in)")
+    parser.add_argument(
+        "--learning", default=None, help="Learning text to append to learnings.md"
+    )
+    parser.add_argument(
+        "--promote-learning",
+        action="store_true",
+        default=False,
+        help="Also promote learning to Nocturne long-term memory",
+    )
 
     args = parser.parse_args()
 
@@ -473,33 +533,31 @@ def main() -> int:
         content_path = Path(args.content_file)
         if content_path.is_file():
             extra_content = content_path.read_text(encoding="utf-8")
-    elif args.stdin:
+    elif not sys.stdin.isatty():
         extra_content = sys.stdin.read()
 
-    # Load active task once — shared by package and branch resolution
     repo_root = get_repo_root()
     current = get_current_task(repo_root)
     task_data = load_task(repo_root / current) if current else None
 
     package = args.package
     if package:
-        # CLI source: fail-fast in monorepo, ignore in single-repo
         if not is_monorepo(repo_root):
             print("Warning: --package ignored in single-repo project", file=sys.stderr)
             package = None
         elif not validate_package(package, repo_root):
             packages = get_packages(repo_root)
             available = ", ".join(sorted(packages.keys())) if packages else "(none)"
-            print(f"Error: unknown package '{package}'. Available: {available}", file=sys.stderr)
+            print(
+                f"Error: unknown package '{package}'. Available: {available}",
+                file=sys.stderr,
+            )
             return 1
     else:
-        # Inferred: active task's task.json.package → default_package → None
         task_package = task_data.package if task_data else None
         package = resolve_package(task_package, repo_root)
 
-    # Resolve branch: CLI → task.json → git auto-detect → None
     branch = args.branch
-
     if not branch:
         if task_data and task_data.raw.get("branch"):
             branch = task_data.raw["branch"]
@@ -510,8 +568,12 @@ def main() -> int:
                 branch = detected
 
     return add_session(
-        args.title, args.commit, args.summary, extra_content,
-        auto_commit=not args.no_commit,
+        args.title,
+        args.commit,
+        args.summary,
+        extra_content,
+        learning=args.learning,
+        do_promote_learning=args.promote_learning,
         package=package,
         branch=branch,
     )

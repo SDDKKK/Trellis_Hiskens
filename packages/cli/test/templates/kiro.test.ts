@@ -1,30 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { getAllSkills } from "../../src/templates/kiro/index.js";
+import { resolveAllAsSkills } from "../../src/configurators/shared.js";
+import { AI_TOOLS } from "../../src/types/ai-tools.js";
 
+// Kiro is skill-only (agentCapable=true): all common templates become trellis-* skills
+// start is filtered out for agent-capable platforms
 const EXPECTED_SKILL_NAMES = [
-  "before-dev",
-  "brainstorm",
-  "break-loop",
-  "check",
-  "check-cross-layer",
-  "create-command",
-  "finish-work",
-  "integrate-skill",
-  "onboard",
-  "record-session",
-  "start",
-  "update-spec",
+  "trellis-before-dev",
+  "trellis-brainstorm",
+  "trellis-break-loop",
+  "trellis-check",
+  "trellis-continue",
+  "trellis-finish-work",
+  "trellis-update-spec",
 ];
 
 describe("kiro getAllSkills", () => {
   it("returns the expected skill set (without parallel)", () => {
-    const skills = getAllSkills();
-    const names = skills.map((skill) => skill.name);
+    const skills = resolveAllAsSkills(AI_TOOLS.kiro.templateContext);
+    const names = skills.map((skill) => skill.name).sort();
     expect(names).toEqual(EXPECTED_SKILL_NAMES);
   });
 
   it("each skill has matching frontmatter name", () => {
-    const skills = getAllSkills();
+    const skills = resolveAllAsSkills(AI_TOOLS.kiro.templateContext);
     for (const skill of skills) {
       expect(skill.content.length).toBeGreaterThan(0);
       expect(skill.content).toContain("description:");
@@ -33,8 +31,8 @@ describe("kiro getAllSkills", () => {
     }
   });
 
-  it("skill content uses .kiro/skills/ paths instead of .agents/skills/", () => {
-    const skills = getAllSkills();
+  it("skill content does not contain .agents/skills/ paths", () => {
+    const skills = resolveAllAsSkills(AI_TOOLS.kiro.templateContext);
     for (const skill of skills) {
       expect(skill.content).not.toContain(".agents/skills/");
     }

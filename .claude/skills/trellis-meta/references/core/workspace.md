@@ -35,6 +35,7 @@ python3 .trellis/scripts/init_developer.py <name>
 ```
 
 Creates:
+
 - `.trellis/.developer` - Identity file
 - `.trellis/workspace/<name>/` - Personal workspace
 - `.trellis/workspace/<name>/index.md` - Personal index
@@ -56,14 +57,17 @@ Track session history, decisions, and context.
 ## Session: 2026-01-31 10:30
 
 ### Context
+
 - Working on: [task description]
 - Branch: feature/add-login
 
 ### Progress
+
 - [x] Completed step 1
 - [ ] Working on step 2
 
 ### Notes
+
 Key decisions and learnings...
 
 ---
@@ -72,6 +76,7 @@ Key decisions and learnings...
 ### Journal Rotation
 
 When journal exceeds 2000 lines:
+
 1. Archive current (append to index)
 2. Create new journal-N.md
 3. Continue writing
@@ -88,16 +93,20 @@ Tracks all sessions and provides quick reference.
 # Developer Workspace - taosu
 
 ## Active Work
+
 - Current task: `.trellis/tasks/01-31-add-login-taosu`
 - Branch: feature/add-login
 
 ## Recent Sessions
+
 <!-- @@@auto-sessions-start -->
+
 - 2026-01-31: Implemented login UI
 - 2026-01-30: Set up auth service
 <!-- @@@auto-sessions-end -->
 
 ## Journals
+
 - journal-1.md (lines 1-2000)
 - journal-2.md (current)
 ```
@@ -105,6 +114,7 @@ Tracks all sessions and provides quick reference.
 ### @@@auto Markers
 
 Scripts use these markers to auto-update sections:
+
 - `@@@auto-sessions-start/end` - Recent sessions list
 - `@@@auto-tasks-start/end` - Task summaries
 
@@ -120,10 +130,12 @@ Overview of all developers and project status.
 # Project Workspace
 
 ## Developers
+
 - taosu - Last active: 2026-01-31
 - cursor-agent - Last active: 2026-01-30
 
 ## Recent Activity
+
 ...
 ```
 
@@ -131,12 +143,12 @@ Overview of all developers and project status.
 
 ## Scripts
 
-| Script | Purpose |
-|--------|---------|
+| Script              | Purpose                       |
+| ------------------- | ----------------------------- |
 | `init_developer.py` | Initialize developer identity |
-| `get_developer.py` | Get current developer name |
-| `add_session.py` | Record session to journal |
-| `get_context.py` | Get session context for AI |
+| `get_developer.py`  | Get current developer name    |
+| `add_session.py`    | Record session to journal     |
+| `get_context.py`    | Get session context for AI    |
 
 ---
 

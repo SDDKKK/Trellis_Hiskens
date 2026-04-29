@@ -16,8 +16,8 @@ import json
 
 from .git import run_git
 from .session_context import (
-    get_context_json,
-    get_context_text,
+    get_context_json,  # noqa: F401
+    get_context_text,  # noqa: F401
     get_context_record_json,
     get_context_text_record,
     output_json,
@@ -27,11 +27,6 @@ from .packages_context import (
     get_context_packages_text,
     get_context_packages_json,
 )
-from .workflow_phase import (
-    filter_platform,
-    get_phase_index,
-    get_step,
-)
 
 # Backward-compatible alias — external modules import this name
 _run_git_command = run_git
@@ -40,6 +35,7 @@ _run_git_command = run_git
 # =============================================================================
 # Main Entry
 # =============================================================================
+
 
 def main() -> None:
     """CLI entry point."""
@@ -55,17 +51,9 @@ def main() -> None:
     parser.add_argument(
         "--mode",
         "-m",
-        choices=["default", "record", "packages", "phase"],
+        choices=["default", "record", "packages"],
         default="default",
-        help="Output mode: default (full context), record (for record-session), packages (package info only), phase (workflow step extraction)",
-    )
-    parser.add_argument(
-        "--step",
-        help="Step id for --mode phase, e.g. 1.1, 2.2. Omit to get the Phase Index.",
-    )
-    parser.add_argument(
-        "--platform",
-        help="Platform name for --mode phase, e.g. cursor, claude-code. Filters platform-tagged blocks.",
+        help="Output mode: default (full context), record (for record-session), packages (package info only)",
     )
 
     args = parser.parse_args()
@@ -80,16 +68,6 @@ def main() -> None:
             print(json.dumps(get_context_packages_json(), indent=2, ensure_ascii=False))
         else:
             print(get_context_packages_text())
-    elif args.mode == "phase":
-        content = get_step(args.step) if args.step else get_phase_index()
-        if not content.strip():
-            if args.step:
-                parser.exit(2, f"Step not found: {args.step}\n")
-            else:
-                parser.exit(2, "Phase Index section not found in workflow.md\n")
-        if args.platform:
-            content = filter_platform(content, args.platform)
-        print(content, end="")
     else:
         if args.json:
             output_json()

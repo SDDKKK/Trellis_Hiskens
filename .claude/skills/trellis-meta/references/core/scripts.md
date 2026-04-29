@@ -19,7 +19,7 @@ These scripts work on all platforms - they only read/write files and don't requi
 │
 ├── init_developer.py       # Initialize developer
 ├── get_developer.py        # Get developer name
-├── get_context.py          # Get session runtime
+├── get_context.py          # Get session context
 ├── task.py                 # Task management CLI
 └── add_session.py          # Record session
 ```
@@ -37,6 +37,7 @@ python3 .trellis/scripts/init_developer.py <name>
 ```
 
 **Creates:**
+
 - `.trellis/.developer`
 - `.trellis/workspace/<name>/`
 - `.trellis/workspace/<name>/index.md`
@@ -54,6 +55,7 @@ python3 .trellis/scripts/get_developer.py
 ```
 
 **Exit codes:**
+
 - `0` - Success
 - `1` - Not initialized
 
@@ -63,13 +65,14 @@ python3 .trellis/scripts/get_developer.py
 
 ### `get_context.py`
 
-Get session runtime for AI consumption.
+Get session context for AI consumption.
 
 ```bash
 python3 .trellis/scripts/get_context.py
 ```
 
 **Output includes:**
+
 - Developer identity
 - Git status and recent commits
 - Current task (if any)
@@ -86,6 +89,7 @@ python3 .trellis/scripts/add_session.py "Session summary"
 ```
 
 **Actions:**
+
 1. Appends to current journal
 2. Updates index markers
 3. Rotates journal if needed
@@ -105,6 +109,7 @@ python3 .trellis/scripts/task.py create "Task name" --slug task-slug
 ```
 
 **Options:**
+
 - `--slug` - URL-safe identifier
 - `--assignee` - Developer name (default: current)
 - `--type` - Dev type: frontend, backend, fullstack
@@ -116,6 +121,7 @@ python3 .trellis/scripts/task.py list
 ```
 
 **Output:**
+
 ```
 Active Tasks:
   01-31-add-login-taosu (active)
@@ -128,17 +134,15 @@ Active Tasks:
 python3 .trellis/scripts/task.py start <task-dir>
 ```
 
-Sets the active task in `.trellis/.runtime/sessions/<session-key>.json`.
-Without a session identity or `TRELLIS_CONTEXT_ID`, this command fails and
-does not create `.trellis/.current-task`.
+Sets `.trellis/.current-task` to the task directory.
 
-#### Finish Task
+#### Stop Task
 
 ```bash
-python3 .trellis/scripts/task.py finish
+python3 .trellis/scripts/task.py stop
 ```
 
-Clears the active task for the current session runtime only.
+Clears `.trellis/.current-task`.
 
 #### Initialize Context
 
@@ -206,7 +210,7 @@ Task lookup functions.
 
 ```python
 from common.task_utils import (
-    get_current_task,  # Get active task directory
+    get_current_task,  # Get current task directory
     load_task_json,    # Load task.json
     save_task_json,    # Save task.json
 )

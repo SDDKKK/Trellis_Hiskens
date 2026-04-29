@@ -15,7 +15,7 @@ Copy this template to create a project-specific `trellis-local` skill.
 
 ## Template
 
-```markdown
+````markdown
 ---
 name: trellis-local
 description: |
@@ -33,11 +33,11 @@ This skill documents all customizations made to Trellis in this project. For van
 
 ## Base Information
 
-| Field | Value |
-|-------|-------|
-| Trellis Version | X.X.X |
+| Field            | Value      |
+| ---------------- | ---------- |
+| Trellis Version  | X.X.X      |
 | Date Initialized | YYYY-MM-DD |
-| Last Updated | YYYY-MM-DD |
+| Last Updated     | YYYY-MM-DD |
 
 ---
 
@@ -131,12 +131,14 @@ Quick reference of what's been modified:
 **Before**:
 ```python
 # original code
-```
+````
 
 **After**:
+
 ```python
 # modified code
 ```
+
 -->
 
 (none yet)
@@ -212,6 +214,7 @@ Quick reference of what's been modified:
 Record all changes chronologically.
 
 ### YYYY-MM-DD - Initial Setup
+
 - Initialized trellis-local skill
 - Base Trellis version: X.X.X
 
@@ -253,7 +256,8 @@ Track any issues with customizations.
 -->
 
 (none yet)
-```
+
+````
 
 ---
 
@@ -302,4 +306,4 @@ EOF
 sed -i '' "s/PROJECT_NAME_PLACEHOLDER/$PROJECT_NAME/g" "$SKILL_DIR/SKILL.md"
 
 echo "Created $SKILL_DIR/SKILL.md for project: $PROJECT_NAME"
-```
+````

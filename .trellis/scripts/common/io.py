@@ -1,8 +1,11 @@
 """
 JSON file I/O utilities.
 
+
 Provides read_json and write_json as the single source of truth
 for JSON file operations across all Trellis scripts.
+
+Ported from upstream v0.4.0-beta.7.
 """
 
 from __future__ import annotations

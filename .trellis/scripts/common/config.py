@@ -11,132 +11,7 @@ import sys
 from pathlib import Path
 
 from .paths import DIR_WORKFLOW, get_repo_root
-
-
-# =============================================================================
-# YAML Simple Parser (no dependencies)
-# =============================================================================
-
-
-def _unquote(s: str) -> str:
-    """Remove exactly one layer of matching surrounding quotes.
-
-    Unlike str.strip('"'), this only removes the outermost pair,
-    preserving any nested quotes inside the value.
-
-    Examples:
-        _unquote('"hello"')        -> 'hello'
-        _unquote("'hello'")        -> 'hello'
-        _unquote('"echo \\'hi\\'"')  -> "echo 'hi'"
-        _unquote('hello')          -> 'hello'
-        _unquote('"hello\\'')       -> '"hello\\''  (mismatched, unchanged)
-    """
-    if len(s) >= 2 and s[0] == s[-1] and s[0] in ('"', "'"):
-        return s[1:-1]
-    return s
-
-
-def parse_simple_yaml(content: str) -> dict:
-    """Parse simple YAML with nested dict support (no dependencies).
-
-    Supports:
-        - key: value (string)
-        - key: (followed by list items)
-            - item1
-            - item2
-        - key: (followed by nested dict)
-            nested_key: value
-            nested_key2:
-              - item
-
-    Uses indentation to detect nesting (2+ spaces deeper = child).
-
-    Args:
-        content: YAML content string.
-
-    Returns:
-        Parsed dict (values can be str, list[str], or dict).
-    """
-    lines = content.splitlines()
-    result: dict = {}
-    _parse_yaml_block(lines, 0, 0, result)
-    return result
-
-
-def _parse_yaml_block(
-    lines: list[str], start: int, min_indent: int, target: dict
-) -> int:
-    """Parse a YAML block into target dict, returning next line index."""
-    i = start
-    current_list: list | None = None
-
-    while i < len(lines):
-        line = lines[i]
-        stripped = line.strip()
-
-        # Skip empty lines and comments
-        if not stripped or stripped.startswith("#"):
-            i += 1
-            continue
-
-        # Calculate indentation
-        indent = len(line) - len(line.lstrip())
-
-        # If dedented past our block, we're done
-        if indent < min_indent:
-            break
-
-        if stripped.startswith("- "):
-            if current_list is not None:
-                current_list.append(_unquote(stripped[2:].strip()))
-            i += 1
-        elif ":" in stripped:
-            key, _, value = stripped.partition(":")
-            key = key.strip()
-            value = _unquote(value.strip())
-            current_list = None
-
-            if value:
-                # key: value
-                target[key] = value
-                i += 1
-            else:
-                # key: (no value) — peek ahead to determine list vs nested dict
-                next_i, next_line = _next_content_line(lines, i + 1)
-                if next_i >= len(lines):
-                    target[key] = {}
-                    i = next_i
-                elif next_line.strip().startswith("- "):
-                    # It's a list
-                    current_list = []
-                    target[key] = current_list
-                    i += 1
-                else:
-                    next_indent = len(next_line) - len(next_line.lstrip())
-                    if next_indent > indent:
-                        # It's a nested dict
-                        nested: dict = {}
-                        target[key] = nested
-                        i = _parse_yaml_block(lines, i + 1, next_indent, nested)
-                    else:
-                        # Empty value, same or less indent follows
-                        target[key] = {}
-                        i += 1
-        else:
-            i += 1
-
-    return i
-
-
-def _next_content_line(lines: list[str], start: int) -> tuple[int, str]:
-    """Find the next non-empty, non-comment line."""
-    i = start
-    while i < len(lines):
-        stripped = lines[i].strip()
-        if stripped and not stripped.startswith("#"):
-            return i, lines[i]
-        i += 1
-    return i, ""
+from .worktree import parse_simple_yaml
 
 
 # Defaults
@@ -387,3 +262,63 @@ def get_spec_scope(repo_root: Path | None = None) -> list[str] | str | None:
     if isinstance(scope, list):
         return [str(s) for s in scope]
     return None
+
+
+# =============================================================================
+# Feature Flags (Local Customization)
+# =============================================================================
+
+
+def get_features(repo_root: Path | None = None) -> dict[str, bool]:
+    """Get feature flags from config.yaml.
+
+    Feature flags control project-specific behavior in shared scripts.
+    Missing features section or individual flags default to False.
+
+    Uses direct file parsing because parse_simple_yaml is flat
+    and cannot handle nested YAML sections.
+
+    Args:
+        repo_root: Repository root path.
+
+    Returns:
+        Dict of feature_name -> bool. Empty dict if no features configured.
+    """
+    config_file = _get_config_path(repo_root)
+    if not config_file.is_file():
+        return {}
+    try:
+        content = config_file.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+
+    features: dict[str, bool] = {}
+    in_features = False
+    for line in content.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("features"):
+            in_features = True
+            continue
+        if in_features:
+            # Check if still indented (child of features section)
+            if line[0] in (" ", "\t") and ":" in stripped:
+                key, _, val = stripped.partition(":")
+                key = key.strip()
+                val = val.strip()
+                # Remove YAML quotes if present
+                if (val.startswith("'") and val.endswith("'")) or (
+                    val.startswith('"') and val.endswith('"')
+                ):
+                    val = val[1:-1]
+                if val.lower() in ("true", "yes", "1"):
+                    features[key] = True
+                elif val.lower() in ("false", "no", "0", "", "[]"):
+                    features[key] = False
+                else:
+                    features[key] = bool(val)
+            elif line and line[0] not in (" ", "\t"):
+                # Non-indented line ends the features section
+                break
+    return features

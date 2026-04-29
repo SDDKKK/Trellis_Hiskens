@@ -14,14 +14,14 @@ Trellis uses **specialized agents** for different tasks. Each agent has specific
 
 ## Agent Types
 
-| Agent | Purpose | Can Write | Git Commit |
-|-------|---------|-----------|------------|
-| `dispatch` | Orchestrate phases | No | Only via script |
-| `plan` | Evaluate requirements | Yes (task dir) | No |
-| `research` | Find patterns | No | No |
-| `implement` | Write code | Yes | No |
-| `check` | Review & self-fix | Yes | No |
-| `debug` | Fix issues | Yes | No |
+| Agent       | Purpose               | Can Write      | Git Commit      |
+| ----------- | --------------------- | -------------- | --------------- |
+| `dispatch`  | Orchestrate phases    | No             | Only via script |
+| `plan`      | Evaluate requirements | Yes (task dir) | No              |
+| `research`  | Find patterns         | No             | No              |
+| `implement` | Write code            | Yes            | No              |
+| `check`     | Review & self-fix     | Yes            | No              |
+| `debug`     | Fix issues            | Yes            | No              |
 
 ---
 
@@ -39,15 +39,19 @@ description: |
 tools: Read, Write, Edit, Bash, Glob, Grep
 model: opus
 ---
+
 # Agent Name
 
 ## Core Responsibilities
+
 ...
 
 ## Workflow
+
 ...
 
 ## Forbidden Operations
+
 ...
 ```
 
@@ -64,8 +68,9 @@ model: opus
 **Tools**: `Read, Bash`
 
 **Workflow**:
+
 ```
-1. Run task.py current --source → find session active task directory
+1. Read .trellis/.current-task → find task directory
 2. Read task.json → get next_action array
 3. For each phase:
    - implement → Task(subagent_type="implement")
@@ -75,6 +80,7 @@ model: opus
 ```
 
 **Forbidden**:
+
 - Reading spec files directly
 - Modifying code
 - Git operations (except via create-pr script)
@@ -90,13 +96,15 @@ model: opus
 **Tools**: `Read, Bash, Glob, Grep, Task`
 
 **Capabilities**:
+
 - **REJECT** unclear/vague requirements
 - Call Research Agent to analyze codebase
 - Create `prd.md` with requirements
 - Configure `task.json` (branch, scope, phases)
-- Initialize JSONL session files
+- Initialize JSONL context files
 
 **Rejection Criteria**:
+
 - Vague requirements ("make it better")
 - Incomplete information
 - Out of scope
@@ -104,6 +112,7 @@ model: opus
 - Too large (should split)
 
 **Output**:
+
 ```
 task-dir/
 ├── task.json      # Configured with branch, scope, dev_type
@@ -124,12 +133,14 @@ task-dir/
 **Tools**: `Read, Glob, Grep, web search, chrome-devtools`
 
 **Allowed**:
+
 - Describe what exists
 - Describe where it is
 - Describe how it works
 - Describe interactions
 
 **Forbidden** (unless explicitly asked):
+
 - Suggest improvements
 - Criticize implementation
 - Recommend refactoring
@@ -137,17 +148,22 @@ task-dir/
 - Git operations
 
 **Output Format**:
+
 ```markdown
 ## Query Summary
+
 ...
 
 ## Files Found
+
 - path/to/file.ts - description
 
 ## Code Patterns
+
 ...
 
 ## Related Specs
+
 ...
 ```
 
@@ -162,12 +178,14 @@ task-dir/
 **Tools**: `Read, Write, Edit, Bash, Glob, Grep`
 
 **Workflow**:
+
 1. Understand specs (from injected context)
 2. Understand requirements (prd.md, info.md)
 3. Implement features
 4. Self-check (run lint/typecheck)
 
 **Forbidden**:
+
 - `git commit`
 - `git push`
 - `git merge`
@@ -187,6 +205,7 @@ task-dir/
 **Key Principle**: Fix issues yourself, don't just report them.
 
 **Workflow**:
+
 1. Get changes: `git diff`
 2. Check against specs
 3. Self-fix issues directly
@@ -196,6 +215,7 @@ task-dir/
 **Controlled by**: Ralph Loop (SubagentStop hook)
 
 **Completion Markers**:
+
 ```
 TYPECHECK_FINISH
 LINT_FINISH
@@ -213,12 +233,14 @@ CODEREVIEW_FINISH
 **Tools**: `Read, Write, Edit, Bash, Glob, Grep`
 
 **Workflow**:
+
 1. Parse issues (prioritize P1 > P2 > P3)
 2. Research if needed
 3. Fix one by one
 4. Verify each fix (run typecheck)
 
 **Forbidden**:
+
 - Refactor surrounding code
 - Add new features
 - Modify unrelated files
@@ -263,12 +285,12 @@ Task(subagent_type="implement") called
             ▼
 inject-subagent-context.py runs
             │
-            ├── Resolve session active task
+            ├── Read .trellis/.current-task
             │
-            ├── Find task directory from .runtime/sessions/<session-key>.json
+            ├── Find task directory
             │
             ├── Load implement.jsonl
-            │   {"file": ".trellis/spec/cli/backend/index.md", "reason": "..."}
+            │   {"file": ".trellis/spec/backend/index.md", "reason": "..."}
             │   {"file": "src/services/auth.ts", "reason": "..."}
             │
             ├── Read each file content
@@ -276,7 +298,7 @@ inject-subagent-context.py runs
             └── Build new prompt:
                 # Implement Agent Task
                 ## Your Context
-                === .trellis/spec/cli/backend/index.md ===
+                === .trellis/spec/backend/index.md ===
                 [content]
                 === src/services/auth.ts ===
                 [content]
@@ -286,12 +308,12 @@ inject-subagent-context.py runs
 
 ### JSONL Files
 
-| File | Agent | Purpose |
-|------|-------|---------|
+| File              | Agent     | Purpose                       |
+| ----------------- | --------- | ----------------------------- |
 | `implement.jsonl` | implement | Dev specs, patterns to follow |
-| `check.jsonl` | check | Check specs, quality criteria |
-| `debug.jsonl` | debug | Debug context, error reports |
-| `research.jsonl` | research | (optional) Research scope |
+| `check.jsonl`     | check     | Check specs, quality criteria |
+| `debug.jsonl`     | debug     | Debug context, error reports  |
+| `research.jsonl`  | research  | (optional) Research scope     |
 
 ---
 
@@ -325,7 +347,7 @@ Orchestrator (you or dispatch)
 3. For Development Task:
    a. Research Agent → analyze codebase
    b. Create task directory + JSONL files
-   c. task.py start → set session active task
+   c. task.py start → set .current-task
    d. Implement Agent → write code
    e. Check Agent → review & fix
    f. Human tests and commits
@@ -338,6 +360,7 @@ Orchestrator (you or dispatch)
 ### 1. Create Definition
 
 `.claude/agents/my-agent.md`:
+
 ```markdown
 ---
 name: my-agent
@@ -346,15 +369,19 @@ description: |
 tools: Read, Write, Edit, Bash, Glob, Grep
 model: opus
 ---
+
 # My Agent
 
 ## Core Responsibilities
+
 1. ...
 
 ## Workflow
+
 1. ...
 
 ## Forbidden Operations
+
 - ...
 ```
 
@@ -383,13 +410,18 @@ elif subagent_type == AGENT_MY_AGENT:
 ### 3. Create JSONL
 
 In task directories, create `my-agent.jsonl`:
+
 ```jsonl
-{"file": ".trellis/spec/my-spec.md", "reason": "My agent spec"}
+{
+  "file": ".trellis/spec/my-spec.md",
+  "reason": "My agent spec"
+}
 ```
 
 ### 4. (Optional) Add to Dispatch
 
 Update `task.json` default phases:
+
 ```json
 "next_action": [
   {"phase": 1, "action": "my-agent"},
@@ -401,13 +433,13 @@ Update `task.json` default phases:
 
 ## vs Multi-Session
 
-| Aspect | Multi-Agent | Multi-Session |
-|--------|-------------|---------------|
-| **What** | Multiple agents in sequence | Parallel isolated sessions |
-| **Where** | Current directory | Separate worktrees |
-| **Isolation** | Shared filesystem | Separate filesystems |
-| **Use case** | Normal development | Parallel tasks |
-| **Worktree** | Not needed | Required |
+| Aspect        | Multi-Agent                 | Multi-Session              |
+| ------------- | --------------------------- | -------------------------- |
+| **What**      | Multiple agents in sequence | Parallel isolated sessions |
+| **Where**     | Current directory           | Separate worktrees         |
+| **Isolation** | Shared filesystem           | Separate filesystems       |
+| **Use case**  | Normal development          | Parallel tasks             |
+| **Worktree**  | Not needed                  | Required                   |
 
 Multi-Agent is the **agent system** - dispatch calling implement, check, etc.
 

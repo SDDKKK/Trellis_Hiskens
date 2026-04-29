@@ -56,7 +56,10 @@ describe("overlay utils", () => {
     const overlayPath = requireOverlayPath();
 
     const excludeList = loadExcludeList(overlayPath);
-    expect(excludeList).toEqual([]);
+    expect(excludeList).toEqual([
+      "claude/agents/review.md",
+      "trellis/worktree.yaml",
+    ]);
   });
 
   it("loads overlay metadata from overlay.yaml", () => {

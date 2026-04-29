@@ -8,9 +8,9 @@ Add or modify Ralph Loop verification commands.
 
 ## Files to Modify
 
-| File | Action | Required |
-|------|--------|----------|
-| `.trellis/worktree.yaml` | Modify | Yes |
+| File                     | Action | Required |
+| ------------------------ | ------ | -------- |
+| `.trellis/worktree.yaml` | Modify | Yes      |
 
 ---
 
@@ -22,7 +22,7 @@ Open `.trellis/worktree.yaml` and modify the `verify` section:
 verify:
   - pnpm lint
   - pnpm typecheck
-  - pnpm test          # Add this
+  - pnpm test # Add this
 ```
 
 ---
@@ -53,12 +53,13 @@ verify:
 verify:
   - pnpm lint
   - pnpm typecheck
-  - pnpm test:unit        # Fast unit tests only
+  - pnpm test:unit # Fast unit tests only
 ```
 
 ### Different Languages
 
 **Go:**
+
 ```yaml
 verify:
   - go fmt ./...
@@ -68,6 +69,7 @@ verify:
 ```
 
 **Python:**
+
 ```yaml
 verify:
   - ruff check .
@@ -76,6 +78,7 @@ verify:
 ```
 
 **Rust:**
+
 ```yaml
 verify:
   - cargo fmt --check
@@ -95,10 +98,10 @@ Commands run in order. First failure stops execution.
 
 ```yaml
 verify:
-  - pnpm lint        # ~2 seconds
-  - pnpm typecheck   # ~10 seconds
-  - pnpm test:unit   # ~30 seconds
-  - pnpm build       # ~60 seconds
+  - pnpm lint # ~2 seconds
+  - pnpm typecheck # ~10 seconds
+  - pnpm test:unit # ~30 seconds
+  - pnpm build # ~60 seconds
 ```
 
 ### Timeout
@@ -106,6 +109,7 @@ verify:
 Each command has 120 second timeout.
 
 For long-running commands:
+
 - Split into smaller chunks
 - Use faster subset for Ralph Loop
 - Run full suite manually

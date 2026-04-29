@@ -24,6 +24,7 @@ from .paths import get_repo_root, get_tasks_dir
 # Path Safety
 # =============================================================================
 
+
 def is_safe_task_path(task_path: str, repo_root: Path | None = None) -> bool:
     """Check if a relative task path is safe to operate on.
 
@@ -37,31 +38,36 @@ def is_safe_task_path(task_path: str, repo_root: Path | None = None) -> bool:
     if repo_root is None:
         repo_root = get_repo_root()
 
-    normalized = task_path.replace("\\", "/")
-
     # Check empty or null
-    if not normalized or normalized == "null":
+    if not task_path or task_path == "null":
         print("Error: empty or null task path", file=sys.stderr)
         return False
 
     # Reject absolute paths
-    if Path(task_path).is_absolute():
+    if task_path.startswith("/"):
         print(f"Error: absolute path not allowed: {task_path}", file=sys.stderr)
         return False
 
     # Reject ".", "..", paths starting with "./" or "../", or containing ".."
-    if normalized in (".", "..") or normalized.startswith("./") or normalized.startswith("../") or ".." in normalized:
+    if (
+        task_path in (".", "..")
+        or task_path.startswith("./")
+        or task_path.startswith("../")
+        or ".." in task_path
+    ):
         print(f"Error: path traversal not allowed: {task_path}", file=sys.stderr)
         return False
 
     # Final check: ensure resolved path is not the repo root
-    abs_path = repo_root / Path(normalized)
+    abs_path = repo_root / task_path
     if abs_path.exists():
         try:
             resolved = abs_path.resolve()
             root_resolved = repo_root.resolve()
             if resolved == root_resolved:
-                print(f"Error: path resolves to repo root: {task_path}", file=sys.stderr)
+                print(
+                    f"Error: path resolves to repo root: {task_path}", file=sys.stderr
+                )
                 return False
         except (OSError, IOError):
             pass
@@ -72,6 +78,7 @@ def is_safe_task_path(task_path: str, repo_root: Path | None = None) -> bool:
 # =============================================================================
 # Task Lookup
 # =============================================================================
+
 
 def find_task_by_name(task_name: str, tasks_dir: Path) -> Path | None:
     """Find task directory by name (exact or suffix match).
@@ -102,6 +109,7 @@ def find_task_by_name(task_name: str, tasks_dir: Path) -> Path | None:
 # =============================================================================
 # Archive Operations
 # =============================================================================
+
 
 def archive_task_dir(task_dir_abs: Path, repo_root: Path | None = None) -> Path | None:
     """Archive a task directory to archive/{YYYY-MM}/.
@@ -144,8 +152,7 @@ def archive_task_dir(task_dir_abs: Path, repo_root: Path | None = None) -> Path 
 
 
 def archive_task_complete(
-    task_dir_abs: Path,
-    repo_root: Path | None = None
+    task_dir_abs: Path, repo_root: Path | None = None
 ) -> dict[str, str]:
     """Complete archive workflow: archive directory.
 
@@ -171,6 +178,7 @@ def archive_task_complete(
 # Task Directory Resolution
 # =============================================================================
 
+
 def resolve_task_dir(target_dir: str, repo_root: Path) -> Path:
     """Resolve task directory to absolute path.
 
@@ -189,17 +197,13 @@ def resolve_task_dir(target_dir: str, repo_root: Path) -> Path:
     if not target_dir:
         return Path()
 
-    normalized = target_dir.replace("\\", "/")
-    while normalized.startswith("./"):
-        normalized = normalized[2:]
-
     # Absolute path
-    if Path(target_dir).is_absolute():
+    if target_dir.startswith("/"):
         return Path(target_dir)
 
     # Relative path (contains path separator or starts with .trellis)
-    if "/" in normalized or normalized.startswith(".trellis"):
-        return repo_root / Path(normalized)
+    if "/" in target_dir or target_dir.startswith(".trellis"):
+        return repo_root / target_dir
 
     # Task name - try to find in tasks directory
     tasks_dir = get_tasks_dir(repo_root)
@@ -208,12 +212,13 @@ def resolve_task_dir(target_dir: str, repo_root: Path) -> Path:
         return found
 
     # Fallback to treating as relative path
-    return repo_root / Path(normalized)
+    return repo_root / target_dir
 
 
 # =============================================================================
 # Lifecycle Hooks
 # =============================================================================
+
 
 def run_task_hooks(event: str, task_json_path: Path, repo_root: Path) -> None:
     """Run lifecycle hooks for a task event.
@@ -270,5 +275,7 @@ if __name__ == "__main__":
     tasks = get_tasks_dir(repo)
 
     print(f"Tasks dir: {tasks}")
-    print(f"is_safe_task_path('.trellis/tasks/test'): {is_safe_task_path('.trellis/tasks/test', repo)}")
+    print(
+        f"is_safe_task_path('.trellis/tasks/test'): {is_safe_task_path('.trellis/tasks/test', repo)}"
+    )
     print(f"is_safe_task_path('../test'): {is_safe_task_path('../test', repo)}")
