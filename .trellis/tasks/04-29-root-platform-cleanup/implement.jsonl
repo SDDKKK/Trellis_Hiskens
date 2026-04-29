@@ -1,0 +1,4 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": ".trellis/tasks/04-29-sync-upstream-beta18/research/root-level-audit.md", "reason": "Complete file inventory: 41 legacy + 25 overlay stale"}
+{"file": ".trellis/tasks/04-29-sync-upstream-beta18/research/update-mechanism.md", "reason": "How trellis update works, dry-run capability"}
+{"file": ".trellis/tasks/04-29-root-platform-cleanup/prd.md", "reason": "Task requirements and approach"}
