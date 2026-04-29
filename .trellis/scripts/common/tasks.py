@@ -8,6 +8,8 @@ Provides:
     load_task          — Load a single task by directory path
     iter_active_tasks  — Iterate all non-archived tasks (sorted)
     get_all_statuses   — Get {dir_name: status} map for children progress
+
+Ported from upstream v0.4.0-beta.7.
 """
 
 from __future__ import annotations
@@ -102,11 +104,5 @@ def children_progress(
     """
     if not children:
         return ""
-    # A child missing from active statuses has been archived (cmd_archive
-    # sets status=completed before moving the dir). Count it as done so
-    # parent progress doesn't regress when children are archived.
-    done = sum(
-        1 for c in children
-        if c not in all_statuses or all_statuses.get(c) in ("completed", "done")
-    )
+    done = sum(1 for c in children if all_statuses.get(c) in ("completed", "done"))
     return f" [{done}/{len(children)} done]"

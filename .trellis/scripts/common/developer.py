@@ -15,20 +15,20 @@ from datetime import datetime
 from pathlib import Path
 
 from .paths import (
+    DIR_TASKS,
     DIR_WORKFLOW,
     DIR_WORKSPACE,
-    DIR_TASKS,
     FILE_DEVELOPER,
     FILE_JOURNAL_PREFIX,
-    get_repo_root,
-    get_developer,
     check_developer,
+    get_developer,
+    get_repo_root,
 )
-
 
 # =============================================================================
 # Developer Initialization
 # =============================================================================
+
 
 def init_developer(name: str, repo_root: Path | None = None) -> bool:
     """Initialize developer.
@@ -59,8 +59,7 @@ def init_developer(name: str, repo_root: Path | None = None) -> bool:
     initialized_at = datetime.now().isoformat()
     try:
         dev_file.write_text(
-            f"name={name}\ninitialized_at={initialized_at}\n",
-            encoding="utf-8"
+            f"name={name}\ninitialized_at={initialized_at}\n", encoding="utf-8"
         )
     except (OSError, IOError) as e:
         print(f"Error: Failed to create .developer file: {e}", file=sys.stderr)
@@ -123,8 +122,8 @@ def init_developer(name: str, repo_root: Path | None = None) -> bool:
 ## Session History
 
 <!-- @@@auto:session-history -->
-| # | Date | Title | Commits | Branch |
-|---|------|-------|---------|--------|
+| # | Date | Title | Commits |
+|---|------|-------|---------|
 <!-- @@@/auto:session-history -->
 
 ---
@@ -159,7 +158,10 @@ def ensure_developer(repo_root: Path | None = None) -> None:
 
     if not check_developer(repo_root):
         print("Error: Developer not initialized.", file=sys.stderr)
-        print(f"Run: python3 ./{DIR_WORKFLOW}/scripts/init_developer.py <your-name>", file=sys.stderr)
+        print(
+            f"Run: python3 ./{DIR_WORKFLOW}/scripts/init_developer.py <your-name>",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
 

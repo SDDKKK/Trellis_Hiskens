@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Task Management Script.
+Task Management Script for Multi-Agent Pipeline.
 
 Usage:
-    python3 task.py create "<title>" [--slug <name>] [--assignee <dev>] [--priority P0|P1|P2|P3] [--parent <dir>] [--package <pkg>]
+    python3 task.py create "<title>" [--slug <name>] [--assignee <dev>] [--priority P0|P1|P2|P3]
+    python3 task.py init-context <dir> <type>   # Initialize jsonl files (type: python|matlab|both|trellis)
     python3 task.py add-context <dir> <file> <path> [reason] # Add jsonl entry
     python3 task.py validate <dir>              # Validate jsonl files
     python3 task.py list-context <dir>          # List jsonl entries
-    python3 task.py start <dir>                 # Set active task
-    python3 task.py current [--source]          # Show active task
-    python3 task.py finish                      # Clear active task
+    python3 task.py start <dir>                 # Set as current task
+    python3 task.py finish                      # Clear current task
+    python3 task.py complete [dir]              # Complete task (status + cleanup)
+    python3 task.py set-status <dir> <status>   # Set task status (state machine)
     python3 task.py set-branch <dir> <branch>   # Set git branch
     python3 task.py set-base-branch <dir> <branch>  # Set PR target branch
     python3 task.py set-scope <dir> <scope>     # Set scope for PR title
-    python3 task.py archive <task-dir>          # Archive completed task
+    python3 task.py create-pr [dir] [--dry-run] # Create PR from task
+    python3 task.py archive <task-name>         # Archive completed task
     python3 task.py list                        # List active tasks
     python3 task.py list-archive [month]        # List archived tasks
     python3 task.py add-subtask <parent-dir> <child-dir>     # Link child to parent
@@ -23,33 +26,48 @@ Usage:
 
 from __future__ import annotations
 
-import argparse
 import sys
+
+# IMPORTANT: Force stdout to use UTF-8 on Windows
+# This fixes UnicodeEncodeError when outputting non-ASCII characters
+if sys.platform == "win32":
+    import io as _io
+
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+    elif hasattr(sys.stdout, "detach"):
+        sys.stdout = _io.TextIOWrapper(
+            sys.stdout.detach(), encoding="utf-8", errors="replace"
+        )  # type: ignore[union-attr]
+
+import argparse
+from datetime import datetime
+from pathlib import Path
 
 from common.log import Colors, colored
 from common.paths import (
-    DIR_WORKFLOW,
     DIR_TASKS,
+    DIR_WORKFLOW,
     FILE_TASK_JSON,
-    get_repo_root,
-    get_developer,
-    get_tasks_dir,
+    clear_current_task,
+    ensure_memory_dir,
     get_current_task,
+    get_developer,
+    get_memory_dir,
+    get_repo_root,
+    get_tasks_dir,
+    set_current_task,
+    FILE_SCRATCHPAD,
 )
-from common.active_task import (
-    clear_active_task,
-    resolve_active_task,
-    resolve_context_key,
-    set_active_task,
-)
-from common.io import read_json, write_json
 from common.task_utils import resolve_task_dir, run_task_hooks
 from common.tasks import iter_active_tasks, children_progress
 
-# Import command handlers from split modules (also re-exports for plan.py compatibility)
+# Import command handlers from split modules
 from common.task_store import (
     cmd_create,
     cmd_archive,
+    cmd_complete,
+    cmd_set_status,
     cmd_set_branch,
     cmd_set_base_branch,
     cmd_set_scope,
@@ -57,6 +75,7 @@ from common.task_store import (
     cmd_remove_subtask,
 )
 from common.task_context import (
+    cmd_init_context,
     cmd_add_context,
     cmd_validate,
     cmd_list_context,
@@ -67,8 +86,9 @@ from common.task_context import (
 # Command: start / finish
 # =============================================================================
 
+
 def cmd_start(args: argparse.Namespace) -> int:
-    """Set active task."""
+    """Set current task."""
     repo_root = get_repo_root()
     task_input = args.dir
 
@@ -81,38 +101,50 @@ def cmd_start(args: argparse.Namespace) -> int:
 
     if not full_path.is_dir():
         print(colored(f"Error: Task not found: {task_input}", Colors.RED))
-        print("Hint: Use task name (e.g., 'my-task') or full path (e.g., '.trellis/tasks/01-31-my-task')")
+        print(
+            "Hint: Use task name (e.g., 'my-task') or full path (e.g., '.trellis/tasks/01-31-my-task')"
+        )
         return 1
 
     # Convert to relative path for storage
     try:
-        task_dir = full_path.relative_to(repo_root).as_posix()
+        task_dir = str(full_path.relative_to(repo_root))
     except ValueError:
         task_dir = str(full_path)
 
-    if not resolve_context_key():
-        print(colored("Error: Cannot set active task without a session identity.", Colors.RED))
-        print(
-            "Hint: run inside an AI IDE/session that exposes session identity, "
-            "or set TRELLIS_CONTEXT_ID before running task.py start."
-        )
-        return 1
-
-    active = set_active_task(task_dir, repo_root)
-    if active:
+    if set_current_task(task_dir, repo_root):
         print(colored(f"✓ Current task set to: {task_dir}", Colors.GREEN))
-        print(f"Source: {active.source}")
 
+        # Initialize scratchpad with task info (Mod 2: Session Context Freshness)
+        memory_dir = ensure_memory_dir(repo_root)
+        scratchpad = memory_dir / FILE_SCRATCHPAD
         task_json_path = full_path / FILE_TASK_JSON
+        task_title = "unknown"
         if task_json_path.is_file():
+            from common.io import read_json
+
             data = read_json(task_json_path)
-            if data and data.get("status") == "planning":
-                data["status"] = "in_progress"
-                if write_json(task_json_path, data):
-                    print(colored("✓ Status: planning → in_progress", Colors.GREEN))
+            if data:
+                task_title = data.get("title") or data.get("name") or "unknown"
+        today = datetime.now().strftime("%Y-%m-%d")
+        scratchpad.write_text(
+            f"# Scratchpad\n\n"
+            f"> Task: {task_title}\n"
+            f"> Started: {today}\n"
+            f"> Directory: {task_dir}\n\n"
+            f"## Current Focus\n(Add WIP notes here)\n\n"
+            f"## Open Questions\n(Add questions here)\n",
+            encoding="utf-8",
+        )
+        print(colored("✓ Scratchpad initialized for task", Colors.CYAN))
 
         print()
-        print(colored("The hook will now inject context from this task's jsonl files.", Colors.BLUE))
+        print(
+            colored(
+                "The hook will now inject context from this task's jsonl files.",
+                Colors.BLUE,
+            )
+        )
 
         run_task_hooks("after_start", task_json_path, repo_root)
         return 0
@@ -122,10 +154,9 @@ def cmd_start(args: argparse.Namespace) -> int:
 
 
 def cmd_finish(args: argparse.Namespace) -> int:
-    """Clear active task."""
+    """Clear current task."""
     repo_root = get_repo_root()
-    active = clear_active_task(repo_root)
-    current = active.task_path
+    current = get_current_task(repo_root)
 
     if not current:
         print(colored("No current task set", Colors.YELLOW))
@@ -134,36 +165,30 @@ def cmd_finish(args: argparse.Namespace) -> int:
     # Resolve task.json path before clearing
     task_json_path = repo_root / current / FILE_TASK_JSON
 
+    clear_current_task(repo_root)
     print(colored(f"✓ Cleared current task (was: {current})", Colors.GREEN))
-    print(f"Source: {active.source}")
+
+    # Reset scratchpad (Mod 2: Session Context Freshness)
+    memory_dir = get_memory_dir(repo_root)
+    if memory_dir.is_dir():
+        scratchpad = memory_dir / FILE_SCRATCHPAD
+        scratchpad.write_text(
+            "# Scratchpad\n\n"
+            "> Ephemeral WIP notes. Overwritten when new task starts.\n\n"
+            "(No active task)\n",
+            encoding="utf-8",
+        )
+    print(colored("✓ Scratchpad reset", Colors.CYAN))
 
     if task_json_path.is_file():
         run_task_hooks("after_finish", task_json_path, repo_root)
     return 0
 
 
-def cmd_current(args: argparse.Namespace) -> int:
-    """Show active task."""
-    repo_root = get_repo_root()
-    active = resolve_active_task(repo_root)
-
-    if args.source:
-        print(f"Current task: {active.task_path or '(none)'}")
-        print(f"Source: {active.source}")
-        if active.stale:
-            print("State: stale")
-        return 0 if active.task_path else 1
-
-    if active.task_path:
-        print(active.task_path)
-        return 0
-
-    return 1
-
-
 # =============================================================================
 # Command: list
 # =============================================================================
+
 
 def cmd_list(args: argparse.Namespace) -> int:
     """List active tasks."""
@@ -176,7 +201,12 @@ def cmd_list(args: argparse.Namespace) -> int:
 
     if filter_mine:
         if not developer:
-            print(colored("Error: No developer set. Run init_developer.py first", Colors.RED), file=sys.stderr)
+            print(
+                colored(
+                    "Error: No developer set. Run init_developer.py first", Colors.RED
+                ),
+                file=sys.stderr,
+            )
             return 1
         print(colored(f"My tasks (assignee: {developer}):", Colors.BLUE))
     else:
@@ -218,7 +248,9 @@ def cmd_list(args: argparse.Namespace) -> int:
         if filter_mine:
             print(f"{prefix}{dir_name}/ ({t.status}){pkg_tag}{progress}{marker}")
         else:
-            print(f"{prefix}{dir_name}/ ({t.status}){pkg_tag}{progress} [{colored(t.assignee or '-', Colors.CYAN)}]{marker}")
+            print(
+                f"{prefix}{dir_name}/ ({t.status}){pkg_tag}{progress} [{colored(t.assignee or '-', Colors.CYAN)}]{marker}"
+            )
         count += 1
 
         # Print children indented
@@ -245,6 +277,7 @@ def cmd_list(args: argparse.Namespace) -> int:
 # =============================================================================
 # Command: list-archive
 # =============================================================================
+
 
 def cmd_list_archive(args: argparse.Namespace) -> int:
     """List archived tasks."""
@@ -277,31 +310,58 @@ def cmd_list_archive(args: argparse.Namespace) -> int:
 
 
 # =============================================================================
+# Command: create-pr (delegates to multi-agent script)
+# =============================================================================
+
+
+def cmd_create_pr(args: argparse.Namespace) -> int:
+    """Create PR from task - delegates to multi_agent/create_pr.py."""
+    import subprocess
+
+    script_dir = Path(__file__).parent
+    create_pr_script = script_dir / "multi_agent" / "create_pr.py"
+
+    cmd = [sys.executable, str(create_pr_script)]
+    if args.dir:
+        cmd.append(args.dir)
+    if args.dry_run:
+        cmd.append("--dry-run")
+
+    result = subprocess.run(cmd)
+    return result.returncode
+
+
+# =============================================================================
 # Help
 # =============================================================================
 
+
 def show_usage() -> None:
     """Show usage help."""
-    print("""Task Management Script
+    print("""Task Management Script for Multi-Agent Pipeline
 
 Usage:
   python3 task.py create <title>                     Create new task directory
   python3 task.py create <title> --package <pkg>     Create task for a specific package
   python3 task.py create <title> --parent <dir>      Create task as child of parent
+  python3 task.py init-context <dir> <dev_type>      Initialize jsonl files
+  python3 task.py init-context <dir> <type> --package <pkg>  With explicit package
   python3 task.py add-context <dir> <jsonl> <path> [reason]  Add entry to jsonl
   python3 task.py validate <dir>                     Validate jsonl files
   python3 task.py list-context <dir>                 List jsonl entries
-  python3 task.py start <dir>                        Set active task
-  python3 task.py current [--source]                 Show active task
-  python3 task.py finish                             Clear active task
-  python3 task.py set-branch <dir> <branch>          Set git branch
-  python3 task.py set-base-branch <dir> <branch>     Set PR target branch
+  python3 task.py start <dir>                        Set as current task
+  python3 task.py finish                             Clear current task
+  python3 task.py set-branch <dir> <branch>          Set git branch for multi-agent
   python3 task.py set-scope <dir> <scope>            Set scope for PR title
-  python3 task.py archive <task-dir>                 Archive completed task
-  python3 task.py add-subtask <parent> <child>       Link child task to parent
-  python3 task.py remove-subtask <parent> <child>    Unlink child from parent
+  python3 task.py create-pr [dir] [--dry-run]        Create PR from task
+  python3 task.py archive <task-name>                Archive completed task
+  python3 task.py add-subtask <parent> <child>       Link existing tasks
+  python3 task.py remove-subtask <parent> <child>    Unlink tasks
   python3 task.py list [--mine] [--status <status>]  List tasks
   python3 task.py list-archive [YYYY-MM]             List archived tasks
+
+Arguments:
+  dev_type: python | matlab | both | trellis | test | docs
 
 Monorepo options:
   --package <pkg>      Package name (validated against config.yaml packages)
@@ -314,10 +374,13 @@ Examples:
   python3 task.py create "Add login feature" --slug add-login
   python3 task.py create "Add login feature" --slug add-login --package cli
   python3 task.py create "Child task" --slug child --parent .trellis/tasks/01-21-parent
+  python3 task.py init-context .trellis/tasks/01-21-add-login python
+  python3 task.py init-context .trellis/tasks/01-21-add-login python --package cli
   python3 task.py add-context <dir> implement .trellis/spec/cli/backend/auth.md "Auth guidelines"
   python3 task.py set-branch <dir> task/add-login
   python3 task.py start .trellis/tasks/01-21-add-login
-  python3 task.py current --source
+  python3 task.py create-pr                          # Uses current task
+  python3 task.py create-pr <dir> --dry-run          # Preview without changes
   python3 task.py finish
   python3 task.py archive add-login
   python3 task.py add-subtask parent-task child-task  # Link existing tasks
@@ -332,40 +395,11 @@ Examples:
 # Main Entry
 # =============================================================================
 
+
 def main() -> int:
     """CLI entry point."""
-    # Deprecation guard: `init-context` was removed in v0.5.0-beta.12.
-    # Detect early so argparse doesn't mask the real reason with a generic
-    # "invalid choice" error.
-    if len(sys.argv) >= 2 and sys.argv[1] == "init-context":
-        print(
-            colored(
-                "Error: `task.py init-context` was removed in v0.5.0-beta.12.",
-                Colors.RED,
-            ),
-            file=sys.stderr,
-        )
-        print(
-            "implement.jsonl / check.jsonl are now seeded on `task.py create` for",
-            file=sys.stderr,
-        )
-        print(
-            "sub-agent-capable platforms and curated by the AI during Phase 1.3.",
-            file=sys.stderr,
-        )
-        print("See .trellis/workflow.md Phase 1.3 or run:", file=sys.stderr)
-        print(
-            "  python3 ./.trellis/scripts/get_context.py --mode phase --step 1.3",
-            file=sys.stderr,
-        )
-        print(
-            "Use `task.py add-context <dir> implement|check <path> <reason>` to append entries.",
-            file=sys.stderr,
-        )
-        return 2
-
     parser = argparse.ArgumentParser(
-        description="Task Management Script",
+        description="Task Management Script for Multi-Agent Pipeline",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     subparsers = parser.add_subparsers(dest="command", help="Commands")
@@ -377,15 +411,28 @@ def main() -> int:
     p_create.add_argument("--assignee", "-a", help="Assignee developer")
     p_create.add_argument("--priority", "-p", default="P2", help="Priority (P0-P3)")
     p_create.add_argument("--description", "-d", help="Task description")
-    p_create.add_argument("--parent", help="Parent task directory (establishes subtask link)")
+    p_create.add_argument(
+        "--parent", help="Parent task directory (establishes subtask link)"
+    )
     p_create.add_argument("--package", help="Package name for monorepo projects")
+
+    # init-context
+    p_init = subparsers.add_parser("init-context", help="Initialize context files")
+    p_init.add_argument("dir", help="Task directory")
+    p_init.add_argument("type", help="Dev type: python|matlab|both|trellis|test|docs")
+    p_init.add_argument("--package", help="Package name for monorepo projects")
 
     # add-context
     p_add = subparsers.add_parser("add-context", help="Add context entry")
     p_add.add_argument("dir", help="Task directory")
-    p_add.add_argument("file", help="JSONL file (implement|check)")
+    p_add.add_argument("file", help="JSONL file (implement|check|debug)")
     p_add.add_argument("path", help="File path to add")
     p_add.add_argument("reason", nargs="?", help="Reason for adding")
+    p_add.add_argument(
+        "--reference",
+        action="store_true",
+        help="Add as reference type (inject only index.md from directory)",
+    )
 
     # validate
     p_validate = subparsers.add_parser("validate", help="Validate context files")
@@ -396,16 +443,25 @@ def main() -> int:
     p_listctx.add_argument("dir", help="Task directory")
 
     # start
-    p_start = subparsers.add_parser("start", help="Set active task")
+    p_start = subparsers.add_parser("start", help="Set current task")
     p_start.add_argument("dir", help="Task directory")
 
-    # current
-    p_current = subparsers.add_parser("current", help="Show active task")
-    p_current.add_argument("--source", action="store_true",
-                           help="Show active task source")
+    # finish / clear-current
+    subparsers.add_parser("finish", help="Clear current task")
+    subparsers.add_parser("clear-current", help="Clear current task (alias for finish)")
 
-    # finish
-    subparsers.add_parser("finish", help="Clear active task")
+    # complete
+    p_complete = subparsers.add_parser(
+        "complete", help="Complete task (status + cleanup)"
+    )
+    p_complete.add_argument(
+        "dir", nargs="?", help="Task directory (defaults to current task)"
+    )
+
+    # set-status
+    p_setstatus = subparsers.add_parser("set-status", help="Set task status")
+    p_setstatus.add_argument("dir", help="Task directory")
+    p_setstatus.add_argument("status", help="New status")
 
     # set-branch
     p_branch = subparsers.add_parser("set-branch", help="Set git branch")
@@ -422,10 +478,17 @@ def main() -> int:
     p_scope.add_argument("dir", help="Task directory")
     p_scope.add_argument("scope", help="Scope name")
 
+    # create-pr
+    p_pr = subparsers.add_parser("create-pr", help="Create PR")
+    p_pr.add_argument("dir", nargs="?", help="Task directory")
+    p_pr.add_argument("--dry-run", action="store_true", help="Dry run mode")
+
     # archive
     p_archive = subparsers.add_parser("archive", help="Archive task")
-    p_archive.add_argument("name", help="Task directory or name")
-    p_archive.add_argument("--no-commit", action="store_true", help="Skip auto git commit after archive")
+    p_archive.add_argument("name", help="Task name")
+    p_archive.add_argument(
+        "--no-commit", action="store_true", help="Skip auto git commit after archive"
+    )
 
     # list
     p_list = subparsers.add_parser("list", help="List tasks")
@@ -438,7 +501,9 @@ def main() -> int:
     p_addsub.add_argument("child_dir", help="Child task directory")
 
     # remove-subtask
-    p_rmsub = subparsers.add_parser("remove-subtask", help="Unlink child task from parent")
+    p_rmsub = subparsers.add_parser(
+        "remove-subtask", help="Unlink child task from parent"
+    )
     p_rmsub.add_argument("parent_dir", help="Parent task directory")
     p_rmsub.add_argument("child_dir", help="Child task directory")
 
@@ -454,15 +519,19 @@ def main() -> int:
 
     commands = {
         "create": cmd_create,
+        "init-context": cmd_init_context,
         "add-context": cmd_add_context,
         "validate": cmd_validate,
         "list-context": cmd_list_context,
         "start": cmd_start,
-        "current": cmd_current,
         "finish": cmd_finish,
+        "clear-current": cmd_finish,
+        "complete": cmd_complete,
+        "set-status": cmd_set_status,
         "set-branch": cmd_set_branch,
         "set-base-branch": cmd_set_base_branch,
         "set-scope": cmd_set_scope,
+        "create-pr": cmd_create_pr,
         "archive": cmd_archive,
         "add-subtask": cmd_add_subtask,
         "remove-subtask": cmd_remove_subtask,

@@ -5,6 +5,8 @@ Provides:
     TaskData     — TypedDict for task.json shape (read-path type hints only)
     TaskInfo     — Frozen dataclass for loaded task (the public API type)
     AgentRecord  — TypedDict for registry.json agent entries
+
+Ported from upstream v0.4.0-beta.7.
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ from typing import TypedDict
 # =============================================================================
 # task.json shape (TypedDict — used only for read-path type hints)
 # =============================================================================
+
 
 class TaskData(TypedDict, total=False):
     """Shape of task.json on disk.
@@ -41,6 +44,8 @@ class TaskData(TypedDict, total=False):
     branch: str | None
     base_branch: str | None
     worktree_path: str | None
+    current_phase: int
+    next_action: list[dict]
     commit: str | None
     pr_url: str | None
     subtasks: list[str]
@@ -54,6 +59,7 @@ class TaskData(TypedDict, total=False):
 # =============================================================================
 # Loaded task object (frozen dataclass — the public API type)
 # =============================================================================
+
 
 @dataclass(frozen=True)
 class TaskInfo:
@@ -96,6 +102,7 @@ class TaskInfo:
 # =============================================================================
 # registry.json agent entry
 # =============================================================================
+
 
 class AgentRecord(TypedDict, total=False):
     """Shape of an agent entry in registry.json."""

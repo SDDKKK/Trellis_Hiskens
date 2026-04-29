@@ -3,6 +3,8 @@ Terminal output utilities: colors and structured logging.
 
 Single source of truth for Colors and log_* functions
 used across all Trellis scripts.
+
+Ported from upstream v0.4.0-beta.7.
 """
 
 from __future__ import annotations

@@ -55,38 +55,122 @@ def configure_encoding() -> None:
         sys.stdin = _configure_stream(sys.stdin)  # type: ignore[assignment]
 
 
-from .paths import (
+from .paths import (  # noqa: E402
     DIR_WORKFLOW,
     DIR_WORKSPACE,
     DIR_TASKS,
     DIR_ARCHIVE,
     DIR_SPEC,
     DIR_SCRIPTS,
+    DIR_MEMORY,
     FILE_DEVELOPER,
     FILE_CURRENT_TASK,
     FILE_TASK_JSON,
     FILE_JOURNAL_PREFIX,
+    FILE_DECISIONS,
+    FILE_KNOWN_ISSUES,
+    FILE_SCRATCHPAD,
+    FILE_LEARNINGS,
     get_repo_root,
     get_developer,
     check_developer,
     get_tasks_dir,
     get_workspace_dir,
+    get_memory_dir,
+    ensure_memory_dir,
     get_active_journal_file,
     count_lines,
     get_current_task,
     get_current_task_abs,
-    normalize_task_ref,
-    resolve_task_ref,
     set_current_task,
     clear_current_task,
     has_current_task,
     generate_task_date_prefix,
+    get_spec_dir,
+    get_package_path,
 )
 
-from .active_task import (
-    ActiveTask,
-    clear_active_task,
-    resolve_active_task,
-    resolve_context_key,
-    set_active_task,
+# New modules from upstream v0.4.0-beta.8
+from .io import read_json, write_json  # noqa: E402
+from .git import run_git  # noqa: E402
+from .log import Colors, colored, log_info, log_success, log_warn, log_error  # noqa: E402
+from .types import TaskData, TaskInfo, AgentRecord  # noqa: E402
+from .tasks import load_task, iter_active_tasks, get_all_statuses, children_progress  # noqa: E402
+from .config import (  # noqa: E402
+    get_packages,
+    get_default_package,
+    is_monorepo,
+    validate_package,
+    resolve_package,
+    get_spec_scope,
+    get_features,
+    get_hooks,
 )
+
+__all__ = [
+    "configure_encoding",
+    # paths
+    "DIR_WORKFLOW",
+    "DIR_WORKSPACE",
+    "DIR_TASKS",
+    "DIR_ARCHIVE",
+    "DIR_SPEC",
+    "DIR_SCRIPTS",
+    "DIR_MEMORY",
+    "FILE_DEVELOPER",
+    "FILE_CURRENT_TASK",
+    "FILE_TASK_JSON",
+    "FILE_JOURNAL_PREFIX",
+    "FILE_DECISIONS",
+    "FILE_KNOWN_ISSUES",
+    "FILE_SCRATCHPAD",
+    "FILE_LEARNINGS",
+    "check_developer",
+    "clear_current_task",
+    "count_lines",
+    "generate_task_date_prefix",
+    "get_active_journal_file",
+    "get_current_task",
+    "get_current_task_abs",
+    "get_developer",
+    "get_repo_root",
+    "get_tasks_dir",
+    "get_workspace_dir",
+    "get_memory_dir",
+    "ensure_memory_dir",
+    "has_current_task",
+    "set_current_task",
+    "get_spec_dir",
+    "get_package_path",
+    # io
+    "read_json",
+    "write_json",
+    # git
+    "run_git",
+    # log
+    "Colors",
+    "colored",
+    "log_info",
+    "log_success",
+    "log_warn",
+    "log_error",
+    # types
+    "TaskData",
+    "TaskInfo",
+    "AgentRecord",
+    # tasks
+    "load_task",
+    "iter_active_tasks",
+    "get_all_statuses",
+    "children_progress",
+    # config (monorepo)
+    "get_packages",
+    "get_default_package",
+    "is_monorepo",
+    "validate_package",
+    "resolve_package",
+    "get_spec_scope",
+    # config (local customization)
+    "get_features",
+    "get_hooks",
+]
