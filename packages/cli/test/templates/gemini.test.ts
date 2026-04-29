@@ -1,31 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { getAllCommands } from "../../src/templates/gemini/index.js";
+import { resolveCommands } from "../../src/configurators/shared.js";
+import { AI_TOOLS } from "../../src/types/ai-tools.js";
 
 // Gemini uses subdirectory namespacing: commands/trellis/<name>.toml (no parallel)
-const EXPECTED_COMMAND_NAMES = [
-  "before-dev",
-  "brainstorm",
-  "break-loop",
-  "check-cross-layer",
-  "check",
-  "create-command",
-  "finish-work",
-  "integrate-skill",
-  "onboard",
-  "record-session",
-  "start",
-  "update-spec",
-];
+// agentCapable=true so start is filtered out
+const EXPECTED_COMMAND_NAMES = ["continue", "finish-work"];
 
 describe("gemini getAllCommands", () => {
   it("returns the expected command set", () => {
-    const commands = getAllCommands();
+    const commands = resolveCommands(AI_TOOLS.gemini.templateContext);
     const names = commands.map((c) => c.name);
     expect(names).toEqual(EXPECTED_COMMAND_NAMES);
   });
 
   it("each command has non-empty content", () => {
-    const commands = getAllCommands();
+    const commands = resolveCommands(AI_TOOLS.gemini.templateContext);
     for (const command of commands) {
       expect(command.name.length).toBeGreaterThan(0);
       expect(command.content.length).toBeGreaterThan(0);
@@ -33,23 +22,18 @@ describe("gemini getAllCommands", () => {
   });
 
   it("command names do not include .toml extension", () => {
-    const commands = getAllCommands();
+    const commands = resolveCommands(AI_TOOLS.gemini.templateContext);
     for (const cmd of commands) {
       expect(cmd.name).not.toContain(".toml");
     }
   });
 
-  it("all commands have valid TOML structure", () => {
-    const commands = getAllCommands();
+  it("TOML-wrapped commands have valid TOML structure", () => {
+    const commands = resolveCommands(AI_TOOLS.gemini.templateContext);
     for (const cmd of commands) {
-      expect(
-        cmd.content,
-        `${cmd.name} should contain description`,
-      ).toContain("description = ");
-      expect(
-        cmd.content,
-        `${cmd.name} should contain prompt with triple-quoted string`,
-      ).toContain('prompt = """');
+      const toml = `description = "Trellis: ${cmd.name}"\n\nprompt = """\n${cmd.content}\n"""\n`;
+      expect(toml).toContain("description = ");
+      expect(toml).toContain('prompt = """');
     }
   });
 });

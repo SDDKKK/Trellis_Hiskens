@@ -71,6 +71,19 @@ export function getPiSourcePath(): string {
 }
 
 /**
+ * Get the path to the iFlow templates directory.
+ */
+export function getIflowTemplatePath(): string {
+  const templatePath = path.join(__dirname, "iflow");
+  if (fs.existsSync(templatePath)) {
+    return templatePath;
+  }
+  throw new Error(
+    "Could not find iflow templates directory. Expected at templates/iflow/",
+  );
+}
+
+/**
  * Read a file from the trellis template directory.
  */
 export function readTrellisFile(relativePath: string): string {

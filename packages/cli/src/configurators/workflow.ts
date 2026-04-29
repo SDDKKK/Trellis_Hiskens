@@ -20,6 +20,7 @@ import {
   backendLoggingGuidelinesContent,
   backendQualityGuidelinesContent,
   backendErrorHandlingContent,
+  backendScriptConventionsContent,
   // Frontend structure (multi-doc)
   frontendIndexContent,
   frontendDirectoryStructureContent,
@@ -148,6 +149,10 @@ async function writeBackendDocs(specBase: string): Promise<void> {
     { name: "logging-guidelines.md", content: backendLoggingGuidelinesContent },
     { name: "quality-guidelines.md", content: backendQualityGuidelinesContent },
     { name: "error-handling.md", content: backendErrorHandlingContent },
+    {
+      name: "script-conventions.md",
+      content: backendScriptConventionsContent,
+    },
   ];
   for (const doc of docs) {
     await writeFile(path.join(backendDir, doc.name), doc.content);

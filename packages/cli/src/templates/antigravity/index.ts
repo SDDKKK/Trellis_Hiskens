@@ -6,9 +6,9 @@
  */
 
 import {
-  getAllSkills as getAllCodexSkills,
-  type SkillTemplate as CodexSkillTemplate,
-} from "../codex/index.js";
+  getSkillTemplates,
+  type CommonTemplate as CodexSkillTemplate,
+} from "../common/index.js";
 
 export interface WorkflowTemplate {
   name: string;
@@ -43,7 +43,7 @@ function adaptSkillContentToWorkflow(
 }
 
 export function getAllWorkflows(): WorkflowTemplate[] {
-  const skills: CodexSkillTemplate[] = getAllCodexSkills();
+  const skills: CodexSkillTemplate[] = getSkillTemplates();
   const workflowNames = skills.map((skill) => skill.name);
   return skills.map((skill) => ({
     name: skill.name,

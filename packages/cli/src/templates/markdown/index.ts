@@ -61,6 +61,9 @@ export const backendQualityGuidelinesContent: string = readLocalTemplate(
 export const backendErrorHandlingContent: string = readLocalTemplate(
   "spec/backend/error-handling.md.txt",
 );
+export const backendScriptConventionsContent: string = readLocalTemplate(
+  "spec/backend/script-conventions.md.txt",
+);
 
 // Frontend structure (multi-doc format)
 export const frontendIndexContent: string = readLocalTemplate(
