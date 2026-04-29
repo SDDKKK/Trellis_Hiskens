@@ -636,12 +636,6 @@ async function handleReinit(
       chalk.blue(`📝 Applying ${options.overlay} workflow overlay...`),
     );
     await applyWorkflowOverlay(cwd, options.overlay);
-    const hashedCount = initializeHashes(cwd);
-    if (hashedCount > 0) {
-      console.log(
-        chalk.gray(`📋 Tracking ${hashedCount} template files for updates`),
-      );
-    }
   };
 
   const applyRequestedPlatformOverlay = async (
@@ -669,6 +663,12 @@ async function handleReinit(
     if (options.overlay) {
       await applyRequestedWorkflowOverlay();
       await applyRequestedConfiguredPlatformOverlays();
+      const hashedCount = initializeHashes(cwd);
+      if (hashedCount > 0) {
+        console.log(
+          chalk.gray(`📋 Tracking ${hashedCount} template files for updates`),
+        );
+      }
       return true;
     }
 
