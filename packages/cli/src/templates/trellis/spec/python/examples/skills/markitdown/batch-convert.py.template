@@ -1,0 +1,55 @@
+"""Batch convert project documents (PDF, DOCX, XLSX) to Markdown.
+
+Demonstrates: parallel batch conversion, multiple formats, error handling.
+"""
+
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from markitdown import MarkItDown
+from pathlib import Path
+
+EXTENSIONS = [".pdf", ".docx", ".xlsx"]
+INPUT_DIR = Path("data/reports/")
+OUTPUT_DIR = Path("data/markdown/")
+
+
+def convert_one(md: MarkItDown, filepath: Path) -> tuple[bool, str]:
+    """Convert a single file. Returns (success, message)."""
+    try:
+        result = md.convert(str(filepath))
+        out = OUTPUT_DIR / f"{filepath.stem}.md"
+        content = f"# {result.title or filepath.stem}\n\n"
+        content += f"**Source**: {filepath.name}\n\n---\n\n"
+        content += result.text_content
+        out.write_text(content, encoding="utf-8")
+        return True, f"OK: {filepath.name}"
+    except Exception as e:
+        return False, f"FAIL: {filepath.name} — {e}"
+
+
+def main():
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    md = MarkItDown()
+
+    files = []
+    for ext in EXTENSIONS:
+        files.extend(INPUT_DIR.glob(f"*{ext}"))
+
+    if not files:
+        print(f"No files found in {INPUT_DIR}")
+        return
+
+    print(f"Converting {len(files)} file(s)...")
+
+    success = 0
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = {pool.submit(convert_one, md, f): f for f in files}
+        for future in as_completed(futures):
+            ok, msg = future.result()
+            print(msg)
+            success += ok
+
+    print(f"\nDone: {success}/{len(files)} succeeded")
+
+
+if __name__ == "__main__":
+    main()

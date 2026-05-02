@@ -33,7 +33,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build
-        run: pnpm --filter @mindfoldhq/trellis build
+        run: pnpm --filter @hiskens/trellis build
 
       - name: Determine npm tag
         id: npm-tag
@@ -45,6 +45,8 @@ jobs:
             echo "tag=alpha" >> $GITHUB_OUTPUT
           elif [[ "$VERSION" == *"-rc"* ]]; then
             echo "tag=rc" >> $GITHUB_OUTPUT
+          elif [[ "$VERSION" == *"-hiskens"* ]]; then
+            echo "tag=hiskens" >> $GITHUB_OUTPUT
           else
             echo "tag=latest" >> $GITHUB_OUTPUT
           fi

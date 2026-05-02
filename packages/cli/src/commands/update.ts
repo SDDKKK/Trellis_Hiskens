@@ -39,6 +39,7 @@ import {
   configYamlTemplate,
   gitignoreTemplate,
   workflowMdTemplate,
+  agentModelsExampleTemplate,
 } from "../templates/trellis/index.js";
 import { agentsMdContent } from "../templates/markdown/index.js";
 
@@ -641,6 +642,10 @@ function collectTemplateFiles(
 
   // Configuration
   files.set(`${DIR_NAMES.WORKFLOW}/config.yaml`, configYamlTemplate);
+  files.set(
+    `${DIR_NAMES.WORKFLOW}/config/agent-models.example.json`,
+    agentModelsExampleTemplate,
+  );
   files.set(`${DIR_NAMES.WORKFLOW}/.gitignore`, gitignoreTemplate);
   // workflow.md is included here (starting v0.5.0-beta.4) because it's no longer
   // just user-facing documentation — `## Phase Index`, `## Phase 1/2/3` headings,

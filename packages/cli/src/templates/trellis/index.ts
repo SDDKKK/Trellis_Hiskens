@@ -64,10 +64,25 @@ export const taskScript = readTemplate("scripts/task.py");
 export const getContextScript = readTemplate("scripts/get_context.py");
 export const addSessionScript = readTemplate("scripts/add_session.py");
 
+// Python scripts - Nocturne integration
+export const nocturneClientScript = readTemplate("scripts/nocturne_client.py");
+export const initNocturneNamespaceScript = readTemplate(
+  "scripts/init-nocturne-namespace.py",
+);
+export const promoteToNocturneScript = readTemplate(
+  "scripts/promote-to-nocturne.py",
+);
+export const syncTrellisToNocturneScript = readTemplate(
+  "scripts/sync-trellis-to-nocturne.py",
+);
+
 // Configuration files
 export const workflowMdTemplate = readTemplate("workflow.md");
 export const configYamlTemplate = readTemplate("config.yaml");
 export const gitignoreTemplate = readTemplate("gitignore.txt");
+export const agentModelsExampleTemplate = readTemplate(
+  "config/agent-models.example.json",
+);
 
 /**
  * Get all script templates as a map of relative path to content
@@ -105,6 +120,12 @@ export function getAllScripts(): Map<string, string> {
   scripts.set("task.py", taskScript);
   scripts.set("get_context.py", getContextScript);
   scripts.set("add_session.py", addSessionScript);
+
+  // Nocturne integration
+  scripts.set("nocturne_client.py", nocturneClientScript);
+  scripts.set("init-nocturne-namespace.py", initNocturneNamespaceScript);
+  scripts.set("promote-to-nocturne.py", promoteToNocturneScript);
+  scripts.set("sync-trellis-to-nocturne.py", syncTrellisToNocturneScript);
 
   return scripts;
 }

@@ -8,6 +8,7 @@ import {
   workflowMdTemplate,
   configYamlTemplate,
   gitignoreTemplate,
+  agentModelsExampleTemplate,
 } from "../templates/trellis/index.js";
 
 // Import markdown templates
@@ -107,6 +108,13 @@ export async function createWorkflowStructure(
   await writeFile(
     path.join(cwd, DIR_NAMES.WORKFLOW, "config.yaml"),
     configYamlTemplate,
+  );
+
+  // Copy agent-models.example.json for CCR routing
+  ensureDir(path.join(cwd, DIR_NAMES.WORKFLOW, "config"));
+  await writeFile(
+    path.join(cwd, DIR_NAMES.WORKFLOW, "config", "agent-models.example.json"),
+    agentModelsExampleTemplate,
   );
 
   // Create workspace/ with index.md
@@ -240,4 +248,8 @@ async function createSpecTemplates(
     // Single-repo mode
     await writeSpecForType(path.join(cwd, PATHS.SPEC), projectType);
   }
+
+  // Hiskens: always install Python and MATLAB spec packs
+  await copyTrellisDir("spec/python", path.join(cwd, PATHS.SPEC, "python"));
+  await copyTrellisDir("spec/matlab", path.join(cwd, PATHS.SPEC, "matlab"));
 }
