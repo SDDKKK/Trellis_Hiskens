@@ -1,6 +1,6 @@
 {
   "name": "@hiskens/trellis",
-  "version": "0.5.0-rc.3-hiskens.1",
+  "version": "0.5.0-rc.3-hiskens",
   "description": "AI capabilities grow like ivy — Trellis provides the structure to guide them along a disciplined path",
   "type": "module",
   "main": "./dist/index.js",

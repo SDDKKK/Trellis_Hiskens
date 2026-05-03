@@ -72,6 +72,11 @@
   },
   "enabledPlugins": {},
   "permissions": {},
+  "statusLine": {
+    "type": "command",
+    "command": "{{PYTHON_CMD}} .claude/hooks/statusline.py",
+    "refreshInterval": 5
+  },
   "model": "opus[1m]",
   "alwaysThinkingEnabled": true
 }

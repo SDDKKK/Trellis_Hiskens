@@ -2,7 +2,7 @@
 name: trellis-check
 description: |
   Code quality check expert. Reviews code changes against specs and self-fixes issues.
-tools: Read, Write, Edit, Bash, Glob, Grep, mcp__augment-context-engine__codebase-retrieval, mcp__grok-search__*
+tools: Read, Write, Edit, Bash, Glob, Grep, mcp__augment-context-engine__*, mcp__grok-search__*
 ---
 # Check Agent
 

@@ -28,7 +28,8 @@ export type SharedHookName =
   | "session-start.py"
   | "inject-shell-session-context.py"
   | "inject-workflow-state.py"
-  | "inject-subagent-context.py";
+  | "inject-subagent-context.py"
+  | "statusline.py";
 
 export type SharedHookPlatform =
   | "claude"
@@ -59,9 +60,9 @@ export type SharedHookPlatform =
  *   via a prelude instead.
  * - Kiro supports only `agentSpawn` (no SessionStart / UserPromptSubmit
  *   event), so it takes just `inject-subagent-context.py`.
- * - Claude Code `statusLine` is intentionally not installed by default.
- *   Users can add their own statusLine command in `.claude/settings.json`
- *   without Trellis owning a generated hook file.
+ * - Claude Code `statusLine` is installed by default in the hiskens overlay.
+ *   The statusline.py hook reads task + session data and displays a rich
+ *   status bar with model, context %, branch, developer, and rate limits.
  */
 export const SHARED_HOOKS_BY_PLATFORM: Record<
   SharedHookPlatform,
@@ -71,6 +72,7 @@ export const SHARED_HOOKS_BY_PLATFORM: Record<
     "session-start.py",
     "inject-workflow-state.py",
     "inject-subagent-context.py",
+    "statusline.py",
   ],
   cursor: [
     "session-start.py",
