@@ -1,0 +1,7 @@
+{
+  "_comment": "Agent model routing for CCR. Reference: ~/.claude-code-router/config.json",
+  "_format": "provider_name,model_name (must match CCR Providers[].name and models[])",
+  "trellis-implement": "CC-MAX,claude-opus-4-7",
+  "trellis-check": "CC-MAX,claude-opus-4-7",
+  "trellis-research": "CC-MAX,claude-opus-4-7"
+}

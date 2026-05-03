@@ -57,3 +57,19 @@ max_journal_lines: 2000
 
 # Default package used when --package is not specified.
 # default_package: frontend
+
+#-------------------------------------------------------------------------------
+# Features (config-driven behavior for shared scripts)
+#-------------------------------------------------------------------------------
+
+# Feature flags that control project-specific behavior in shared Python scripts.
+# Shared scripts read these flags from config.yaml to enable/disable features.
+# Missing features section or individual flags default to false (graceful degradation).
+#
+# ccr_routing:       Enable CCR (Claude Code Router) model tag injection in hooks.
+#                    Requires agent-models.json config and CCR proxy running on localhost.
+features:
+  ccr_routing: true
+  reference_support: true
+  java_support: false
+  extra_platforms: []

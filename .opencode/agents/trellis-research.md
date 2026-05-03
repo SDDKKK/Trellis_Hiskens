@@ -9,7 +9,9 @@ permission:
   bash: allow
   glob: allow
   grep: allow
-  mcp__exa__*: allow
+  mcp__augment-context-engine__*: allow
+  mcp__context7__*: allow
+  mcp__grok-search__*: allow
   mcp__chrome-devtools__*: allow
 ---
 # Research Agent
@@ -51,7 +53,8 @@ Classify: internal / external / mixed. Determine scope (global / specific direct
 
 ### Step 3: Execute Search
 
-Run independent searches in parallel (Glob + Grep + web) for efficiency.
+Before exact searches, use mcp__augment-context-engine__codebase-retrieval for ANY question involving codebase, files, structure, dependencies, search, or context,
+then run independent searches in parallel (Glob + Grep + mcp__grok-search__*) for efficiency.
 
 ### Step 4: Persist Each Topic
 
