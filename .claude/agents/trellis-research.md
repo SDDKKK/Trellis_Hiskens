@@ -2,7 +2,7 @@
 name: trellis-research
 description: |
   Code and tech search expert. Finds files, patterns, and tech solutions, and PERSISTS every finding to the current task's research/ directory. No code modifications outside that directory.
-tools: Read, Write, Glob, Grep, Bash, Skill, mcp__augment-context-engine__*, mcp__context7__*, mcp__grok-search__*
+tools: Read, Write, Glob, Grep, Bash, mcp__augment-context-engine__*, mcp__context7__*, mcp__grok-search__*, Skill, mcp__chrome-devtools__*
 ---
 # Research Agent
 
@@ -43,8 +43,7 @@ Classify: internal / external / mixed. Determine scope (global / specific direct
 
 ### Step 3: Execute Search
 
-Before exact searches, use mcp__augment-context-engine__* for ANY question involving codebase, files, structure, dependencies, search, or context,
-then run independent searches in parallel (Glob + Grep + mcp__grok-search__*) for efficiency.
+Run independent searches in parallel (Glob + Grep + web) for efficiency.
 
 ### Step 4: Persist Each Topic
 

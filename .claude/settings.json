@@ -1,7 +1,6 @@
 {
   "env": {
-    "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR": "1",
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+    "CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR": "1"
   },
   "hooks": {
     "SessionStart": [
@@ -71,12 +70,9 @@
     ]
   },
   "enabledPlugins": {},
-  "permissions": {},
   "statusLine": {
     "type": "command",
     "command": "python3 .claude/hooks/statusline.py",
     "refreshInterval": 5
-  },
-  "model": "opus[1m]",
-  "alwaysThinkingEnabled": true
+  }
 }
