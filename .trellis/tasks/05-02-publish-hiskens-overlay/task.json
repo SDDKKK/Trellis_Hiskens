@@ -1,0 +1,16 @@
+{
+  "title": "Publish @hiskens/trellis customized overlay package",
+  "slug": "publish-hiskens-overlay",
+  "status": "brainstorm",
+  "created": "2026-05-02",
+  "developer": "Hiskens",
+  "tags": ["overlay", "npm", "cli", "ccr"],
+  "subtasks": [
+    { "id": "sync-rc1", "title": "Sync fork to upstream v0.5.0-rc.1", "status": "pending" },
+    { "id": "slim-overlay", "title": "Slim overlay from 134 to ~28 files", "status": "pending" },
+    { "id": "cli-u-alias", "title": "Add -u as overlay alias in CLI", "status": "pending" },
+    { "id": "overlay-persist", "title": "Implement overlay persistence in config.yaml", "status": "pending" },
+    { "id": "package-rename", "title": "Change package scope to @hiskens/trellis", "status": "pending" },
+    { "id": "validate", "title": "Build, test, and validate", "status": "pending" }
+  ]
+}

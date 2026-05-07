@@ -1,0 +1,3 @@
+{"file": "packages/cli/src/templates/shared-hooks/statusline.py", "reason": "Target file — contains broken _get_current_task()"}
+{"file": "packages/cli/src/templates/shared-hooks/inject-workflow-state.py", "reason": "Reference pattern — _resolve_active_task() import and usage"}
+{"file": "packages/cli/src/templates/trellis/scripts/common/active_task.py", "reason": "API reference — resolve_active_task() signature and ActiveTask type"}

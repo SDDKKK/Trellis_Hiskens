@@ -1,0 +1,4 @@
+{"file": ".trellis/spec/cli/backend/platform-integration.md", "reason": "Platform-specific tool naming and agent file conventions"}
+{"file": ".claude/agents/trellis-research.md", "reason": "Reference pattern — verify other platforms match this"}
+{"file": ".claude/agents/trellis-implement.md", "reason": "Reference pattern — verify other platforms match this"}
+{"file": ".claude/agents/trellis-check.md", "reason": "Reference pattern — verify other platforms match this"}

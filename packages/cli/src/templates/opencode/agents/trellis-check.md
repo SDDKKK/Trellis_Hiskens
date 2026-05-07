@@ -9,7 +9,8 @@ permission:
   bash: allow
   glob: allow
   grep: allow
-  mcp__exa__*: allow
+  mcp__augment-context-engine__*: allow
+  mcp__grok-search__*: allow
 ---
 # Check Agent
 

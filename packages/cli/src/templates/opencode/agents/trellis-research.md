@@ -9,7 +9,9 @@ permission:
   bash: allow
   glob: allow
   grep: allow
-  mcp__exa__*: allow
+  mcp__augment-context-engine__*: allow
+  mcp__context7__*: allow
+  mcp__grok-search__*: allow
   mcp__chrome-devtools__*: allow
 ---
 # Research Agent
