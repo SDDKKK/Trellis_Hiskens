@@ -4,7 +4,7 @@ description: >
   Sync the hiskens Trellis fork with upstream mindfold-ai/Trellis and apply overlay customizations.
   This skill is the single source of truth for what makes the fork different and how to keep it current.
   Use when: the user says "sync upstream", "同步上游", "overlay sync", "trellis overlay", "跟上游同步",
-  "upgrade trellis", "更新上游", or when upstream has new commits on feat/v0.5.0-rc that need merging.
+  "upgrade trellis", "更新上游", or when upstream has new commits on feat/v0.6.0-beta that need merging.
   Also use when verifying or modifying fork customization points (MCP tools, statusline, version scheme).
 ---
 
@@ -25,7 +25,7 @@ Customizations live in `packages/cli/src/templates/` (distributed via `npm publi
 | Field | Upstream | Hiskens |
 |-------|----------|---------|
 | name | `@mindfoldhq/trellis` | `@hiskens/trellis` |
-| version | `0.5.0-rc.3` | `0.5.0-rc.3-hiskens` |
+| version | `0.6.0-beta.3` | `0.6.0-beta.3-hiskens` |
 
 Version format: `{upstream-version}-hiskens` — no trailing `.1` or build number.
 
@@ -117,10 +117,10 @@ Contains the upstream commit hash that the fork is currently based on. Updated a
 
 ```bash
 cd /home/hcx/github/Trellis_Hiskens
-git fetch upstream feat/v0.5.0-rc --tags
+git fetch upstream feat/v0.6.0-beta --tags
 CURRENT=$(cat .upstream-version)
-git log --oneline $CURRENT..upstream/feat/v0.5.0-rc
-git diff --stat $CURRENT..upstream/feat/v0.5.0-rc -- packages/cli/src/
+git log --oneline $CURRENT..upstream/feat/v0.6.0-beta
+git diff --stat $CURRENT..upstream/feat/v0.6.0-beta -- packages/cli/src/
 ```
 
 Focus on overlay-relevant paths: `configurators/shared.ts`, `commands/update.ts`, `templates/shared-hooks/`, `templates/claude/agents/`, `templates/opencode/agents/`, `templates/cursor/agents/`, `templates/codebuddy/agents/`, `templates/droid/droids/`, `templates/qoder/agents/`, `templates/opencode/plugins/`.
@@ -129,7 +129,7 @@ Focus on overlay-relevant paths: `configurators/shared.ts`, `commands/update.ts`
 
 ```bash
 git checkout -b sync/upstream-<tag>
-git rebase --onto upstream/feat/v0.5.0-rc $CURRENT main
+git rebase --onto upstream/feat/v0.6.0-beta $CURRENT main
 ```
 
 **Typical conflict:** `packages/cli/package.json` line 2-3 (name + version). Resolution: keep `@hiskens/trellis` name, set version to `{new-upstream-version}-hiskens`.
@@ -205,6 +205,6 @@ For publish/dogfood pitfalls, see the `trellis-publish` skill.
 ## Key Facts
 
 - **Upstream remote:** `https://github.com/mindfold-ai/Trellis.git`
-- **Upstream branch:** `feat/v0.5.0-rc`
+- **Upstream branch:** `feat/v0.6.0-beta`
 - **npm package:** `@hiskens/trellis`
 - **Only `packages/cli/src/templates/` matters** — root-level `.claude/`, `.opencode/` etc. are this repo's own dogfood config, not the distributed templates
