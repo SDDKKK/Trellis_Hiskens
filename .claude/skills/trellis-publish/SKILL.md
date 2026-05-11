@@ -108,6 +108,32 @@ git push origin main
 | Dogfood reverts a local-only customization | Those files should be in `.trellis/workspace/` (preserved) not template-managed paths |
 | `npm install -g` installs old version | `latest` tag not promoted — run `npm dist-tag add ...` |
 
+## Step 7: Propagate to Downstream Projects
+
+After dogfood completes, ask the user whether to update downstream consumer projects:
+
+> 是否同步更新下游项目（Topo-Reliability、ZZ_KKX、Anhui_CIM）？
+
+If yes, for each project:
+
+```bash
+cd /mnt/e/Github/repo/<project>
+trellis update --force
+# Stage ONLY trellis-managed paths — never use `git add -A`
+git add .claude/ .codex/ .cursor/ .opencode/ .pi/ .agents/ \
+       .trellis/.template-hashes.json .trellis/.version .trellis/config.yaml \
+       .trellis/scripts/ .trellis/config/ .trellis/workflow.md
+git commit -m "chore: trellis self-update — sync upstream <version> + dogfood"
+git push origin main
+```
+
+**Downstream project paths:**
+- `/mnt/e/Github/repo/Topo-Reliability/`
+- `/mnt/e/Github/repo/ZZ_KKX/`
+- `/mnt/e/Github/repo/Anhui_CIM/`
+
+**Important:** Do NOT use `git add -A` — it will sweep in unrelated work files. Only stage trellis-managed directories listed above.
+
 ---
 
 ## Quick Reference
