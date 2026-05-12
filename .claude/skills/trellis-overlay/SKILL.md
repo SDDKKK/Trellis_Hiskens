@@ -103,7 +103,26 @@ Maps MCP tool wildcards to Copilot-native capability labels:
 
 **index.ts comment:** Replace the upstream "intentionally not installed" comment with a note that hiskens overlay installs it by default.
 
-### 4. Upstream Version Tracker
+### 4. CCR Model Routing
+
+**File:** `packages/cli/src/templates/shared-hooks/inject-subagent-context.py`
+
+Three functions provide Claude Code Router model tag injection for subagents:
+- `_load_features()` — parses `.trellis/config.yaml` feature flags
+- `_ccr_model_keys()` — maps subagent type to model lookup aliases
+- `get_ccr_model_tag()` — 3-guard check (feature flag + localhost base URL + agent-models.json), returns `<CCR-SUBAGENT-MODEL>` XML tag
+
+Two call sites in `main()`:
+- `ccr_tag = get_ccr_model_tag(repo_root, subagent_type)` after `find_repo_root()`
+- `new_prompt = ccr_tag + new_prompt` before output assembly
+
+**Runtime config (project-side, not in template):**
+- `.trellis/config.yaml` — `features.ccr_routing: true`
+- `.trellis/config/agent-models.json` — agent → CCR provider/model mapping
+
+**Verification:** `grep "get_ccr_model_tag" packages/cli/src/templates/shared-hooks/inject-subagent-context.py`
+
+### 5. Upstream Version Tracker
 
 **File:** `.upstream-version` (repo root)
 
@@ -155,6 +174,9 @@ grep "statusline" packages/cli/src/templates/shared-hooks/index.ts
 
 # Check statusLine in settings
 grep "statusLine" packages/cli/src/templates/claude/settings.json
+
+# Check CCR model routing in hook
+grep "get_ccr_model_tag" packages/cli/src/templates/shared-hooks/inject-subagent-context.py
 ```
 
 If upstream modified any of these files, re-apply hiskens additions manually.
@@ -196,6 +218,7 @@ Run the `trellis-publish` skill (`/trellis-publish`) which handles:
 | Hook tool table reverted | Upstream rewrote inject-subagent-context | Re-apply augment/context7/grok in tool table + search tips |
 | Copilot mapper missing new tools | Upstream rewrote shared.ts | Re-add cases in `mapLegacyToolToCopilot()` |
 | statusline.py not distributed | Forgot to register in `index.ts` | Add to `SharedHookName` type + `claude` array |
+| CCR routing lost after update | Upstream overwrote inject-subagent-context.py | Verify `get_ccr_model_tag` exists in shared-hooks template; re-add `_load_features`, `_ccr_model_keys`, `get_ccr_model_tag` + 2 call sites in `main()` |
 | Force-push needed for main | Rebase rewrites history | This is expected; the fork has one consumer (us) |
 
 For publish/dogfood pitfalls, see the `trellis-publish` skill.
