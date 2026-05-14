@@ -34,9 +34,11 @@ Verify output includes `Template copy complete.`
 ## Step 3: Publish to npm
 
 ```bash
-cd packages/cli && npm publish --access public --ignore-scripts --tag rc
+cd packages/cli && pnpm publish --access public --no-git-checks --ignore-scripts --tag rc
 ```
 
+- **Must use `pnpm publish`**, not `npm publish` — pnpm resolves `workspace:*` dependencies to real version numbers; npm passes them through verbatim, causing `EUNSUPPORTEDPROTOCOL` on `npm install -g`
+- `--no-git-checks` skips pnpm's git dirty/tag checks (version was already committed)
 - `--ignore-scripts` skips `prepublishOnly` (tests already validated)
 - `--tag rc` avoids accidentally overwriting `latest` on a bad publish
 
@@ -103,6 +105,7 @@ git push origin main
 | Issue | Fix |
 |-------|-----|
 | `npm publish` fails: "must specify --tag for prerelease" | Already using `--tag rc` — check version string has prerelease segment |
+| `npm install -g` fails: `EUNSUPPORTEDPROTOCOL workspace:*` | Published with `npm publish` instead of `pnpm publish` — pnpm is required to resolve `workspace:*` deps |
 | `trellis update` shows no changes | Forgot `pnpm build` before publish, or npm cache stale — run `npm cache clean --force` |
 | `trellis: command not found` after install | Check `npm prefix -g` is in PATH |
 | Dogfood reverts a local-only customization | Those files should be in `.trellis/workspace/` (preserved) not template-managed paths |
@@ -141,7 +144,7 @@ git push origin main
 ```bash
 # Full sequence (copy-paste)
 pnpm build
-cd packages/cli && npm publish --access public --ignore-scripts --tag rc && cd ../..
+cd packages/cli && pnpm publish --access public --no-git-checks --ignore-scripts --tag rc && cd ../..
 npm dist-tag add @hiskens/trellis@<VER> latest
 npm install -g @hiskens/trellis
 trellis update --force
