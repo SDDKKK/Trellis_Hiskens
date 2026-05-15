@@ -13,6 +13,7 @@ export interface WaitOptions {
   timeoutMs?: number;
   from?: string;
   kind?: string;
+  tag?: string;
   to?: string;
   scope?: string;
   thread?: string;
@@ -41,6 +42,7 @@ export async function channelWait(
     self: opts.as,
     from: fromList,
     kind: parseChannelKinds(opts.kind),
+    tag: opts.tag,
     to: opts.to ?? opts.as, // default: broadcasts to me + explicit-to-me
     thread: opts.thread ? normalizeThreadKey(opts.thread) : undefined,
     action: opts.action ? parseThreadAction(opts.action) : undefined,

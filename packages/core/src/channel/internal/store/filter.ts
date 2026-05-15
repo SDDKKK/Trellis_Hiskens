@@ -29,6 +29,7 @@ export interface ChannelEventFilter {
    * when requested directly (e.g. `supervisor_warning`).
    */
   kind?: ChannelEventKind | readonly ChannelEventKind[];
+  tag?: string;
   to?: string;
   self?: string;
   includeProgress?: boolean;
@@ -85,6 +86,10 @@ export function matchesEventFilter(
 
   if (filter.from && filter.from.length > 0) {
     if (!filter.from.includes(ev.by)) return false;
+  }
+
+  if (filter.tag !== undefined && (ev as { tag?: string }).tag !== filter.tag) {
+    return false;
   }
 
   if (filter.to) {

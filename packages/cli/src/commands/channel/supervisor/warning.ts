@@ -16,8 +16,11 @@
 
 import { appendEvent } from "../store/events.js";
 
-/** Default lead time before the supervisor timeout (ms) to fire the warning. */
-export const SUPERVISOR_TIMEOUT_WARNING_REMAINING_MS = 5 * 60_000;
+/**
+ * How long before the timeout (ms) to fire the warning. Internal — the
+ * first version does not expose a CLI flag.
+ */
+export const SUPERVISOR_TIMEOUT_WARNING_REMAINING_MS = 30_000;
 
 export interface SupervisorShutdownProbe {
   isShuttingDown(): boolean;
@@ -28,8 +31,6 @@ export interface ScheduleSupervisorTimeoutWarningArgs {
   channelName: string;
   workerName: string;
   timeoutMs: number;
-  /** Warning lead time in ms. `<= 0` disables the pre-timeout warning. */
-  warnBeforeMs?: number;
   shutdown: SupervisorShutdownProbe;
   /** Returns true once the child process has exited (exitCode/signalCode set). */
   isChildExited: () => boolean;
@@ -38,8 +39,8 @@ export interface ScheduleSupervisorTimeoutWarningArgs {
 }
 
 /**
- * Schedule a single `supervisor_warning` append at `timeoutMs - warnBeforeMs`
- * (clamped at 0 when the warning lead time is greater than the timeout).
+ * Schedule a single `supervisor_warning` append at
+ * `timeoutMs - SUPERVISOR_TIMEOUT_WARNING_REMAINING_MS` (clamped at 0).
  * Guarded so the warning is emitted at most once, never after shutdown
  * has been requested, never after a terminal event has been emitted,
  * and never after the worker child has exited.
@@ -54,11 +55,11 @@ export function scheduleSupervisorTimeoutWarning(
   const { channelName, workerName, timeoutMs, shutdown, isChildExited, log } =
     args;
   if (timeoutMs <= 0) return () => undefined;
-  const warnBeforeMs =
-    args.warnBeforeMs ?? SUPERVISOR_TIMEOUT_WARNING_REMAINING_MS;
-  if (warnBeforeMs <= 0) return () => undefined;
 
-  const remaining = Math.min(timeoutMs, warnBeforeMs);
+  const remaining = Math.min(
+    timeoutMs,
+    SUPERVISOR_TIMEOUT_WARNING_REMAINING_MS,
+  );
   const delay = Math.max(0, timeoutMs - remaining);
 
   let warningEmitted = false;
