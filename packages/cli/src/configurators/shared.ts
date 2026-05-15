@@ -689,7 +689,6 @@ function mapLegacyToolToCopilot(tool: string): string[] {
     case "mcp__augment-context-engine__*":
       return ["search"];
     case "mcp__context7__*":
-    case "mcp__grok-search__*":
       return ["web"];
     case "mcp__chrome-devtools__*":
       return ["chrome-devtools/*"];

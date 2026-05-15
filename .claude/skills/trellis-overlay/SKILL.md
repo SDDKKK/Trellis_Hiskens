@@ -48,16 +48,18 @@ All paths relative to `packages/cli/src/`.
 
 | Agent | Tools (beyond platform defaults) |
 |-------|----------------------------------|
-| trellis-check | `mcp__augment-context-engine__*`, `mcp__grok-search__*` |
-| trellis-implement | `mcp__augment-context-engine__*`, `mcp__grok-search__*` |
-| trellis-research | `mcp__augment-context-engine__*`, `mcp__context7__*`, `mcp__grok-search__*` |
+| trellis-check | `mcp__augment-context-engine__*` |
+| trellis-implement | `mcp__augment-context-engine__*` |
+| trellis-research | `mcp__augment-context-engine__*`, `mcp__context7__*` |
+
+Web search uses `smart-search` CLI via Bash (not MCP). The `smart-search-cli` skill is installed at user level (`~/.claude/skills/smart-search-cli/`) and handles routing (search/exa-search/zhipu-search/fetch/deep). Agents already have Bash permission.
 
 **Research agent Step 3** must use augment-first retrieval:
 
 ```
 Before exact searches, use mcp__augment-context-engine__codebase-retrieval for ANY question
 involving codebase, files, structure, dependencies, search, or context,
-then run independent searches in parallel (Glob + Grep + mcp__grok-search__*) for efficiency.
+then run independent searches in parallel (Glob + Grep + smart-search CLI via Bash) for efficiency.
 ```
 
 **Platform-specific frontmatter format:**
@@ -71,7 +73,7 @@ then run independent searches in parallel (Glob + Grep + mcp__grok-search__*) fo
 - `packages/cli/src/templates/shared-hooks/inject-subagent-context.py` — `get_research_context()` search tips + `build_research_prompt()` tool table
 - `packages/cli/src/templates/opencode/plugins/inject-subagent-context.js` — search tips text
 
-The hook injects a tool availability table into research subagent prompts at runtime. Verify it lists augment/context7/grok, not exa.
+The hook injects a tool availability table into research subagent prompts at runtime. Verify it lists augment/context7/smart-search CLI, not grok-search MCP or exa MCP.
 
 ### 2c. Copilot Tool Mapper
 
@@ -83,7 +85,8 @@ Maps MCP tool wildcards to Copilot-native capability labels:
 |----------|----------------|
 | `mcp__augment-context-engine__*` | `["search"]` |
 | `mcp__context7__*` | `["web"]` |
-| `mcp__grok-search__*` | `["web"]` |
+
+Note: `mcp__grok-search__*` mapping removed — web search now uses smart-search CLI via Bash, which doesn't need Copilot tool mapping.
 
 ### 3. StatusLine Hook
 
@@ -158,16 +161,17 @@ git rebase --onto upstream/feat/v0.6.0-beta $CURRENT main
 After rebase resolves, check each customization point:
 
 ```bash
-# Check agent tools across ALL platforms (should return 0 hits for exa, 6+ for augment)
-grep -rn "mcp__exa__" packages/cli/src/templates/*/agents/ packages/cli/src/templates/droid/droids/ && echo "FAIL: exa remnants" || echo "OK: no exa"
+# Check agent tools across ALL platforms (should return 0 hits for exa/grok-search, 6+ for augment)
+grep -rn "mcp__exa__\|mcp__grok-search__" packages/cli/src/templates/*/agents/ packages/cli/src/templates/droid/droids/ && echo "FAIL: exa/grok remnants" || echo "OK: no exa/grok in agents"
 grep -rn "mcp__augment-context-engine" packages/cli/src/templates/*/agents/ packages/cli/src/templates/droid/droids/ | wc -l
 
-# Check hook scripts tool table
-grep "augment-context-engine" packages/cli/src/templates/shared-hooks/inject-subagent-context.py
-grep "augment-context-engine" packages/cli/src/templates/opencode/plugins/inject-subagent-context.js
+# Check hook scripts reference smart-search CLI (not grok-search MCP)
+grep "smart-search" packages/cli/src/templates/shared-hooks/inject-subagent-context.py
+grep "smart-search" packages/cli/src/templates/opencode/plugins/inject-subagent-context.js
 
-# Check Copilot tool mapper
+# Check Copilot tool mapper (should NOT have grok-search)
 grep "augment-context-engine" packages/cli/src/configurators/shared.ts
+grep "grok-search" packages/cli/src/configurators/shared.ts && echo "FAIL: grok in mapper" || echo "OK: no grok in mapper"
 
 # Check statusline exists and is registered
 grep "statusline" packages/cli/src/templates/shared-hooks/index.ts
@@ -214,9 +218,9 @@ Run the `trellis-publish` skill (`/trellis-publish`) which handles:
 | Issue | Why it happens | Fix |
 |-------|---------------|-----|
 | `package.json` conflict on rebase | Both sides touch version/name | Accept upstream, then edit to hiskens values |
-| MCP tools missing after rebase | Upstream rewrote agent template | Re-add tool wildcards to frontmatter (all 6 platforms) |
-| Hook tool table reverted | Upstream rewrote inject-subagent-context | Re-apply augment/context7/grok in tool table + search tips |
-| Copilot mapper missing new tools | Upstream rewrote shared.ts | Re-add cases in `mapLegacyToolToCopilot()` |
+| MCP tools missing after rebase | Upstream rewrote agent template | Re-add augment/context7 tool wildcards to frontmatter (all 8 platforms); web search uses smart-search CLI via Bash, no MCP entry needed |
+| Hook tool table reverted | Upstream rewrote inject-subagent-context | Re-apply augment/context7/smart-search CLI in tool table + search tips |
+| Copilot mapper missing new tools | Upstream rewrote shared.ts | Re-add augment/context7 cases in `mapLegacyToolToCopilot()` (grok-search removed — web search is CLI-based) |
 | statusline.py not distributed | Forgot to register in `index.ts` | Add to `SharedHookName` type + `claude` array |
 | CCR routing lost after update | Upstream overwrote inject-subagent-context.py | Verify `get_ccr_model_tag` exists in shared-hooks template; re-add `_load_features`, `_ccr_model_keys`, `get_ccr_model_tag` + 2 call sites in `main()` |
 | Force-push needed for main | Rebase rewrites history | This is expected; the fork has one consumer (us) |

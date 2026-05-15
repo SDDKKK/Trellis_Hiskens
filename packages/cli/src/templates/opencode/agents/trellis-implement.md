@@ -10,7 +10,6 @@ permission:
   glob: allow
   grep: allow
   mcp__augment-context-engine__*: allow
-  mcp__grok-search__*: allow
 ---
 # Implement Agent
 
