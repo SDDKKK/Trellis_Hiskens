@@ -124,7 +124,7 @@
     ".codex/hooks/session-start.py": "1c951ff35f490c5fbf576b4764ec190895df7c2a48e279fb20625209f51c321a",
     ".pi/prompts/trellis-continue.md": "b177407dc81da435afef814e04e71770b80c11cc0544a7faba9f2ff7a26a8a44",
     ".opencode/agents/trellis-research.md": "2c5135aefe280fd4508554e58c64bd13f5f9fe58b8bb25393e68496b29bfae4e",
-    ".trellis/workflow.md": "86bbc6d896eeabc80bd815d2533e5a8f1d6f238d8e2b3e56ae2c1f49dd92d838",
+    ".trellis/workflow.md": "dfd132985732d36cd1b9bc4e2670db580fd2df260298a3eefbdbab26d17da321",
     ".claude/hooks/inject-workflow-state.py": "f7fa9389ed7aa264597fff5de6277bec186e89a3ef539192997c6d026d88d5ec",
     ".agents/skills/trellis-brainstorm/SKILL.md": "056f7cab72748d2402717b38d8e61abacf1e91b9e0fac9d077f4522e82233667",
     ".agents/skills/trellis-update-spec/SKILL.md": "003ce08a3404aeb50998029392c4d4e57b626edf526d3ebd585032bb92dcbb96",
@@ -146,7 +146,7 @@
     ".agents/skills/trellis-start/SKILL.md": "79a5ba7a2aff3c72e06d7f4cd6942dc4f4f4092dd40f9c8e94f1838024a81e4d",
     ".trellis/scripts/common/safe_commit.py": "8789bff4b30a9065469210f2efab3f59f03dddd77bef4e4b6a5bb641f93539f4",
     ".trellis/scripts/common/config.py": "25c5a53ad20d6909be5209222e4208a84528805316a4d78350529459a364edb1",
-    ".trellis/scripts/common/task_store.py": "d7ddeb2838e9ae0a8c8dfb41b3773b90f1dcbdeff5236df165d03e211fbecb00",
+    ".trellis/scripts/common/task_store.py": "707d5c111f610e4e928f553fe59fcd9de6882da1b07ef0e01347245c5ed770d8",
     ".trellis/scripts/common/session_context.py": "df79c44efe3432811c32d145d57a66343a70e221ec087ed2bd28b76677bb4076",
     ".trellis/scripts/add_session.py": "6e406a0a9f32d4a50b1b5ca8115cbd06c359011f0e166c41dc5fab34698a4006",
     ".claude/commands/trellis/continue.md": "78bea91cc54bc58fc947f24cf7daff0cf7b5a217753b5fd71b5d1aa7a04edc50",
@@ -161,9 +161,10 @@
     ".opencode/commands/trellis/continue.md": "c73938be79f45c9910ac3048e05fd13f717497c894af2d88b8db64ab49c0838e",
     ".codex/hooks.json": "522ba3c488c100027783e52ecff84c0bd799852dd77ad3f1936e86db105f01d6",
     ".pi/skills/trellis-brainstorm/SKILL.md": "056f7cab72748d2402717b38d8e61abacf1e91b9e0fac9d077f4522e82233667",
-    ".pi/settings.json": "a4bc2753bbddc7e626eef8d10c7557059065f00a38888d45654d549310ff8408",
-    ".trellis/config.yaml": "5c9207418cecc390e9d86d589b4183b831f76697d92fb42fefd5221cd8772e51",
+    ".pi/settings.json": "66cc59c9b410b267cd081c5a312aea3f32d82ed30c254cef6b4d99248d3bea50",
+    ".trellis/config.yaml": "3e295bf4310763240647f40b3aeee7a7c6d134142cdc826e02d850ca2407fc43",
     ".codex/hooks/inject-workflow-state.py": "f7fa9389ed7aa264597fff5de6277bec186e89a3ef539192997c6d026d88d5ec",
-    ".codex/config.toml": "bb5a62ce51a4357b825e2a77c9a0d3332b108bb469d3b06b275604ccbccd4320"
+    ".codex/config.toml": "bb5a62ce51a4357b825e2a77c9a0d3332b108bb469d3b06b275604ccbccd4320",
+    ".pi/extensions/trellis/index.ts": "2ca3bcb8e9689a0f92b4a8535a0c7297835dc7c2a96a813341663fc917dec9ef"
   }
 }
