@@ -10,13 +10,13 @@ description: >
 
 # Trellis Overlay — Fork Sync & Customization
 
-This skill covers keeping `Trellis_Hiskens` aligned with upstream `mindfold-ai/Trellis` while preserving hiskens-specific customizations. The fork uses a **rebase-on-top** model: upstream commits form the base, overlay commits sit on top.
+This skill covers keeping `Trellis_Hiskens` aligned with upstream `mindfold-ai/Trellis` while preserving hiskens-specific customizations. The fork uses a **merge** model: upstream changes are merged into main, overlay commits stay intact.
 
 ---
 
 ## Hiskens Customization Points
 
-Customizations live in `packages/cli/src/templates/` (distributed via `npm publish`) and `packages/cli/src/configurators/` (build-time logic). After rebase, verify each point is intact.
+Customizations live in `packages/cli/src/templates/` (distributed via `npm publish`) and `packages/cli/src/configurators/` (build-time logic). After merge, verify each point is intact.
 
 ### 1. Package Identity
 
@@ -129,7 +129,7 @@ Two call sites in `main()`:
 
 **File:** `.upstream-version` (repo root)
 
-Contains the upstream commit hash that the fork is currently based on. Updated after each successful rebase.
+Contains the upstream commit hash that the fork is currently synced to. Updated after each successful merge.
 
 ---
 
@@ -147,18 +147,22 @@ git diff --stat $CURRENT..upstream/feat/v0.6.0-beta -- packages/cli/src/
 
 Focus on overlay-relevant paths: `configurators/shared.ts`, `commands/update.ts`, `templates/shared-hooks/`, `templates/claude/agents/`, `templates/opencode/agents/`, `templates/cursor/agents/`, `templates/codebuddy/agents/`, `templates/droid/droids/`, `templates/qoder/agents/`, `templates/opencode/plugins/`.
 
-### Step 2: Rebase Overlay Commits
+### Step 2: Merge Upstream
 
 ```bash
-git checkout -b sync/upstream-<tag>
-git rebase --onto upstream/feat/v0.6.0-beta $CURRENT main
+git merge upstream/feat/v0.6.0-beta --no-edit
 ```
 
-**Typical conflict:** `packages/cli/package.json` line 2-3 (name + version). Resolution: keep `@hiskens/trellis` name, set version to `{new-upstream-version}-hiskens`.
+**Typical conflicts:** `packages/cli/package.json` (name + version), `.trellis/.version`, `.trellis/config.yaml`, `.trellis/.template-hashes.json`. Resolution:
+- `package.json`: keep `@hiskens/trellis` name, set version to `{new-upstream-version}-hiskens`
+- `.trellis/.version`: set to `{new-upstream-version}-hiskens`
+- `.trellis/config.yaml`: take upstream's new sections, preserve hiskens-specific values
+- `.trellis/.template-hashes.json`: take upstream's hashes
+- workspace journals: keep ours (`git checkout --ours`)
 
 ### Step 3: Verify Customizations
 
-After rebase resolves, check each customization point:
+After merge resolves, check each customization point:
 
 ```bash
 # Check agent tools across ALL platforms (should return 0 hits for exa/grok-search, 6+ for augment)
@@ -195,16 +199,16 @@ echo "<new-upstream-commit-hash>" > .upstream-version
 grep '"version"' packages/cli/package.json
 ```
 
-### Step 5: Commit & Force-Push Main
+### Step 5: Commit & Push
+
+The merge commit is created during Step 2. If conflict resolution was needed, the commit message should follow this format:
 
 ```bash
 git commit -m "feat: @hiskens/trellis v{version} — sync upstream {tag} + overlay"
-
-# Move main to the rebased branch
-git checkout main && git reset --hard sync/upstream-<tag>
-git push --force origin main
-git branch -d sync/upstream-<tag>
+git push origin main
 ```
+
+No force-push needed — merge preserves history.
 
 ### Step 6: Publish & Dogfood
 
@@ -217,13 +221,12 @@ Run the `trellis-publish` skill (`/trellis-publish`) which handles:
 
 | Issue | Why it happens | Fix |
 |-------|---------------|-----|
-| `package.json` conflict on rebase | Both sides touch version/name | Accept upstream, then edit to hiskens values |
-| MCP tools missing after rebase | Upstream rewrote agent template | Re-add augment/context7 tool wildcards to frontmatter (all 8 platforms); web search uses smart-search CLI via Bash, no MCP entry needed |
+| `package.json` conflict on merge | Both sides touch version/name | Keep hiskens name, set `{upstream-version}-hiskens` |
+| MCP tools missing after merge | Upstream rewrote agent template | Re-add augment/context7 tool wildcards to frontmatter (all 6 platforms); web search uses smart-search CLI via Bash, no MCP entry needed |
 | Hook tool table reverted | Upstream rewrote inject-subagent-context | Re-apply augment/context7/smart-search CLI in tool table + search tips |
 | Copilot mapper missing new tools | Upstream rewrote shared.ts | Re-add augment/context7 cases in `mapLegacyToolToCopilot()` (grok-search removed — web search is CLI-based) |
 | statusline.py not distributed | Forgot to register in `index.ts` | Add to `SharedHookName` type + `claude` array |
 | CCR routing lost after update | Upstream overwrote inject-subagent-context.py | Verify `get_ccr_model_tag` exists in shared-hooks template; re-add `_load_features`, `_ccr_model_keys`, `get_ccr_model_tag` + 2 call sites in `main()` |
-| Force-push needed for main | Rebase rewrites history | This is expected; the fork has one consumer (us) |
 
 For publish/dogfood pitfalls, see the `trellis-publish` skill.
 
