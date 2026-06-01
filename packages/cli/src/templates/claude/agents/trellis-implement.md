@@ -116,6 +116,9 @@ Run project's lint and typecheck commands to verify changes.
 
 Choose tools by query type — do not default to bash grep/ls for code understanding.
 
+**Codegraph is deferred** — before first use, load it:
+`ToolSearch(query: "select:mcp__codegraph__codegraph_context,mcp__codegraph__codegraph_search,mcp__codegraph__codegraph_impact", max_results: 3)`
+
 | Need | Tool | NOT |
 |---|---|---|
 | Blast radius before editing a symbol | `mcp__codegraph__codegraph_impact` | Guessing from local context |

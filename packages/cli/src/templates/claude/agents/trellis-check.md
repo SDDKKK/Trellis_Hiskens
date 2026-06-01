@@ -121,6 +121,9 @@ Checked X files, found Y issues, all fixed.
 
 Choose tools by query type — do not default to bash grep/ls for verification.
 
+**Codegraph is deferred** — before first use, load it:
+`ToolSearch(query: "select:mcp__codegraph__codegraph_context,mcp__codegraph__codegraph_callers,mcp__codegraph__codegraph_impact", max_results: 3)`
+
 | Need | Tool | NOT |
 |---|---|---|
 | Verify change doesn't break dependents | `mcp__codegraph__codegraph_impact` + `codegraph_callers` | `grep -rn` for all references |
