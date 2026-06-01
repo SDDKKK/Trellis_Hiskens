@@ -2,7 +2,7 @@
 name: trellis-research
 description: |
   Code and tech search expert. Finds files, patterns, and tech solutions, and PERSISTS every finding to the current task's research/ directory. No code modifications outside that directory.
-tools: Read, Write, Glob, Grep, Bash, mcp__augment-context-engine__*, mcp__context7__*, Skill, mcp__chrome-devtools__*
+tools: Read, Write, Glob, Grep, Bash, mcp__augment-context-engine__*, mcp__codegraph__*, mcp__context7__*, Skill, mcp__chrome-devtools__*
 ---
 # Research Agent
 
@@ -135,3 +135,20 @@ Each `{TASK_DIR}/research/<topic>.md` should follow:
 - Don't guess uncertain info
 - Don't paste full research text into the reply (files are the deliverable)
 - Don't propose improvements or critique implementation (that's not your role)
+
+---
+
+<!-- hiskens:tools-routing:start -->
+## Tool Routing
+
+Choose tools by query type — do not default to bash grep/ls for code understanding.
+
+| Need | Tool | NOT |
+|---|---|---|
+| Understand code structure / "how does X work" | `mcp__codegraph__codegraph_context` or `mcp__augment-context-engine__codebase-retrieval` | `bash grep` |
+| Find symbol definition / callers / callees | `mcp__codegraph__codegraph_search`, `codegraph_callers`, `codegraph_callees` | `grep -rn "funcName"` |
+| List directory contents / find files | `mcp__codegraph__codegraph_files` | `ls`, `find` |
+| Read file contents | `Read` tool | `cat`, `head`, `tail` |
+| Exact string literal match | `Grep` (native) or `bash grep` | — |
+| External research: standards, best practices, library docs | `smart-search` CLI via Bash — include community forums, X discussions, and consensus opinions | Guessing from local code alone |
+<!-- hiskens:tools-routing:end -->
