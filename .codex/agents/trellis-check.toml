@@ -94,6 +94,18 @@ Only list issues you could not self-fix (e.g. missing product decision, out-of-s
 - Tests: pass/fail (if applicable)
 
 If no issues are found, say so explicitly after verifying lint/type-check pass.
+
+## Tool routing
+
+Choose tools by query type — do not default to bash grep/ls for verification.
+
+- Verify change doesn't break dependents → `codegraph_impact` + `codegraph_callers`, NOT `grep -rn` for all references.
+- Understand changed code → `augment codebase-retrieval`, NOT reading every file with `cat`.
+- Check consistency across codebase → `augment codebase-retrieval` (semantic search), NOT `bash grep`.
+- Symbol definition / signature → `codegraph_search`, NOT `grep` + `Read` loop.
+- Directory listing → `codegraph_files`, NOT `ls` / `find`.
+- Read file contents → `Read` tool, NOT `cat` / `head` / `tail`.
+- Exact string literal match → `grep` (acceptable).
 """
 
 # Disable Codex collab tools entirely for this sub-agent. With both

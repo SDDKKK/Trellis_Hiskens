@@ -2,7 +2,7 @@
 name: trellis-implement
 description: |
   Code implementation expert. Understands specs and requirements, then implements features. No git commit allowed.
-tools: Read, Write, Edit, Bash, Glob, Grep, mcp__augment-context-engine__*
+tools: Read, Write, Edit, Bash, Glob, Grep, mcp__augment-context-engine__*, mcp__codegraph__*
 ---
 # Implement Agent
 
@@ -108,3 +108,21 @@ Run project's lint and typecheck commands to verify changes.
 - Don't add unnecessary abstractions
 - Only do what's required, no over-engineering
 - Keep code readable
+
+---
+
+<!-- hiskens:tools-routing:start -->
+## Tool Routing
+
+Choose tools by query type — do not default to bash grep/ls for code understanding.
+
+| Need | Tool | NOT |
+|---|---|---|
+| Blast radius before editing a symbol | `mcp__codegraph__codegraph_impact` | Guessing from local context |
+| Understand module / architecture | `mcp__augment-context-engine__codebase-retrieval` | `bash grep` across many files |
+| Find callers / dependents of what you changed | `mcp__codegraph__codegraph_callers` | `grep -rn "funcName"` |
+| Find symbol definition / signature | `mcp__codegraph__codegraph_search` or `codegraph_node` | `grep` + `Read` loop |
+| List files in a directory | `mcp__codegraph__codegraph_files` | `ls`, `find` |
+| Read file contents | `Read` tool | `cat`, `head`, `tail` |
+| Exact string literal match | `Grep` (native) or `bash grep` | — |
+<!-- hiskens:tools-routing:end -->
