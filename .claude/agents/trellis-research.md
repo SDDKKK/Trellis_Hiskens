@@ -143,6 +143,9 @@ Each `{TASK_DIR}/research/<topic>.md` should follow:
 
 Choose tools by query type — do not default to bash grep/ls for code understanding.
 
+**Codegraph is deferred** — before first use, load it:
+`ToolSearch(query: "select:mcp__codegraph__codegraph_context,mcp__codegraph__codegraph_search,mcp__codegraph__codegraph_files", max_results: 3)`
+
 | Need | Tool | NOT |
 |---|---|---|
 | Understand code structure / "how does X work" | `mcp__codegraph__codegraph_context` or `mcp__augment-context-engine__codebase-retrieval` | `bash grep` |

@@ -134,8 +134,8 @@
     ".pi/agents/trellis-implement.md": "b522ec21a409e7bee3dfc9255826ca338beb43f4e7c6fe3cf079c4180f218e17",
     ".opencode/package.json": "4b155e844fde1467e331e898b378e66820c323110ef1ecae6fce3844358535ea",
     ".trellis/scripts/task.py": "40abdd46f5c2b6837610429a38eef50f1fc783fb1852dc4f52a891205e42ab04",
-    ".claude/agents/trellis-check.md": "6dacfc85b12784dcf412307648f69790db97f4ce43dbb97a6235a2cc7ced8c72",
-    ".claude/agents/trellis-implement.md": "9d8783e360878faef1ba6492c5d0263e579a200ee87481405fb2d2741b810332",
+    ".claude/agents/trellis-check.md": "6b9d90ae8185de92ad90ca24698729f79c924a3c48abc96f91f42dbff2986f41",
+    ".claude/agents/trellis-implement.md": "e2b2c1b58920c79a36240f04e182707ab129b3563c2129010a313241cf71ce84",
     ".claude/hooks/inject-subagent-context.py": "3f2bafe1af36803aba1ad50947104aed817d77918540a4025db73aa0b249e3a2",
     ".cursor/agents/trellis-check.md": "36a989880cb67c02260b3ecc6a186d4183e6b89d15e2436bfd39e761ee6ad7be",
     ".cursor/agents/trellis-implement.md": "2b52d7c4a0a67be4dd0c85c89159a917293014cafeecc2f3a9549b1ac31ceee3",
@@ -191,7 +191,7 @@
     ".pi/skills/trellis-spec-bootstarp/references/spec-writing.md": "e9800fe9ed4a4cd87062ea1829cf2caa8d170ec15e141678a6a30e74c497f47d",
     ".pi/skills/trellis-spec-bootstarp/SKILL.md": "81f400092b21392161e7d9dfa9111c9be36c81bc8641d252ed28e08373449ac0",
     ".trellis/config.yaml": "3e295bf4310763240647f40b3aeee7a7c6d134142cdc826e02d850ca2407fc43",
-    ".claude/agents/trellis-research.md": "e53e1fc7059e605869541f4da8584572897c6f48b211a68d79bb65a2ccd63c74",
+    ".claude/agents/trellis-research.md": "5606a9d00412908665aac146ab4cc5f77b7e9b6b872216f2ba02b6814c948dc1",
     ".codex/agents/trellis-research.toml": "5ba7c99b6b54a2153696ccb0ad41569bcac8f6f0471f8faf0b641c75ecb1365d"
   }
 }
