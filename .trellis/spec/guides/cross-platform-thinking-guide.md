@@ -239,6 +239,39 @@ Also make duplicate-injection detection shell-aware. A guard that only matches
 `export VAR=` will miss PowerShell's `$env:VAR = ...` form and can wrap an
 already-correct command a second time.
 
+### Claude Code Subprocess Environment Visibility
+
+Claude Code spawns subprocesses through different channels, and **env var visibility differs by channel**:
+
+| Channel | How spawned | `CLAUDE_ENV_FILE` vars | `CLAUDE_CODE_SESSION_ID` | stdin data |
+|---------|-------------|:---:|:---:|:---:|
+| **Bash tool calls** | Via shell with env file sourced | ✅ Available | ✅ Available | N/A |
+| **statusLine.command** | Direct UI subprocess spawn | ❌ Not available | ✅ Available | `{model, workspace, transcript_path, cost, output_style}` |
+| **Stop/PreToolUse hooks** | Direct subprocess spawn | ❌ Not available | ✅ Available | Full session JSON (incl. `session_id`) |
+
+**Key gotcha**: `CLAUDE_ENV_FILE` is a Bash-tool-specific mechanism. The SessionStart hook writes `export VAR=value` lines to it, and Claude Code sources this file before each Bash tool call. But `statusLine.command` and hook subprocesses are spawned directly — they never source `CLAUDE_ENV_FILE`.
+
+**Implication for Trellis**: `TRELLIS_CONTEXT_ID` is written to `CLAUDE_ENV_FILE` by `session-start.py`, so it's only available in Bash tool calls. External binaries invoked as `statusLine.command` (e.g., ccline) must use `CLAUDE_CODE_SESSION_ID` instead:
+
+```rust
+// WRONG - TRELLIS_CONTEXT_ID may not be set in statusLine.command context
+let key = std::env::var("TRELLIS_CONTEXT_ID").ok();
+
+// CORRECT - CLAUDE_CODE_SESSION_ID is set for ALL Claude Code subprocesses
+let key = std::env::var("CLAUDE_CODE_SESSION_ID")
+    .ok()
+    .map(|uuid| format!("claude_{}", uuid));
+```
+
+**Context key equivalence**: `CLAUDE_CODE_SESSION_ID` contains the raw UUID (e.g., `e1f4a0de-...`). The Trellis session file is named `claude_{uuid}.json`. So the derivation is:
+```
+CLAUDE_CODE_SESSION_ID = "e1f4a0de-9ad3-48a1-8eca-32bdc82e6c74"
+→ context_key = "claude_e1f4a0de-9ad3-48a1-8eca-32bdc82e6c74"
+→ session file = ".trellis/.runtime/sessions/claude_e1f4a0de-9ad3-48a1-8eca-32bdc82e6c74.json"
+```
+
+This matches the Python-side `_context_key("claude", "session", uuid)` in `active_task.py`.
+
 ### 5. Command Availability
 
 | Command | macOS/Linux | Windows |
