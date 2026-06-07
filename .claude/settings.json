@@ -72,7 +72,7 @@
   "enabledPlugins": {},
   "statusLine": {
     "type": "command",
-    "command": "python3 .claude/hooks/statusline.py",
-    "refreshInterval": 5
+    "command": "~/.claude/ccline/ccline",
+    "padding": 0
   }
 }
