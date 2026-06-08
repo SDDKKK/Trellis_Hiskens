@@ -4,7 +4,7 @@ description: >
   Sync the hiskens Trellis fork with upstream mindfold-ai/Trellis and apply overlay customizations.
   This skill is the single source of truth for what makes the fork different and how to keep it current.
   Use when: the user says "sync upstream", "同步上游", "overlay sync", "trellis overlay", "跟上游同步",
-  "upgrade trellis", "更新上游", or when upstream has new commits on feat/v0.6.0-beta that need merging.
+  "upgrade trellis", "更新上游", or when upstream has new commits on feat/v0.6.0-rc that need merging.
   Also use when verifying or modifying fork customization points (MCP tools, statusline, version scheme).
 ---
 
@@ -25,7 +25,7 @@ Customizations live in `packages/cli/src/templates/` (distributed via `npm publi
 | Field | Upstream | Hiskens |
 |-------|----------|---------|
 | name | `@mindfoldhq/trellis` | `@hiskens/trellis` |
-| version | `0.6.0-beta.3` | `0.6.0-beta.3-hiskens` |
+| version | `0.6.0-rc.0` | `0.6.0-rc.0-hiskens` |
 
 Version format: `{upstream-version}-hiskens` — no trailing `.1` or build number.
 
@@ -93,18 +93,14 @@ Note: `mcp__grok-search__*` mapping removed — web search now uses smart-search
 **Files:**
 - `packages/cli/src/templates/shared-hooks/statusline.py` — the hook script (additive, not in upstream)
 - `packages/cli/src/templates/shared-hooks/index.ts` — register `"statusline.py"` in `SharedHookName` type and add to `claude` platform list
-- `packages/cli/src/templates/claude/settings.json` — add statusLine config block
 
-**statusLine config:**
-```json
-"statusLine": {
-  "type": "command",
-  "command": "{{PYTHON_CMD}} .claude/hooks/statusline.py",
-  "refreshInterval": 5
-}
-```
+**statusLine config: REMOVED from template** (as of v0.6.0-rc.0-hiskens).
+`packages/cli/src/templates/claude/settings.json` no longer contains a `statusLine` block.
+Users configure statusLine independently (e.g. ccline). `trellis init/update` will not overwrite user-configured statusLine settings.
 
-**index.ts comment:** Replace the upstream "intentionally not installed" comment with a note that hiskens overlay installs it by default.
+The `statusline.py` hook script is still distributed via shared-hooks (for users who want the legacy Python-based status line), but it is not auto-activated.
+
+**index.ts comment:** Replace the upstream "intentionally not installed" comment with a note that hiskens overlay ships statusline.py but does not auto-configure `statusLine` in settings.json.
 
 ### 4. CCR Model Routing
 
@@ -139,10 +135,10 @@ Contains the upstream commit hash that the fork is currently synced to. Updated 
 
 ```bash
 cd /home/hcx/github/Trellis_Hiskens
-git fetch upstream feat/v0.6.0-beta --tags
+git fetch upstream feat/v0.6.0-rc --tags
 CURRENT=$(cat .upstream-version)
-git log --oneline $CURRENT..upstream/feat/v0.6.0-beta
-git diff --stat $CURRENT..upstream/feat/v0.6.0-beta -- packages/cli/src/
+git log --oneline $CURRENT..upstream/feat/v0.6.0-rc
+git diff --stat $CURRENT..upstream/feat/v0.6.0-rc -- packages/cli/src/
 ```
 
 Focus on overlay-relevant paths: `configurators/shared.ts`, `commands/update.ts`, `templates/shared-hooks/`, `templates/claude/agents/`, `templates/opencode/agents/`, `templates/cursor/agents/`, `templates/codebuddy/agents/`, `templates/droid/droids/`, `templates/qoder/agents/`, `templates/opencode/plugins/`.
@@ -150,7 +146,7 @@ Focus on overlay-relevant paths: `configurators/shared.ts`, `commands/update.ts`
 ### Step 2: Merge Upstream
 
 ```bash
-git merge upstream/feat/v0.6.0-beta --no-edit
+git merge upstream/feat/v0.6.0-rc --no-edit
 ```
 
 **Typical conflicts:** `packages/cli/package.json` (name + version), `.trellis/.version`, `.trellis/config.yaml`, `.trellis/.template-hashes.json`. Resolution:
@@ -177,11 +173,11 @@ grep "smart-search" packages/cli/src/templates/opencode/plugins/inject-subagent-
 grep "augment-context-engine" packages/cli/src/configurators/shared.ts
 grep "grok-search" packages/cli/src/configurators/shared.ts && echo "FAIL: grok in mapper" || echo "OK: no grok in mapper"
 
-# Check statusline exists and is registered
+# Check statusline hook is registered (script distributed, but not auto-activated)
 grep "statusline" packages/cli/src/templates/shared-hooks/index.ts
 
-# Check statusLine in settings
-grep "statusLine" packages/cli/src/templates/claude/settings.json
+# Check statusLine is NOT in settings template (users configure independently)
+grep "statusLine" packages/cli/src/templates/claude/settings.json && echo "FAIL: statusLine should not be in template" || echo "OK: statusLine not in template"
 
 # Check CCR model routing in hook
 grep "get_ccr_model_tag" packages/cli/src/templates/shared-hooks/inject-subagent-context.py
@@ -225,7 +221,7 @@ Run the `trellis-publish` skill (`/trellis-publish`) which handles:
 | MCP tools missing after merge | Upstream rewrote agent template | Re-add augment/context7 tool wildcards to frontmatter (all 6 platforms); web search uses smart-search CLI via Bash, no MCP entry needed |
 | Hook tool table reverted | Upstream rewrote inject-subagent-context | Re-apply augment/context7/smart-search CLI in tool table + search tips |
 | Copilot mapper missing new tools | Upstream rewrote shared.ts | Re-add augment/context7 cases in `mapLegacyToolToCopilot()` (grok-search removed — web search is CLI-based) |
-| statusline.py not distributed | Forgot to register in `index.ts` | Add to `SharedHookName` type + `claude` array |
+| statusline.py not distributed | Forgot to register in `index.ts` | Add to `SharedHookName` type + `claude` array (but do NOT add statusLine to settings.json template) |
 | CCR routing lost after update | Upstream overwrote inject-subagent-context.py | Verify `get_ccr_model_tag` exists in shared-hooks template; re-add `_load_features`, `_ccr_model_keys`, `get_ccr_model_tag` + 2 call sites in `main()` |
 
 For publish/dogfood pitfalls, see the `trellis-publish` skill.
@@ -235,6 +231,6 @@ For publish/dogfood pitfalls, see the `trellis-publish` skill.
 ## Key Facts
 
 - **Upstream remote:** `https://github.com/mindfold-ai/Trellis.git`
-- **Upstream branch:** `feat/v0.6.0-beta`
+- **Upstream branch:** `feat/v0.6.0-rc` (feature-frozen; bug-only cuts from here)
 - **npm package:** `@hiskens/trellis`
 - **Only `packages/cli/src/templates/` matters** — root-level `.claude/`, `.opencode/` etc. are this repo's own dogfood config, not the distributed templates
