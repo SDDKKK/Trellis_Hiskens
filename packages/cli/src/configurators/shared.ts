@@ -690,6 +690,17 @@ function mapLegacyToolToCopilot(tool: string): string[] {
       return ["search"];
     case "mcp__context7__*":
       return ["web"];
+    // Generic MCP wildcard — used by trellis-research to opt into "any MCP
+    // tool the user has configured" without locking the source template to a
+    // specific provider. Claude Code parses wildcards as glob-match-at-runtime
+    // (no silent agent-registration skip if nothing matches), so this is the
+    // safe default; explicit `mcp__exa__*` names would silent-skip the agent
+    // when the Exa MCP server is absent (#302).
+    case "mcp__*":
+      return ["web", "exa/*", "chrome-devtools/*"];
+    case "mcp__exa__web_search_exa":
+    case "mcp__exa__get_code_context_exa":
+      return ["web", "exa/*"];
     case "mcp__chrome-devtools__*":
       return ["chrome-devtools/*"];
     case "Skill":

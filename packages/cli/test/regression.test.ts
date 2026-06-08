@@ -5028,6 +5028,20 @@ describe("regression: class-2 platforms use pull-based sub-agent context", () =>
         }
       });
 
+      it("[beta.21] prelude is injected exactly once, not duplicated", () => {
+        // The codex toml source templates once carried an inline prelude that
+        // predated the code-injected prelude (injectPullBasedPreludeToml). The
+        // generated agent then contained the block twice. Source templates must
+        // stay prelude-free so the injector is the single source.
+        for (const file of preludeAgents) {
+          const content = fs.readFileSync(path.join(tmpDir, file), "utf-8");
+          const occurrences = content.split(
+            "Required: Load Trellis Context First",
+          ).length - 1;
+          expect(occurrences, `${file} should have exactly one prelude`).toBe(1);
+        }
+      });
+
       it("[issue-225] prelude tells sub-agent to look for `Active task:` line in dispatch prompt first", () => {
         for (const file of preludeAgents) {
           const content = fs.readFileSync(path.join(tmpDir, file), "utf-8");
@@ -5080,6 +5094,11 @@ describe("regression: copilot agents use YAML tools frontmatter", () => {
   });
 
   it("writes Copilot agent tools as YAML lists", () => {
+    // implement / check agents intentionally do NOT declare any MCP tools in
+    // their source `tools:` list — explicit `mcp__exa__*` names silent-skip
+    // the agent on Claude Code when the Exa MCP server is not configured
+    // (#302). Copilot's transformer therefore emits only the local-tool
+    // equivalents.
     const content = fs.readFileSync(
       path.join(tmpDir, ".github/agents/trellis-implement.agent.md"),
       "utf-8",
@@ -5087,14 +5106,21 @@ describe("regression: copilot agents use YAML tools frontmatter", () => {
     const frontmatter = content.split("---\n")[1] ?? "";
 
     expect(frontmatter).toContain(
-      "tools:\n  - read\n  - edit\n  - execute\n  - search\n  - web\n  - exa/*",
+      "tools:\n  - read\n  - edit\n  - execute\n  - search",
     );
+    expect(frontmatter).not.toContain("  - web");
+    expect(frontmatter).not.toContain("  - exa/*");
     expect(frontmatter).not.toContain(
       "tools: Read, Write, Edit, Bash, Glob, Grep",
     );
   });
 
   it("maps research agent MCP tools to Copilot tool names", () => {
+    // research is the one agent that legitimately needs external search.
+    // Its source uses the wildcard `mcp__*` (avoids the explicit-name
+    // silent-skip, opts into any MCP the user has configured) and the
+    // Copilot transformer maps that wildcard to the full set of supported
+    // Copilot MCP tool equivalents.
     const content = fs.readFileSync(
       path.join(tmpDir, ".github/agents/trellis-research.agent.md"),
       "utf-8",
@@ -5110,6 +5136,7 @@ describe("regression: copilot agents use YAML tools frontmatter", () => {
     expect(frontmatter).toContain("  - chrome-devtools/*");
     expect(frontmatter).not.toContain("mcp__exa__");
     expect(frontmatter).not.toContain("mcp__chrome-devtools__*");
+    expect(frontmatter).not.toContain("mcp__*");
     expect(frontmatter).not.toContain("Skill");
   });
 
