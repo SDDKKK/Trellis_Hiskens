@@ -3,8 +3,8 @@
 ## Current Status
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-0.md`
-- **Total Sessions**: 4
-- **Last Active**: 2026-06-01
+- **Total Sessions**: 5
+- **Last Active**: 2026-06-08
 <!-- @@@/auto:current-status -->
 
 ## Active Documents
@@ -18,6 +18,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 5 | 2026-06-08 | CCometixLine Trellis segment integration | `b9d39986`, `f78d6d44` | `main` |
 | 4 | 2026-06-01 | Subagent tools routing — augment/codegraph/smart-search guidance | `44116b20`, `adb9fccb`, `dbb0d1ba` | `main` |
 | 3 | 2026-05-05 | Fix statusline resolver + extract trellis-publish skill | `0ee6137`, `66d4e8e`, `81ac8b9`, `44b1052` | `main` |
 | 2 | 2026-05-05 | Fix statusline to use session-aware task resolver | `0ee6137` | `main` |
