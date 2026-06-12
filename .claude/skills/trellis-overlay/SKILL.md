@@ -115,9 +115,20 @@ Two call sites in `main()`:
 - `ccr_tag = get_ccr_model_tag(repo_root, subagent_type)` after `find_repo_root()`
 - `new_prompt = ccr_tag + new_prompt` before output assembly
 
-**Runtime config (project-side, not in template):**
-- `.trellis/config.yaml` — `features.ccr_routing: true`
+**Distributed default (in template):**
+- `packages/cli/src/templates/trellis/config.yaml` — `features.ccr_routing: true` (Feature Flags section). This section is distributed to new projects on `trellis init` and surfaced to existing projects via `configSectionsAdded` migration on `trellis update`.
+
+**Runtime config (project-side):**
+- `.trellis/config.yaml` — `features.ccr_routing: true` (inherited from template on init; user may override)
 - `.trellis/config/agent-models.json` — agent → CCR provider/model mapping
+
+**Post-sync verification:** After every upstream merge, confirm the Feature Flags section survives in the template:
+
+```bash
+grep "ccr_routing" packages/cli/src/templates/trellis/config.yaml
+```
+
+If upstream overwrites the template, re-add the `Feature Flags` `#---` block with `features.ccr_routing: true` before the Codex section.
 
 **Verification:** `grep "get_ccr_model_tag" packages/cli/src/templates/shared-hooks/inject-subagent-context.py`
 
@@ -181,6 +192,9 @@ grep "statusLine" packages/cli/src/templates/claude/settings.json && echo "FAIL:
 
 # Check CCR model routing in hook
 grep "get_ccr_model_tag" packages/cli/src/templates/shared-hooks/inject-subagent-context.py
+
+# Check Feature Flags section in config template (ccr_routing default)
+grep "ccr_routing" packages/cli/src/templates/trellis/config.yaml || echo "FAIL: ccr_routing missing from config template"
 ```
 
 If upstream modified any of these files, re-apply hiskens additions manually.
@@ -223,6 +237,7 @@ Run the `trellis-publish` skill (`/trellis-publish`) which handles:
 | Copilot mapper missing new tools | Upstream rewrote shared.ts | Re-add augment/context7 cases in `mapLegacyToolToCopilot()` (grok-search removed — web search is CLI-based) |
 | statusline.py not distributed | Forgot to register in `index.ts` | Add to `SharedHookName` type + `claude` array (but do NOT add statusLine to settings.json template) |
 | CCR routing lost after update | Upstream overwrote inject-subagent-context.py | Verify `get_ccr_model_tag` exists in shared-hooks template; re-add `_load_features`, `_ccr_model_keys`, `get_ccr_model_tag` + 2 call sites in `main()` |
+| Feature Flags missing from config template | Upstream overwrote `templates/trellis/config.yaml` | Re-add `Feature Flags` `#---` block with `features.ccr_routing: true` before the Codex section |
 
 For publish/dogfood pitfalls, see the `trellis-publish` skill.
 
