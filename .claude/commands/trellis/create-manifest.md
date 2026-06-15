@@ -154,7 +154,6 @@ Update `docs-site/docs.json`:
 - Add `"zh/changelog/v<version>"` to the Chinese changelog pages list at the top.
 - Update navbar changelog links to the new version.
 
-<<<<<<< HEAD
 When a `<Note>` or `<Warning>` block contains a markdown list, the closing tag must start at column 0:
 
 ```mdx

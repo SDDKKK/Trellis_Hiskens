@@ -4,6 +4,7 @@ import {
   resolveUpgradeTag,
   upgrade,
 } from "../../src/commands/upgrade.js";
+import { PACKAGE_NAME } from "../../src/constants/version.js";
 
 describe("upgrade command", () => {
   it("defaults stable versions to latest", () => {
@@ -36,10 +37,10 @@ describe("upgrade command", () => {
       buildUpgradeCommand({ tag: "beta" }, "0.5.12", "darwin"),
     ).toMatchObject({
       command: "npm",
-      args: ["install", "-g", "@mindfoldhq/trellis@beta"],
+      args: ["install", "-g", `${PACKAGE_NAME}@beta`],
       spawnOptions: { stdio: "inherit", shell: false },
-      displayCommand: "npm install -g @mindfoldhq/trellis@beta",
-      target: "@mindfoldhq/trellis@beta",
+      displayCommand: `npm install -g ${PACKAGE_NAME}@beta`,
+      target: `${PACKAGE_NAME}@beta`,
       tag: "beta",
       binaryCheckCommand: "which trellis",
     });
@@ -50,10 +51,10 @@ describe("upgrade command", () => {
       buildUpgradeCommand({ tag: "beta" }, "0.5.12", "win32"),
     ).toMatchObject({
       command: "cmd.exe",
-      args: ["/d", "/s", "/c", "npm install -g @mindfoldhq/trellis@beta"],
+      args: ["/d", "/s", "/c", `npm install -g ${PACKAGE_NAME}@beta`],
       spawnOptions: { stdio: "inherit", shell: false },
-      displayCommand: "npm install -g @mindfoldhq/trellis@beta",
-      target: "@mindfoldhq/trellis@beta",
+      displayCommand: `npm install -g ${PACKAGE_NAME}@beta`,
+      target: `${PACKAGE_NAME}@beta`,
       tag: "beta",
       binaryCheckCommand: "where trellis",
     });
@@ -67,7 +68,7 @@ describe("upgrade command", () => {
 
     expect(runner).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(
-      expect.stringContaining("Run: npm install -g @mindfoldhq/trellis@latest"),
+      expect.stringContaining(`Run: npm install -g ${PACKAGE_NAME}@latest`),
     );
 
     log.mockRestore();
@@ -81,7 +82,7 @@ describe("upgrade command", () => {
 
     expect(runner).toHaveBeenCalledWith(
       "npm",
-      ["install", "-g", "@mindfoldhq/trellis@latest"],
+      ["install", "-g", `${PACKAGE_NAME}@latest`],
       { stdio: "inherit", shell: false },
     );
     expect(log).toHaveBeenCalledWith(
@@ -96,8 +97,9 @@ describe("upgrade command", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
     const runner = vi.fn(() => ({ status: 1, signal: null }));
 
+    const escapedName = PACKAGE_NAME.replace(/[/]/g, "\\/");
     await expect(upgrade({ tag: "latest" }, runner)).rejects.toThrow(
-      /npm install failed with exit code 1\.[\s\S]*Troubleshooting:[\s\S]*Manual command: npm install -g @mindfoldhq\/trellis@latest[\s\S]*npm config get prefix[\s\S]*which trellis/,
+      new RegExp(`npm install failed with exit code 1\\.[\\s\\S]*Troubleshooting:[\\s\\S]*Manual command: npm install -g ${escapedName}@latest[\\s\\S]*npm config get prefix[\\s\\S]*which trellis`),
     );
 
     log.mockRestore();

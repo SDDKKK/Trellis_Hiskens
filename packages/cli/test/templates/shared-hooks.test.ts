@@ -11,6 +11,7 @@ const ALL_HOOK_FILES = [
   "inject-shell-session-context.py",
   "inject-workflow-state.py",
   "inject-subagent-context.py",
+  "statusline.py",
 ] as const;
 
 describe("shared-hooks capability table", () => {
@@ -41,16 +42,22 @@ describe("shared-hooks capability table", () => {
     }
   });
 
-  it("statusline.py is not distributed by default", () => {
+  it("statusline.py is distributed to claude only (hiskens overlay)", () => {
     const realFiles = new Set(getSharedHookScripts().map((h) => h.name));
-    expect(realFiles.has("statusline.py")).toBe(false);
+    expect(realFiles.has("statusline.py")).toBe(true);
+    // Hiskens overlay installs statusline.py for claude platform only.
     for (const [platform, hooks] of Object.entries(
       SHARED_HOOKS_BY_PLATFORM,
     )) {
-      expect(
-        (hooks as readonly string[]).includes("statusline.py"),
-        `${platform} must not install the generated statusline.py hook by default`,
-      ).toBe(false);
+      const has = (hooks as readonly string[]).includes("statusline.py");
+      if (platform === "claude") {
+        expect(has, "claude must install statusline.py (hiskens overlay)").toBe(true);
+      } else {
+        expect(
+          has,
+          `${platform} must not install statusline.py`,
+        ).toBe(false);
+      }
     }
   });
 

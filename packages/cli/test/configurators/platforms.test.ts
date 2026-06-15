@@ -37,11 +37,12 @@ import {
 } from "../../src/configurators/shared.js";
 
 const BUNDLED_SKILL_NAMES = [
+  "trellis-channel",
   "trellis-meta",
   "trellis-session-insight",
   "trellis-spec-bootstrap",
 ];
-const BUNDLED_SKILL_NAME = BUNDLED_SKILL_NAMES[0];
+const BUNDLED_SKILL_NAME = "trellis-meta";
 const BUNDLED_REFERENCE = path.join(
   BUNDLED_SKILL_NAME,
   "references",
@@ -706,9 +707,10 @@ describe("configurePlatform", () => {
     const content = fs.readFileSync(settingsPath, "utf-8");
     const settings = JSON.parse(content);
     expect(settings).not.toHaveProperty("statusLine");
+    // Hiskens overlay distributes statusline.py to claude platform.
     expect(
       fs.existsSync(path.join(tmpDir, ".claude", "hooks", "statusline.py")),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("cursor configuration includes commands directory", async () => {
