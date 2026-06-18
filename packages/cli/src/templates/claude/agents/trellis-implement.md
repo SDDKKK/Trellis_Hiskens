@@ -111,21 +111,3 @@ Run project's lint and typecheck commands to verify changes.
 
 ---
 
-<!-- hiskens:tools-routing:start -->
-## Tool Routing
-
-Choose tools by query type — do not default to bash grep/ls for code understanding.
-
-**Codegraph is deferred** — before first use, load it:
-`ToolSearch(query: "select:mcp__codegraph__codegraph_context,mcp__codegraph__codegraph_search,mcp__codegraph__codegraph_impact", max_results: 3)`
-
-| Need | Tool | NOT |
-|---|---|---|
-| Blast radius before editing a symbol | `mcp__codegraph__codegraph_impact` | Guessing from local context |
-| Understand module / architecture | `mcp__augment-context-engine__codebase-retrieval` | `bash grep` across many files |
-| Find callers / dependents of what you changed | `mcp__codegraph__codegraph_callers` | `grep -rn "funcName"` |
-| Find symbol definition / signature | `mcp__codegraph__codegraph_search` or `codegraph_node` | `grep` + `Read` loop |
-| List files in a directory | `mcp__codegraph__codegraph_files` | `ls`, `find` |
-| Read file contents | `Read` tool | `cat`, `head`, `tail` |
-| Exact string literal match | `Grep` (native) or `bash grep` | — |
-<!-- hiskens:tools-routing:end -->

@@ -138,20 +138,3 @@ Each `{TASK_DIR}/research/<topic>.md` should follow:
 
 ---
 
-<!-- hiskens:tools-routing:start -->
-## Tool Routing
-
-Choose tools by query type — do not default to bash grep/ls for code understanding.
-
-**Codegraph is deferred** — before first use, load it:
-`ToolSearch(query: "select:mcp__codegraph__codegraph_context,mcp__codegraph__codegraph_search,mcp__codegraph__codegraph_files", max_results: 3)`
-
-| Need | Tool | NOT |
-|---|---|---|
-| Understand code structure / "how does X work" | `mcp__codegraph__codegraph_context` or `mcp__augment-context-engine__codebase-retrieval` | `bash grep` |
-| Find symbol definition / callers / callees | `mcp__codegraph__codegraph_search`, `codegraph_callers`, `codegraph_callees` | `grep -rn "funcName"` |
-| List directory contents / find files | `mcp__codegraph__codegraph_files` | `ls`, `find` |
-| Read file contents | `Read` tool | `cat`, `head`, `tail` |
-| Exact string literal match | `Grep` (native) or `bash grep` | — |
-| External research: standards, best practices, library docs | `smart-search` CLI via Bash — include community forums, X discussions, and consensus opinions | Guessing from local code alone |
-<!-- hiskens:tools-routing:end -->

@@ -116,21 +116,3 @@ Checked X files, found Y issues, all fixed.
 
 ---
 
-<!-- hiskens:tools-routing:start -->
-## Tool Routing
-
-Choose tools by query type — do not default to bash grep/ls for verification.
-
-**Codegraph is deferred** — before first use, load it:
-`ToolSearch(query: "select:mcp__codegraph__codegraph_context,mcp__codegraph__codegraph_callers,mcp__codegraph__codegraph_impact", max_results: 3)`
-
-| Need | Tool | NOT |
-|---|---|---|
-| Verify change doesn't break dependents | `mcp__codegraph__codegraph_impact` + `codegraph_callers` | `grep -rn` for all references |
-| Understand what the changed code does | `mcp__augment-context-engine__codebase-retrieval` | Reading every file with `cat` |
-| Check consistency across codebase | `mcp__augment-context-engine__codebase-retrieval` (semantic search) | `bash grep` for pattern matches |
-| Find symbol definition / signature | `mcp__codegraph__codegraph_search` | `grep` + `Read` loop |
-| List files in a directory | `mcp__codegraph__codegraph_files` | `ls`, `find` |
-| Read file contents | `Read` tool | `cat`, `head`, `tail` |
-| Exact string literal match | `Grep` (native) or `bash grep` | — |
-<!-- hiskens:tools-routing:end -->
