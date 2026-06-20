@@ -76,13 +76,19 @@ program
   .option("--kiro", "Include Kiro Code skills")
   .option("--gemini", "Include Gemini CLI commands")
   .option("--antigravity", "Include Antigravity workflows")
-  .option("--windsurf", "Include Windsurf workflows")
+  .option("--devin", "Include Devin workflows")
+  .option("--windsurf", "Deprecated alias for --devin (Windsurf was renamed)")
   .option("--qoder", "Include Qoder commands")
   .option("--codebuddy", "Include CodeBuddy commands")
   .option("--copilot", "Include GitHub Copilot hooks")
   .option("--droid", "Include Factory Droid commands")
   .option("--pi", "Include Pi Agent extension assets")
   .option("--reasonix", "Include Reasonix skills")
+  .option("--zcode", "Include ZCode commands")
+  .option(
+    "--with-statusline",
+    "Install the Trellis statusLine for Claude Code (off by default)",
+  )
   .option("-y, --yes", "Skip prompts and use defaults")
   .option(
     "-u, --user <name>",
@@ -115,6 +121,16 @@ program
   )
   .action(async (options: Record<string, unknown>) => {
     try {
+      // Deprecated alias: --windsurf → --devin (Windsurf was renamed to Devin).
+      if (options.windsurf) {
+        console.log(
+          chalk.yellow(
+            "⚠ --windsurf is deprecated (Windsurf was renamed to Devin). Use --devin instead.",
+          ),
+        );
+        options.devin = true;
+        delete options.windsurf;
+      }
       await init(options);
     } catch (error) {
       console.error(
@@ -213,7 +229,7 @@ program
 program
   .command("mem")
   .description(
-    "Search/recall AI conversation history across Claude Code, Codex, OpenCode (run 'trellis mem help' for subcommands and flags)",
+    "Search/recall AI conversation history across Claude Code, Codex, OpenCode, Pi (run 'trellis mem help' for subcommands and flags)",
   )
   .allowUnknownOption(true)
   .helpOption(false)

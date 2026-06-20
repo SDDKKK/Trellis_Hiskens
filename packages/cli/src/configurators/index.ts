@@ -26,13 +26,14 @@ import { configureKilo } from "./kilo.js";
 import { configureKiro } from "./kiro.js";
 import { configureGemini } from "./gemini.js";
 import { configureAntigravity } from "./antigravity.js";
-import { configureWindsurf } from "./windsurf.js";
+import { configureDevin } from "./devin.js";
 import { configureQoder } from "./qoder.js";
 import { configureCodebuddy } from "./codebuddy.js";
 import { configureCopilot } from "./copilot.js";
 import { configureDroid } from "./droid.js";
 import { configurePi, collectPiTemplates } from "./pi.js";
 import { configureReasonix, collectReasonixTemplates } from "./reasonix.js";
+import { configureZcode, collectZcodeTemplates } from "./zcode.js";
 
 // Shared utilities
 import {
@@ -50,6 +51,7 @@ import {
   applyPullBasedPreludeMarkdown,
   applyPullBasedPreludeToml,
   normalizeCopilotMarkdownAgents,
+  type PlatformConfigureOptions,
 } from "./shared.js";
 
 // Platform-specific template content (hooks, agents, settings — NOT commands/skills)
@@ -100,7 +102,7 @@ import {
 
 interface PlatformFunctions {
   /** Configure platform during init (copy templates to project) */
-  configure: (cwd: string) => Promise<void>;
+  configure: (cwd: string, options?: PlatformConfigureOptions) => Promise<void>;
   /** Collect template files for update tracking. Undefined = platform skipped during update. */
   collectTemplates?: () => Map<string, string>;
 }
@@ -322,13 +324,13 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
         ".agent/skills",
       ),
   },
-  windsurf: {
-    configure: configureWindsurf,
+  devin: {
+    configure: configureDevin,
     collectTemplates: () =>
       collectBothTemplates(
-        AI_TOOLS.windsurf.templateContext,
-        (n) => `.windsurf/workflows/trellis-${n}.md`,
-        ".windsurf/skills",
+        AI_TOOLS.devin.templateContext,
+        (n) => `.devin/workflows/trellis-${n}.md`,
+        ".devin/skills",
       ),
   },
   qoder: {
@@ -452,6 +454,10 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
     configure: configureReasonix,
     collectTemplates: () => collectReasonixTemplates(),
   },
+  zcode: {
+    configure: configureZcode,
+    collectTemplates: () => collectZcodeTemplates(),
+  },
 };
 
 // =============================================================================
@@ -485,6 +491,12 @@ export function getConfiguredPlatforms(cwd: string): Set<AITool> {
     if (fs.existsSync(path.join(cwd, AI_TOOLS[id].configDir))) {
       platforms.add(id);
     }
+  }
+  // Back-compat: Windsurf was renamed to Devin (config dir .windsurf → .devin).
+  // A pre-rename install with only `.windsurf/workflows/` still counts as Devin
+  // so re-init / update recognize it (and `--migrate` can move it to `.devin/`).
+  if (fs.existsSync(path.join(cwd, ".windsurf", "workflows"))) {
+    platforms.add("devin");
   }
   return platforms;
 }
@@ -527,8 +539,9 @@ export function getPlatformManagedPaths(platformId: AITool): string[] {
 export function configurePlatform(
   platformId: AITool,
   cwd: string,
+  options?: PlatformConfigureOptions,
 ): Promise<void> {
-  return PLATFORM_FUNCTIONS[platformId].configure(cwd);
+  return PLATFORM_FUNCTIONS[platformId].configure(cwd, options);
 }
 
 /**

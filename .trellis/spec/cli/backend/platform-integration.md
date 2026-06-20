@@ -1,6 +1,6 @@
 # Platform Integration Guide
 
-How to add support for a new AI CLI platform (like Claude Code, Cursor, Gemini CLI, OpenCode, Codex, Kilo, Kiro, Qoder, CodeBuddy, Copilot, Droid, Pi, Windsurf, Antigravity).
+How to add support for a new AI CLI platform (like Claude Code, Cursor, Gemini CLI, OpenCode, Codex, Kilo, Kiro, Qoder, CodeBuddy, Copilot, Droid, Pi, Devin, Antigravity).
 
 ---
 
@@ -116,7 +116,7 @@ When adding a new platform `{platform}`, update the following:
 
 > Note: Codex/Kiro use `resolveAllAsSkills()` from `shared.ts` to generate all templates as SKILL.md files with YAML frontmatter. Skills are written via `writeSkills()`.
 >
-> **Qoder is a hybrid** — it has native Custom Commands (`.qoder/commands/{name}.md`) with required YAML frontmatter (`name` + `description`, flat layout per Qoder CLI docs), so session-boundary commands (`finish-work`, `continue`) go there via `resolveCommands()` + `wrapWithCommandFrontmatter()`, while the 5 auto-trigger workflows stay as `.qoder/skills/` via `resolveSkills()`. Use the `COMMAND_DESCRIPTIONS` registry in `shared.ts` (separate from `SKILL_DESCRIPTIONS`) for the short palette blurbs — command descriptions are one-line imperatives aimed at the user; skill descriptions are long prose aimed at the AI matcher.
+> **Qoder is a hybrid** — it has native Custom Commands (`.qoder/commands/{name}.md`) with required YAML frontmatter (`name` + `description`, flat layout per Qoder CLI docs), so session-boundary commands (`finish-work`, `continue`) go there via `resolveCommands()` + `wrapWithCommandFrontmatter()`, while the auto-triggered skills from `common/skills/` stay as `.qoder/skills/` via `resolveSkills()`. Use the `COMMAND_DESCRIPTIONS` registry in `shared.ts` (separate from `SKILL_DESCRIPTIONS`) for the short palette blurbs — command descriptions are one-line imperatives aimed at the user; skill descriptions are long prose aimed at the AI matcher.
 >
 > **Codex has a two-layer directory model:**
 >
@@ -136,7 +136,7 @@ When adding a new platform `{platform}`, update the following:
 
 `.agents/skills/` is a **shared destination**: multiple configurators (Codex, Gemini CLI 0.40+ via the workspace alias, future agentskills.io consumers) all write into the same path. Per-platform `{{CMD_REF:name}}` resolution (`$name` for Codex, `/trellis:name` for Gemini, etc.) makes the same `<skill>/SKILL.md` differ byte-for-byte depending on which configurator ran last → "last-writer-wins" content collisions and `.template-hashes.json` churn.
 
-**Rule**: Anything written under `.agents/skills/` MUST be rendered via `resolvePlaceholdersNeutral()` (in `configurators/shared.ts`), which substitutes `` `name` (Trellis command) `` for `{{CMD_REF:name}}` instead of a platform prefix. All other placeholders (`{{CLI_FLAG}}`, `{{EXECUTOR_AI}}`, `{{USER_ACTION_LABEL}}`, conditionals, `{{PYTHON_CMD}}`) still resolve from the platform context — those don't appear in the 5 shared workflow skills (`brainstorm`, `before-dev`, `check`, `break-loop`, `update-spec`), so the rendered output stays identical across writers.
+**Rule**: Anything written under `.agents/skills/` MUST be rendered via `resolvePlaceholdersNeutral()` (in `configurators/shared.ts`), which substitutes `` `name` (Trellis command) `` for `{{CMD_REF:name}}` instead of a platform prefix. All other placeholders (`{{CLI_FLAG}}`, `{{EXECUTOR_AI}}`, `{{USER_ACTION_LABEL}}`, conditionals, `{{PYTHON_CMD}}`) still resolve from the platform context — those don't appear in the auto-triggered skill templates from `common/skills/`, so the rendered output stays identical across writers.
 
 Per-platform skill directories (`.claude/skills/`, `.cursor/skills/`, `.qoder/skills/`, etc.) keep using `resolvePlaceholders()` — `{{CMD_REF}}` resolves to the platform-correct slash form there, because no other configurator writes those paths.
 
@@ -208,13 +208,13 @@ files.set(".agents/skills/check/SKILL.md", resolvePlaceholdersNeutral(tmpl, ctx)
 
 > Note: Droid uses "droids" terminology instead of "agents" but follows the same pattern. Uses `writeAgents()` with the droids directory.
 
-**Windsurf pattern** (no template directory):
+**Devin pattern** (no template directory):
 
 | Directory | Contents |
 |-----------|----------|
-| (no template directory) | Windsurf generates from `common/` templates + shared hooks at runtime |
+| (no template directory) | Devin generates from `common/` templates + shared hooks at runtime |
 
-> Note: Windsurf uses `resolveCommands()` for workflows and `resolveSkills()` for auto-triggered skills. Shared hooks are written via `writeSharedHooks()`. No platform-specific template files needed.
+> Note: Devin uses `resolveCommands()` for workflows and `resolveSkills()` for auto-triggered skills. Shared hooks are written via `writeSharedHooks()`. No platform-specific template files needed.
 
 **Required commands/skills**: All platforms must include the following (adapted to each platform's format). Content comes from `src/templates/common/`:
 
@@ -341,19 +341,19 @@ built-binary `trellis init` -> `.trellis/.template-hashes.json` -> built-binary
 
 ### Active Task Resolution
 
-Current-task state is session/window scoped. New hook, plugin, extension, and
-sub-agent consumers must call the shared resolver path:
+Current-task state is session/window scoped. New hook, statusline, plugin,
+extension, and sub-agent consumers must call the shared resolver path:
 
 | Runtime | Resolver surface |
 |---------|------------------|
-| Python hooks/scripts | `.trellis/scripts/common/active_task.py` |
+| Python hooks/statusline/scripts | `.trellis/scripts/common/active_task.py` |
 | Existing Python callers | `common.paths.get_current_task()` / `get_current_task_abs()` / `get_current_task_source()` |
 | OpenCode plugin | JS resolver in `lib/trellis-context.js`, mirroring `active_task.py` |
 | Pi extension | Extension-local resolver using `ctx.sessionManager.getSessionId()` and Bash `tool_call` env injection |
 
-Do not add direct `.trellis/.current-task` reads in hooks, sub-agent context
-injection, or platform plugins. Direct reads reintroduce multi-window task
-pollution.
+Do not add direct `.trellis/.current-task` reads in hooks, statusline scripts,
+sub-agent context injection, or platform plugins. Direct reads reintroduce
+multi-window task pollution.
 
 Context-key precedence for hook-capable platforms:
 
@@ -421,9 +421,9 @@ Pi is extension-backed rather than Python-hook-backed: `tool_call` must mutate
 `event.input.command` before Bash execution, and the custom `trellis_subagent` tool must
 spawn child `pi` processes with `TRELLIS_CONTEXT_ID` in `env`.
 
-Hook or plugin output that mentions an active task should include the source
-(`session` or `session:<key>`) so cross-window mistakes are visible while
-debugging.
+Hook, statusline, or plugin output that mentions an active task should include
+the source (`session` or `session:<key>`) so cross-window mistakes are visible
+while debugging. Statuslines may shorten this to `[session]` to avoid noisy UI.
 
 **Also update `task_store.py` when adding a sub-agent-capable platform**:
 
@@ -431,7 +431,7 @@ debugging.
 |------|----------|----------------|
 | `src/templates/trellis/scripts/common/task_store.py` | `_SUBAGENT_CONFIG_DIRS` (tuple) | Add `.{configDir}/` if the new platform can spawn sub-agents (Class-1 hook-inject, Class-2 pull-based, or extension-backed) |
 
-This tuple is consulted by `cmd_create` to decide whether to seed `implement.jsonl` / `check.jsonl` for the new task. Agent-less platforms (Kilo, Antigravity, Windsurf) MUST be excluded — they don't consume jsonl.
+This tuple is consulted by `cmd_create` to decide whether to seed `implement.jsonl` / `check.jsonl` for the new task. Agent-less platforms (Kilo, Antigravity, Devin) MUST be excluded — they don't consume jsonl.
 
 Same root reason as `cli_adapter.py`: Python scripts run at user-project runtime and can't import from the TS `AI_TOOLS` registry, so they maintain their own parallel registry. When adding/removing sub-agent capability, update both in tandem.
 
@@ -794,7 +794,7 @@ These are now **automatically derived** from the registry:
 | CodeBuddy | `/trellis:xxx` | Markdown (`.md`) | `/trellis:finish-work` |
 | Copilot | `/trellis:xxx` | Markdown (`.prompt.md`) | `/trellis:finish-work` |
 | Droid | `/trellis:xxx` | Markdown (`.md`) | `/trellis:finish-work` |
-| Windsurf | `/trellis-xxx` | Markdown (`.md`) + `SKILL.md` | `/trellis-finish-work` |
+| Devin | `/trellis-xxx` | Markdown (`.md`) + `SKILL.md` | `/trellis-finish-work` |
 | Pi Agent | `/trellis-xxx` prompt templates + `/skill:<name>` skills | Markdown (`.md`) + `SKILL.md` + TypeScript extension | `/trellis-finish-work` |
 
 When creating platform templates, ensure references match the platform's interaction format and file format.
@@ -812,7 +812,7 @@ Commands emitted by `resolveCommands(ctx)` / `resolveAllAsSkills(ctx)` in `src/c
 **Rule**: filter is by `ctx.agentCapable`, not `hasHooks`. `agentCapable` is authoritative because it also correlates with "has a session-start mechanism" (Python hook or JS plugin).
 
 - Agent-capable: `claude-code, cursor, opencode, codex, kiro, gemini, qoder, codebuddy, copilot, droid, pi`
-- Agent-less: `kilo, antigravity, windsurf`
+- Agent-less: `kilo, antigravity, devin`
 
 ## Subagent Context Injection: Hook-based vs Pull-based vs Extension-backed
 
@@ -995,8 +995,9 @@ Extension-backed platforms must not call `writeSharedHooks()` for their config d
 
 ### Audit reference
 
-Full reliability audit (per-platform evidence, GitHub issues, Cursor staff confirmations, Claude Code canary test) lives at:
-`.trellis/tasks/04-17-subagent-hook-reliability-audit/research/platform-hook-audit.md`
+Historical reliability audit (per-platform evidence, GitHub issues, Cursor
+staff confirmations, Claude Code canary test) lives in the archived task:
+`.trellis/tasks/archive/2026-04/04-17-subagent-hook-reliability-audit/research/platform-hook-audit.md`
 
 ---
 
@@ -1401,7 +1402,14 @@ The hook uses `find_trellis_root()` to walk up from CWD until it finds `.trellis
 
 ### Why No State Machine / No Extra `task.json` Fields
 
-After first-principles analysis (see `.trellis/tasks/04-17-workflow-enforcement-v2/prd.md`), we dropped the original design's `current_phase` string / `phase_history` / `checkpoints` / 7 new `task.py` commands / skill tail blocks. The core insight: **workflow.md Phase 1.0/1.1/... is documentation layering, not runtime state**. The existing `task.json.status` (`planning` / `in_progress` / `completed`) is sufficient to express task lifecycle; sub-phase position is inferred by the AI from conversation history + git state.
+After first-principles analysis (historical task:
+`.trellis/tasks/archive/2026-04/04-17-workflow-enforcement-v2/prd.md`), we
+dropped the original design's `current_phase` string / `phase_history` /
+`checkpoints` / 7 new `task.py` commands / skill tail blocks. The core insight:
+**workflow.md Phase 1.0/1.1/... is documentation layering, not runtime state**.
+The existing `task.json.status` (`planning` / `in_progress` / `completed`) is
+sufficient to express task lifecycle; sub-phase position is inferred by the AI
+from conversation history + git state.
 
 This keeps state minimal, avoids the "task.json drifts from filesystem reality" class of bugs, and is trivially customizable — users modify one markdown file, not Python/TypeScript.
 
@@ -1525,6 +1533,16 @@ if (!hadDeveloperFileBefore) {
 **Cause**: `configurePlatform()` resolves `{{PYTHON_CMD}}` to `python3`/`python` when writing files during init, but `collectPlatformTemplates()` returns raw templates with `{{PYTHON_CMD}}` unresolved. The hash comparison sees them as different.
 
 **Fix**: Apply `resolvePlaceholders()` (from `configurators/shared.ts`) in the `collectTemplates` lambda in `PLATFORM_FUNCTIONS`. Any new placeholder added to templates must be resolved in **both** `configure()` and `collectTemplates()`.
+
+### Init-time settings.json key injection serialized differently from update's preservation
+
+**Symptom**: On a freshly initialized project that used an opt-in feature (e.g., `--with-statusline`), the very first `trellis update` reports `.claude/settings.json` as "Template updated (will auto-update)", rewrites it, and leaves a spurious backup — with zero actual changes.
+
+**Cause**: Init injected the key at a hand-picked position in the template (e.g., `statusLine` "between `env` and `hooks`"), but update's preservation step (`preserveExistingClaudeStatusLine()` in `update.ts`) re-adds preserved keys via plain `parse → assign → stringify`, which appends at the end. The two serializations differ byte-wise, so the content comparison flags a false change.
+
+**Fix**: The init-time injection must mirror the update-time preservation routine byte-for-byte (same parse → assign → stringify, same indent). Pinned by a regression test asserting `settings.json` byte-identity across `update --force` on a fresh opted-in project.
+
+**Rule**: A feature that both (a) injects a key into a generated JSON file at init and (b) preserves that key during update must produce identical serialization on both paths — key order is part of the contract. Assert byte-identity (not deep-equality) in tests; deep-equal comparisons cannot catch key-order drift.
 
 ### Template listed in update but not created by init
 

@@ -26,6 +26,10 @@ import {
   getSettingsTemplate as getPiSettings,
 } from "../../src/templates/pi/index.js";
 import {
+  settingsTemplate as claudeSettingsTemplate,
+  getStatuslineHook,
+} from "../../src/templates/claude/index.js";
+import {
   resolvePlaceholders,
   resolveAllAsSkills,
   resolveAllAsSkillsNeutral,
@@ -117,12 +121,20 @@ describe("getConfiguredPlatforms", () => {
     expect(result.has("antigravity")).toBe(true);
   });
 
-  it("detects .windsurf/workflows directory as windsurf", () => {
+  it("detects .devin/workflows directory as devin", () => {
+    fs.mkdirSync(path.join(tmpDir, ".devin", "workflows"), {
+      recursive: true,
+    });
+    const result = getConfiguredPlatforms(tmpDir);
+    expect(result.has("devin")).toBe(true);
+  });
+
+  it("detects legacy .windsurf/workflows directory as devin (back-compat)", () => {
     fs.mkdirSync(path.join(tmpDir, ".windsurf", "workflows"), {
       recursive: true,
     });
     const result = getConfiguredPlatforms(tmpDir);
-    expect(result.has("windsurf")).toBe(true);
+    expect(result.has("devin")).toBe(true);
   });
 
   it("detects .kiro/skills directory as kiro", () => {
@@ -475,35 +487,33 @@ describe("configurePlatform", () => {
     }
   });
 
-  it("configurePlatform('windsurf') creates .windsurf/workflows directory", async () => {
-    await configurePlatform("windsurf", tmpDir);
-    expect(fs.existsSync(path.join(tmpDir, ".windsurf", "workflows"))).toBe(
-      true,
-    );
+  it("configurePlatform('devin') creates .devin/workflows directory", async () => {
+    await configurePlatform("devin", tmpDir);
+    expect(fs.existsSync(path.join(tmpDir, ".devin", "workflows"))).toBe(true);
   });
 
-  it("configurePlatform('windsurf') writes workflows + skills", async () => {
-    await configurePlatform("windsurf", tmpDir);
+  it("configurePlatform('devin') writes workflows + skills", async () => {
+    await configurePlatform("devin", tmpDir);
 
     // Commands as workflows
-    const workflowsRoot = path.join(tmpDir, ".windsurf", "workflows");
+    const workflowsRoot = path.join(tmpDir, ".devin", "workflows");
     expect(fs.existsSync(workflowsRoot)).toBe(true);
     const wfFiles = fs
       .readdirSync(workflowsRoot)
       .filter((f) => f.endsWith(".md"));
     expect(wfFiles.length).toBe(
-      resolveCommands(AI_TOOLS.windsurf.templateContext).length,
+      resolveCommands(AI_TOOLS.devin.templateContext).length,
     );
 
     // Skills
-    const skillsDir = path.join(tmpDir, ".windsurf", "skills");
+    const skillsDir = path.join(tmpDir, ".devin", "skills");
     expect(fs.existsSync(skillsDir)).toBe(true);
     const skillDirs = fs
       .readdirSync(skillsDir, { withFileTypes: true })
       .filter((e) => e.isDirectory());
     expect(skillDirs.length).toBe(
-      resolveSkills(AI_TOOLS.windsurf.templateContext).length +
-        resolveBundledSkills(AI_TOOLS.windsurf.templateContext).filter((file) =>
+      resolveSkills(AI_TOOLS.devin.templateContext).length +
+        resolveBundledSkills(AI_TOOLS.devin.templateContext).filter((file) =>
           file.relativePath.endsWith("/SKILL.md"),
         ).length,
     );
@@ -711,6 +721,84 @@ describe("configurePlatform", () => {
     expect(
       fs.existsSync(path.join(tmpDir, ".claude", "hooks", "statusline.py")),
     ).toBe(true);
+  });
+
+  it("claude-code default settings.json is byte-identical to the resolved template (statusline off)", async () => {
+    await configurePlatform("claude-code", tmpDir, { withStatusline: false });
+    const content = fs.readFileSync(
+      path.join(tmpDir, ".claude", "settings.json"),
+      "utf-8",
+    );
+    expect(content).toBe(resolvePlaceholders(claudeSettingsTemplate));
+    expect(content).not.toContain("statusLine");
+  });
+
+  it("claude-code with statusline opt-in installs statusline.py and statusLine settings entry", async () => {
+    await configurePlatform("claude-code", tmpDir, { withStatusline: true });
+
+    const hookPath = path.join(tmpDir, ".claude", "hooks", "statusline.py");
+    expect(fs.existsSync(hookPath)).toBe(true);
+    expect(fs.readFileSync(hookPath, "utf-8")).toBe(
+      replacePythonCommandLiterals(getStatuslineHook()),
+    );
+
+    const content = fs.readFileSync(
+      path.join(tmpDir, ".claude", "settings.json"),
+      "utf-8",
+    );
+    expect(content).not.toContain("{{PYTHON_CMD}}");
+    const settings = JSON.parse(content) as Record<string, unknown>;
+    expect(settings.statusLine).toEqual({
+      type: "command",
+      command: replacePythonCommandLiterals(
+        "python3 .claude/hooks/statusline.py",
+      ),
+    });
+    // statusLine is appended at the END — byte-parity with update's
+    // preserveExistingClaudeStatusLine (parse → assign → stringify), so a
+    // fresh opted-in project shows zero settings.json diff on update
+    expect(Object.keys(settings)).toEqual([
+      "env",
+      "hooks",
+      "enabledPlugins",
+      "statusLine",
+    ]);
+    // Everything besides statusLine is unchanged from the default template
+    const expected = JSON.parse(
+      resolvePlaceholders(claudeSettingsTemplate),
+    ) as Record<string, unknown>;
+    expect(settings.env).toEqual(expected.env);
+    expect(settings.hooks).toEqual(expected.hooks);
+    expect(settings.enabledPlugins).toEqual(expected.enabledPlugins);
+  });
+
+  it("withStatusline option leaves all other platforms unaffected", async () => {
+    for (const id of PLATFORM_IDS) {
+      if (id === "claude-code") continue;
+      await configurePlatform(id, tmpDir, { withStatusline: true });
+    }
+
+    const walk = (dir: string): string[] => {
+      const files: string[] = [];
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          files.push(...walk(full));
+        } else {
+          files.push(full);
+        }
+      }
+      return files;
+    };
+
+    for (const file of walk(tmpDir)) {
+      expect(path.basename(file)).not.toBe("statusline.py");
+      if (path.basename(file) === "settings.json") {
+        expect(
+          JSON.parse(fs.readFileSync(file, "utf-8")),
+        ).not.toHaveProperty("statusLine");
+      }
+    }
   });
 
   it("cursor configuration includes commands directory", async () => {
