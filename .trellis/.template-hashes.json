@@ -247,7 +247,7 @@
     ".pi/skills/trellis-spec-bootstrap/SKILL.md": "97bfa68c06cebb558eb4464bc1b81f7d2d56040d75baa8de1ee5ad90cca0196a",
     ".trellis/agents/implement.md": "66e25ad046c94869442834bc3cdfbd5a9a7412d3ff54561d64d2886552c27e87",
     ".trellis/agents/check.md": "edb4f57361407249a53bf5998ebf91c40d2b969e826a2c5e1b4e813a08bcb175",
-    ".trellis/config.yaml": "3e295bf4310763240647f40b3aeee7a7c6d134142cdc826e02d850ca2407fc43",
+    ".trellis/config.yaml": "9c5fa63827e814e546cec16b80f46ba721a70794277f2f3be5736219e84fa1e7",
     ".claude/agents/trellis-research.md": "add4aa4259ded425b04ec992802c646490352bb4eb3730a7ab450beea87d4faa",
     ".trellis/scripts/common/cli_adapter.py": "bda2eb3a76b3990ef979846a5eff3d8aedde9c70e0e9d128266034aeee186020",
     ".claude/skills/trellis-break-loop/SKILL.md": "f5a93699832f29dee443b53c135a7459519b371f689af191d15c29e8ee5c7bde",
