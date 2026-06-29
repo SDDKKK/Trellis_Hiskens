@@ -1,666 +1,293 @@
 # Cross-Platform Thinking Guide
 
-> **Purpose**: Catch platform-specific assumptions before they become bugs.
+> **Purpose**: Catch platform-specific issues before they become runtime bugs.
+> **Scope**: WSL2 (Linux) ↔ Windows ↔ MATLAB (Windows-native) ↔ Java
+
+## Why This Guide?
+
+This project runs across multiple platform boundaries:
+
+| Component | Runtime Environment | Path Style |
+|-----------|-------------------|------------|
+| Python scripts | WSL2 (Linux) | `/mnt/e/...` |
+| MATLAB | Windows-native | `E:\...` |
+| Java (FMEACal) | Windows JVM | `E:\...` |
+| SQLite (ledger.db) | Shared file | Both styles |
+| Git | WSL2 | `/mnt/e/...` |
+
+**Most cross-platform bugs come from path conversion, encoding, and line endings.**
 
 ---
 
-## Why This Matters
+## 1. Path Handling
 
-**Most cross-platform bugs come from implicit assumptions**:
-
-- Assumed shebang works → breaks on Windows
-- Assumed `/` path separator → breaks on Windows
-- Assumed `\n` line endings → inconsistent behavior
-- Assumed command availability → `grep` vs `findstr`
-
----
-
-## Platform Differences Checklist
-
-### 1. Script Execution
-
-| Assumption | macOS/Linux | Windows |
-|------------|-------------|---------|
-| Shebang (`#!/usr/bin/env python3`) | ✅ Works | ❌ Ignored |
-| Direct execution (`./script.py`) | ✅ Works | ❌ Fails |
-| `python3` command | ✅ Always available | ⚠️ May need `python` |
-| `python` command | ⚠️ May be Python 2 | ✅ Usually Python 3 |
-
-**Rule 1**: For user-facing docs, help text, and error messages, either:
-
-- state the platform rule explicitly (`python` on Windows, `python3` elsewhere), or
-- render the command through the same platform-aware helper / placeholder the code uses.
+### WSL ↔ Windows Path Conversion
 
 ```python
-# BAD - Assumes shebang works
-print("Usage: ./script.py <args>")
-print("Run: script.py <args>")
+# Python: Convert WSL path to Windows path
+import subprocess
 
-# GOOD - Platform-aware wording
-print("Usage: python on Windows, python3 elsewhere")
-print("Run: {{PYTHON_CMD}} ./.trellis/scripts/task.py <args>")
+def wsl_to_win(wsl_path: str) -> str:
+    """Convert /mnt/e/... to E:\\..."""
+    result = subprocess.run(
+        ["wslpath", "-w", wsl_path],
+        capture_output=True, text=True
+    )
+    return result.stdout.strip()
+
+def win_to_wsl(win_path: str) -> str:
+    """Convert E:\\... to /mnt/e/..."""
+    result = subprocess.run(
+        ["wslpath", "-u", win_path],
+        capture_output=True, text=True
+    )
+    return result.stdout.strip()
 ```
 
-**Rule 2**: When generating config files at init time, use placeholder + platform detection:
+### Common Mistakes
 
-```typescript
-// In template file (settings.json):
-{ "command": "{{PYTHON_CMD}} .claude/hooks/script.py" }
+| Mistake | Symptom | Fix |
+|---------|---------|-----|
+| Hardcoded `/mnt/e/` prefix | Breaks on different drive letters | Use `wslpath` or config |
+| Backslash in Python strings | `\t` becomes tab | Use raw strings `r"E:\path"` or forward slashes |
+| MATLAB receiving WSL paths | `FileNotFoundException` | Convert before passing to MATLAB |
+| Chinese characters in path | `UnicodeEncodeError` on Windows | Ensure UTF-8 encoding everywhere |
 
-// In configurator:
-function getPythonCommand(): string {
-  return process.platform === "win32" ? "python" : "python3";
-}
+### Decision Rule
 
-function replacePlaceholders(content: string): string {
-  return content.replace(/\{\{PYTHON_CMD\}\}/g, getPythonCommand());
-}
+> **Python → MATLAB/Java**: Always convert to Windows path before passing.
+> **MATLAB/Java → Python**: Always convert to WSL path after receiving.
+> **SQLite paths stored in DB**: Use relative paths from project root when possible.
+
+---
+
+## 2. File Encoding
+
+### UTF-8 Everywhere Rule
+
+```python
+# Always specify encoding explicitly
+with open(filepath, "r", encoding="utf-8") as f:
+    data = f.read()
+
+# NEVER rely on system default encoding
+# Bad: open(filepath)  # Uses locale encoding, varies by platform
 ```
 
-**Rule 3**: When calling Python at runtime from JavaScript, detect platform dynamically:
+### MATLAB Encoding
 
-```javascript
-import { platform } from "os"
+```matlab
+% Read UTF-8 file in MATLAB
+fid = fopen(filepath, 'r', 'n', 'UTF-8');
+content = fread(fid, '*char')';
+fclose(fid);
 
-const PYTHON_CMD = platform() === "win32" ? "python" : "python3"
-execSync(`${PYTHON_CMD} "${scriptPath}"`, { ... })
+% Write UTF-8
+fid = fopen(filepath, 'w', 'n', 'UTF-8');
+fprintf(fid, '%s', content);
+fclose(fid);
 ```
 
-**Rule 4**: If you need to verify Python is actually installed (not just choose
-the command), probe the same platform-selected alias you will later render or
-execute:
+### Java Encoding
 
-```typescript
-function getPythonCommand(platform = process.platform): string {
-  return platform === "win32" ? "python" : "python3";
-}
-
-function warnIfPythonTooOld(): void {
-  const cmd = getPythonCommand();
-  try {
-    execSync(`${cmd} --version`, { stdio: "pipe" });
-  } catch {
-    // Missing Python is a separate error path; don't silently swap aliases.
-  }
-}
+```java
+// Always specify charset
+BufferedReader reader = new BufferedReader(
+    new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8)
+);
 ```
 
-**Rule 5**: Don't assume the Python version the AI CLI uses matches your shell's `python3`. The user's terminal may resolve `python3` → homebrew 3.11, but AI CLI hosts (including enterprise-forked Claude Code / Cursor distributions) spawn hook subprocesses with a minimal PATH that resolves `python3` → `/usr/bin/python3` → macOS system 3.9. Distributed templates must either target the lowest plausible version or use `from __future__ import annotations` for PEP 604 syntax. See `cli/backend/script-conventions.md` → **CRITICAL: PEP 604 Annotations Require `from __future__ import annotations`** for the hard rule and audit check.
+### Windows Console UTF-8
 
-**Rule 6**: When calling Python from Python, use `sys.executable`:
+```python
+# At script entry point (already in inject-subagent-context.py)
+import sys
+if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+```
+
+---
+
+## 3. Line Endings
+
+### Git Configuration
+
+```bash
+# .gitattributes (project root)
+*.py    text eol=lf
+*.m     text eol=crlf    # MATLAB expects CRLF on Windows
+*.java  text eol=lf
+*.md    text eol=lf
+*.json  text eol=lf
+*.csv   text eol=crlf    # Excel expects CRLF
+```
+
+### When Line Endings Matter
+
+| Scenario | Risk | Mitigation |
+|----------|------|------------|
+| Python reading MATLAB-generated CSV | `\r\n` in field values | Use `newline=""` in `open()` |
+| Shell scripts from Windows | `\r` causes `/bin/bash^M: bad interpreter` | Ensure LF in `.gitattributes` |
+| SQLite text fields | Mixed endings in stored data | Normalize on write |
+
+---
+
+## 4. Environment Variables
+
+### WSL ↔ Windows Env Isolation
+
+WSL2 and Windows have separate environment variable spaces:
+
+```bash
+# WSL: Set for Python scripts
+export DB_PATH="/path/to/your/project/data/database.db"
+
+# Windows: Set for MATLAB/Java (PowerShell)
+$env:DB_PATH = "X:\path\to\your\project\data\database.db"
+```
+
+### Proxy Variables
+
+```python
+# Proxy env vars must be set in the correct environment
+# WSL Python: reads from WSL env
+# MATLAB/Java: reads from Windows env
+# start.py already handles this for the Trellis workflow
+```
+
+---
+
+## 5. Command Availability
+
+### Tool Availability Matrix
+
+| Tool | WSL2 | Windows | Notes |
+|------|------|---------|-------|
+| `python3` / `uv` | Yes | Maybe | Use `python3` or RTK wrappers in WSL |
+| `matlab` | No | Yes | Call via `matlab -batch` from WSL |
+| `java` / `mvn` | Maybe | Yes | FMEACal runs on Windows JVM |
+| `git` | Yes | Yes | Use WSL git for consistency |
+| `ruff` | Yes | Maybe | `rtk ruff` in WSL |
+| `pytest` | Yes | Maybe | `rtk pytest` in WSL |
+| `sqlite3` | Yes | Maybe | WSL version preferred |
+
+### Calling MATLAB from WSL Python
+
+```python
+import subprocess
+
+def run_matlab_script(script_name: str, args: list[str] = None):
+    """Run MATLAB script from WSL via Windows MATLAB."""
+    matlab_cmd = f"cd('{win_project_root}'); {script_name}"
+    if args:
+        matlab_cmd += f"({', '.join(args)})"
+
+    # Use matlab.exe (Windows binary accessible from WSL)
+    result = subprocess.run(
+        ["matlab.exe", "-batch", matlab_cmd],
+        capture_output=True, text=True
+    )
+    return result
+```
+
+---
+
+## 6. SQLite Cross-Platform Access
+
+### Concurrent Access Warning
+
+SQLite on network/shared filesystems (like `/mnt/e/` which is NTFS via WSL) has limitations:
+
+```python
+# Use WAL mode for better concurrent read performance
+import sqlite3
+conn = sqlite3.connect(db_path)
+conn.execute("PRAGMA journal_mode=WAL")
+
+# But beware: WAL on NTFS-over-WSL can have issues
+# For write-heavy operations, copy to WSL-local first:
+# cp /mnt/e/.../ledger.db /tmp/ledger.db
+# ... process ...
+# cp /tmp/ledger.db /mnt/e/.../ledger.db
+```
+
+### NULL Handling Across Languages
+
+> **Gotcha**: MATLAB `fetch()` crashes on NULL numeric columns. Java handles NULL differently from Python.
+
+| Language | NULL behavior | Mitigation |
+|----------|--------------|------------|
+| Python | `None` | `if val is not None` |
+| MATLAB | Crashes on numeric NULL | `COALESCE(col, -1)` in SQL |
+| Java | `ResultSet.wasNull()` | Check after `getInt()`/`getDouble()` |
+
+See also: [Cross-Layer Thinking Guide](./cross-layer-thinking-guide.md) for data flow details.
+
+---
+
+## Python Command Detection
+
+Different platforms use `python3` (Linux/macOS) vs `python` (Windows). Always use `sys.executable` for subprocess calls:
 
 ```python
 import sys
 import subprocess
 
-# BAD - Hardcoded command
-subprocess.run(["python3", "other_script.py"])
-
 # GOOD - Use current interpreter
-subprocess.run([sys.executable, "other_script.py"])
+subprocess.run([sys.executable, "other_script.py"])  # Always correct
+# NOT: subprocess.run(["python3", "other_script.py"])  # Fails on some Windows
 ```
 
-### 2. Path Handling
+---
 
-| Assumption | macOS/Linux | Windows |
-|------------|-------------|---------|
-| `/` separator | ✅ Works | ⚠️ Sometimes works |
-| `\` separator | ❌ Escape char | ✅ Native |
-| `pathlib.Path` | ✅ Works | ✅ Works |
+## Cross-Platform Command Alternatives
 
-**Rule (Python)**: Use `pathlib.Path` for all path operations.
+Some Unix commands don't exist on Windows. Use Python stdlib alternatives:
+
+| Unix Command | Python Alternative |
+|---|---|
+| `tail -f` | `open() + seek + read in loop` |
+| `grep -r` | `pathlib.Path.rglob() + re` |
+| `find` | `pathlib.Path.glob()` |
+| `wc -l` | `len(path.read_text().splitlines())` |
+
+---
+
+## Defensive Encoding
+
+When reading files that might have mixed encodings, use `errors="replace"`:
 
 ```python
-# BAD - String concatenation
-path = base + "/" + filename
-
-# GOOD - pathlib
-from pathlib import Path
-path = Path(base) / filename
+content = path.read_text(encoding="utf-8", errors="replace")
 ```
 
-#### Logical key vs filesystem path (TypeScript)
-
-A path string has two distinct roles. **Treat them differently.**
-
-| Role | OS-native (`\` on Windows) | Always POSIX (`/`) |
-|------|---------------------------|--------------------|
-| `fs.readFileSync(p)` / `path.join(cwd, x)` for fs call | ✅ Required | ❌ May fail on Windows |
-| `Map<relPath, content>` key, JSON field, hash dictionary key, anything persisted across OS | ❌ Cross-OS mismatch | ✅ Required |
-
-**Rule**: Anywhere a path string crosses OS or persists (Map keys consumed by another OS, JSON fields, hash dictionary keys), normalize to POSIX. Anywhere it goes straight to `fs.*`, leave OS-native.
-
-**Single source of truth**: `packages/cli/src/utils/posix.ts` exports `toPosix(p)`. Don't sprinkle `replaceAll('\\', '/')` at every `path.join` site — apply `toPosix` **once at the boundary**: collector exit (Map key entering hash dictionary) or write-time (`saveHashes` before `JSON.stringify`).
-
-```typescript
-// BAD - logical key carries OS-native separator
-function collectTemplates(): Map<string, string> {
-  const files = new Map<string, string>();
-  for (const entry of walk(dir)) {
-    files.set(path.join(".opencode", entry), readFile(entry));  // \ on Windows
-  }
-  return files;
-}
-
-// GOOD - normalize at the boundary
-import { toPosix } from "../utils/posix.js";
-
-function collectTemplates(): Map<string, string> {
-  const files = new Map<string, string>();
-  for (const entry of walk(dir)) {
-    files.set(toPosix(path.join(".opencode", entry)), readFile(entry));
-  }
-  return files;
-}
-
-// ALSO ACCEPTABLE - write-side defense (for storage helpers like saveHashes)
-function saveHashes(cwd: string, hashes: Record<string, string>): void {
-  const normalized = Object.fromEntries(
-    Object.entries(hashes).map(([k, v]) => [toPosix(k), v])
-  );
-  fs.writeFileSync(getHashesPath(cwd), JSON.stringify(normalized, null, 2));
-}
-```
-
-**Common offender**: `path.relative(cwd, fullPath)` produces `\` on Windows. If you then use that string as a hash dictionary lookup key (`hashes[relPath]`), `toPosix` it first, or the lookup misses on Windows.
-
-### 3. Line Endings
-
-| Format | macOS/Linux | Windows | Git |
-|--------|-------------|---------|-----|
-| `\n` (LF) | ✅ Native | ⚠️ Some tools | ✅ Normalized |
-| `\r\n` (CRLF) | ⚠️ Extra char | ✅ Native | Converted |
-
-**Rule 1**: Use `.gitattributes` to enforce consistent line endings.
-
-```gitattributes
-* text=auto eol=lf
-*.sh text eol=lf
-*.py text eol=lf
-```
-
-**Rule 2**: When hashing or comparing **content** across platforms, normalize line endings before computing the hash. `.gitattributes` only governs git checkout — files written by users, scripts, or `core.autocrlf=true` may still arrive as CRLF, and `sha256(LF)` ≠ `sha256(CRLF)` for otherwise-identical content.
-
-```typescript
-// BAD - Windows users with autocrlf=true get a different hash
-export function computeHash(content: string): string {
-  return createHash("sha256").update(content, "utf-8").digest("hex");
-}
-
-// GOOD - normalize before hashing so logical content hashes identically
-export function computeHash(content: string): string {
-  const normalized = content.replace(/\r\n/g, "\n");
-  return createHash("sha256").update(normalized, "utf-8").digest("hex");
-}
-```
-
-Apply this rule wherever the hash crosses OS boundaries (template hash dictionary, content fingerprints stored in JSON, integrity checks against a remote registry).
-
-### 4. Environment Variables
-
-| Variable | macOS/Linux | Windows |
-|----------|-------------|---------|
-| `HOME` | ✅ Set | ❌ Use `USERPROFILE` |
-| `PATH` separator | `:` | `;` |
-| Case sensitivity | ✅ Case-sensitive | ❌ Case-insensitive |
-
-**Rule 1**: Use `pathlib.Path.home()` instead of environment variables.
+For git commands, force UTF-8 output:
 
 ```python
-# BAD
-home = os.environ.get("HOME")
-
-# GOOD
-home = Path.home()
-```
-
-**Rule 2**: When injecting environment variables into shell commands, generate
-the prefix for the actual shell that will parse the command. Do not choose
-syntax from OS alone. AI tool "Bash" surfaces on Windows may execute through
-PowerShell, Git Bash, MSYS2, or another POSIX-like shell.
-
-```javascript
-// BAD - breaks when the host shell is PowerShell
-command = `export TRELLIS_CONTEXT_ID=${shellQuote(contextKey)}; ${command}`;
-
-// GOOD - shell-dialect-aware command prefix
-const prefix = process.platform === "win32" && !isWindowsPosixShell(process.env)
-  ? `$env:TRELLIS_CONTEXT_ID = ${powershellQuote(contextKey)}; `
-  : `export TRELLIS_CONTEXT_ID=${shellQuote(contextKey)}; `;
-command = `${prefix}${command}`;
-```
-
-On Windows, treat `MSYSTEM`, `MINGW_PREFIX`, `OSTYPE=msys|mingw|cygwin`,
-`SHELL=...bash`, or a platform-specific Git Bash setting as POSIX-shell
-signals. Keep PowerShell as the Windows default when there is no POSIX-shell
-signal.
-
-Also make duplicate-injection detection shell-aware. A guard that only matches
-`export VAR=` will miss PowerShell's `$env:VAR = ...` form and can wrap an
-already-correct command a second time.
-
-### Claude Code Subprocess Environment Visibility
-
-Claude Code spawns subprocesses through different channels, and **env var visibility differs by channel**:
-
-| Channel | How spawned | `CLAUDE_ENV_FILE` vars | `CLAUDE_CODE_SESSION_ID` | stdin data |
-|---------|-------------|:---:|:---:|:---:|
-| **Bash tool calls** | Via shell with env file sourced | ✅ Available | ✅ Available | N/A |
-| **statusLine.command** | Direct UI subprocess spawn | ❌ Not available | ✅ Available | `{model, workspace, transcript_path, cost, output_style}` |
-| **Stop/PreToolUse hooks** | Direct subprocess spawn | ❌ Not available | ✅ Available | Full session JSON (incl. `session_id`) |
-
-**Key gotcha**: `CLAUDE_ENV_FILE` is a Bash-tool-specific mechanism. The SessionStart hook writes `export VAR=value` lines to it, and Claude Code sources this file before each Bash tool call. But `statusLine.command` and hook subprocesses are spawned directly — they never source `CLAUDE_ENV_FILE`.
-
-**Implication for Trellis**: `TRELLIS_CONTEXT_ID` is written to `CLAUDE_ENV_FILE` by `session-start.py`, so it's only available in Bash tool calls. External binaries invoked as `statusLine.command` (e.g., ccline) must use `CLAUDE_CODE_SESSION_ID` instead:
-
-```rust
-// WRONG - TRELLIS_CONTEXT_ID may not be set in statusLine.command context
-let key = std::env::var("TRELLIS_CONTEXT_ID").ok();
-
-// CORRECT - CLAUDE_CODE_SESSION_ID is set for ALL Claude Code subprocesses
-let key = std::env::var("CLAUDE_CODE_SESSION_ID")
-    .ok()
-    .map(|uuid| format!("claude_{}", uuid));
-```
-
-**Context key equivalence**: `CLAUDE_CODE_SESSION_ID` contains the raw UUID (e.g., `e1f4a0de-...`). The Trellis session file is named `claude_{uuid}.json`. So the derivation is:
-```
-CLAUDE_CODE_SESSION_ID = "e1f4a0de-9ad3-48a1-8eca-32bdc82e6c74"
-→ context_key = "claude_e1f4a0de-9ad3-48a1-8eca-32bdc82e6c74"
-→ session file = ".trellis/.runtime/sessions/claude_e1f4a0de-9ad3-48a1-8eca-32bdc82e6c74.json"
-```
-
-This matches the Python-side `_context_key("claude", "session", uuid)` in `active_task.py`.
-
-### 5. Command Availability
-
-| Command | macOS/Linux | Windows |
-|---------|-------------|---------|
-| `grep` | ✅ Built-in | ❌ Not available |
-| `find` | ✅ Built-in | ⚠️ Different syntax |
-| `cat` | ✅ Built-in | ❌ Use `type` |
-| `tail -f` | ✅ Built-in | ❌ Not available |
-
-**Rule**: Use Python standard library instead of shell commands when possible.
-
-```python
-# BAD - tail -f is not available on Windows
-subprocess.run(["tail", "-f", log_file])
-
-# GOOD - Cross-platform implementation
-def tail_follow(file_path: Path) -> None:
-    """Follow a file like 'tail -f', cross-platform compatible."""
-    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
-        f.seek(0, 2)  # Go to end
-        while True:
-            line = f.readline()
-            if line:
-                print(line, end="", flush=True)
-            else:
-                time.sleep(0.1)
-```
-
-### Optional Advisory Checks in Agent Sandboxes
-
-AI CLI subprocesses may run with outbound network disabled even when the user's
-normal terminal has network access. Prefer local CLI probes over optional
-network probes when the local CLI already exposes the needed information.
-
-**Rule 1**: Do not let a failed optional advisory check consume a once-per-session
-marker. Write the marker only after the script resolves a usable value and can
-make the intended decision. Otherwise a transient sandbox/network failure hides
-the hint for the rest of the session.
-
-**Rule 2**: If a local command can provide the needed value, try it with a short
-timeout and captured output. For example, `trellis --version` already runs the
-CLI's version comparison logic and can support an actionable update prompt
-without duplicating npm registry parsing.
-
-**Rule 3**: Keep advisory checks silent on failure. The user-facing context output
-must not fail or become noisy because an advisory check could not complete.
-
-### 6. File Encoding
-
-| Default Encoding | macOS/Linux | Windows |
-|------------------|-------------|---------|
-| Terminal | UTF-8 | Often CP1252 or GBK |
-| File I/O | UTF-8 | System locale |
-| Git output | UTF-8 | May vary |
-
-**Rule**: Always explicitly specify `encoding="utf-8"` and use `errors="replace"`.
-
-> **Checklist**: When writing scripts that print non-ASCII, did you configure stdout encoding?
-> See `backend/script-conventions.md` for the specific pattern.
-
-```python
-# BAD - Relies on system default
-with open(file, "r") as f:
-    content = f.read()
-
-result = subprocess.run(cmd, capture_output=True, text=True)
-
-# GOOD - Explicit encoding with error handling
-with open(file, "r", encoding="utf-8", errors="replace") as f:
-    content = f.read()
-
-result = subprocess.run(
-    cmd,
-    capture_output=True,
-    text=True,
-    encoding="utf-8",
-    errors="replace"
-)
-```
-
-**Git commands**: Force UTF-8 output encoding:
-
-```python
-# Force git to output UTF-8
 git_args = ["git", "-c", "i18n.logOutputEncoding=UTF-8"] + args
-result = subprocess.run(
-    git_args,
-    capture_output=True,
-    text=True,
-    encoding="utf-8",
-    errors="replace"
-)
 ```
 
 ---
 
-## Change Propagation Checklist
+## Common Cross-Platform Mistakes
 
-When making platform-related changes, check **all these locations**:
-
-### Commands / Skills Sync
-- [ ] New command/skill added to ALL platforms (claude, cursor, iflow, codex, and any new platform)
-- [ ] Each platform's test file updated with new entry in `EXPECTED_COMMAND_NAMES` / `EXPECTED_SKILL_NAMES`
-- [ ] Platform-integration spec's required command table updated if adding a new required command
-- [ ] Command format matches platform convention (see `platform-integration.md` → Command Format by Platform)
-
-### Documentation & Help Text
-- [ ] Docstrings at top of Python files
-- [ ] `--help` output / argparse descriptions
-- [ ] Usage examples in README
-- [ ] Error messages that suggest commands
-- [ ] Markdown documentation (`.md` files)
-
-### Code Locations
-- [ ] `src/templates/` - Template files for new projects
-- [ ] `.trellis/scripts/` - Project's own scripts (if self-hosting)
-- [ ] `dist/` - Built output (rebuild after changes)
-
-### Search Pattern
-```bash
-# Find all places that might need updating
-grep -r "python [a-z]" --include="*.py" --include="*.md"
-grep -r "{{PYTHON_CMD}}\\|python3\\|python " --include="*.py" --include="*.md"
-```
+1. **Hardcoded `python3`** — Use `sys.executable` instead
+2. **Hardcoded `/` path separator** — Use `pathlib.Path` or `os.path.join`
+3. **Assuming Unix commands exist** — Check availability or use Python stdlib
+4. **Not specifying encoding** — Always pass `encoding="utf-8"` to file operations
+5. **Not handling CRLF** — Use `newline=""` when precise line ending control is needed
 
 ---
 
-## Pre-Commit Checklist
-
-Before committing cross-platform code:
-
-- [ ] User-facing Python invocations are platform-aware (`python` on Windows, `python3` elsewhere) or use `{{PYTHON_CMD}}`
-- [ ] Python subprocesses from Python use `sys.executable`
-- [ ] All paths use `pathlib.Path`
-- [ ] No hardcoded path separators (`/` or `\`)
-- [ ] Path strings used as logical/persisted keys (Map keys, JSON fields, hash dictionary keys) are normalized via `toPosix()`; `fs.*` calls keep OS-native paths
-- [ ] Content hashes computed across OSes normalize line endings (`\r\n` → `\n`) before hashing
-- [ ] Cross-OS JSON with potential legacy pollution carries a `__version` sentinel and the loader discards unknown/legacy versions
-- [ ] No platform-specific commands without fallbacks (e.g., `tail -f`)
-- [ ] Optional advisory checks do not burn once-per-session markers on failure
-- [ ] All file I/O specifies `encoding="utf-8"` and `errors="replace"`
-- [ ] All subprocess calls specify `encoding="utf-8"` and `errors="replace"`
-- [ ] Git commands use `-c i18n.logOutputEncoding=UTF-8`
-- [ ] External tool API formats verified from documentation
-- [ ] Documentation matches code behavior
-- [ ] Ran search to find all affected locations
-
-### 7. External Tool API Contracts
-
-When integrating with external tools (Claude Code, Cursor, etc.), their API contracts are **implicit assumptions**.
-
-**Rule**: Verify API formats from official documentation, don't guess.
-
-```python
-# BAD - Guessed format
-output = {"continue": True, "message": "..."}
-
-# GOOD - Verified format from documentation
-output = {
-    "hookSpecificOutput": {
-        "hookEventName": "SessionStart",
-        "additionalContext": "..."
-    }
-}
-```
-
-> **Warning**: Different hook types may have different output formats.
-> Always check the specific documentation for each hook event.
-
----
-
-## Cross-Platform Persisted JSON: Schema Migration Sentinel
-
-When a JSON file may be read/written across OSes (committed to git, synced via cloud, copied between machines) **and an older format may already exist on user disks with cross-platform pollution** (Windows-style keys, CRLF-derived hashes, locale-encoded strings), add a `__version` sentinel and let the loader discard old formats so the writer regenerates clean data.
-
-**Why not migrate-in-place?** Path-key migration (`\\` → `/`) plus hash-input migration (CRLF → LF re-hash) plus encoding fixes are correlated — trying to translate the old payload risks producing wrong values. Discarding and regenerating is **safe**: the data is recomputable from disk, and `loadX` returning `{}` triggers the existing init/update path to rebuild canonical entries.
-
-```typescript
-const SCHEMA_VERSION = 2;
-type StoredV2 = { __version: number; hashes: Record<string, string> };
-
-export function loadHashes(cwd: string): Record<string, string> {
-  const file = getHashesPath(cwd);
-  if (!fs.existsSync(file)) return {};
-
-  try {
-    const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as unknown;
-
-    // Reject legacy flat format (no __version) and unknown versions.
-    // The next saveHashes / initializeHashes will write a fresh v2 file.
-    if (
-      !parsed ||
-      typeof parsed !== "object" ||
-      (parsed as StoredV2).__version !== SCHEMA_VERSION ||
-      typeof (parsed as StoredV2).hashes !== "object"
-    ) {
-      return {};
-    }
-    return (parsed as StoredV2).hashes;
-  } catch {
-    return {};
-  }
-}
-
-export function saveHashes(cwd: string, hashes: Record<string, string>): void {
-  const payload: StoredV2 = { __version: SCHEMA_VERSION, hashes };
-  fs.writeFileSync(getHashesPath(cwd), JSON.stringify(payload, null, 2));
-}
-```
-
-**When to apply**:
-- Hash dictionaries / content fingerprints (e.g., `.template-hashes.json`)
-- Cache files where stale entries are recomputable from authoritative source
-- Any cross-OS persisted file where format change correlates with cross-platform fixes
-
-**When NOT to apply** — if losing the data hurts the user (task state, drafts, settings the user typed). Use real migration there. Sentinel + discard is only safe when data is recomputable.
-
-**Reference**: `packages/cli/src/utils/template-hash.ts` v2 envelope.
-
----
-
-## JSON/External Data Defensive Checks
-
-When parsing JSON or external data, TypeScript types are **compile-time only**. Runtime data may not match.
-
-**Rule**: Always add defensive checks for required fields before using them.
-
-```typescript
-// BAD - Trusts TypeScript type definition
-interface MigrationItem {
-  from: string;  // TypeScript says required
-  to?: string;
-}
-
-function process(item: MigrationItem) {
-  const path = item.from;  // Runtime: could be undefined!
-}
-
-// GOOD - Defensive check before use
-function process(item: MigrationItem) {
-  if (!item.from) return;  // Skip invalid data
-  const path = item.from;  // Now guaranteed
-}
-```
-
-**When to apply**:
-- Parsing JSON files (manifests, configs)
-- API responses
-- User input
-- Any data from external sources
-
-**Pattern**: Check existence → then use
-
-```typescript
-// Filter pattern - skip invalid items
-const validItems = items.filter(item => item.from && item.to);
-
-// Early return pattern - bail on invalid
-if (!data.requiredField) {
-  console.warn("Missing required field");
-  return defaultValue;
-}
-```
-
----
-
-## Common Mistakes
-
-### 1. "It works on my Mac"
-
-```python
-# Developer's Mac
-subprocess.run(["./script.py"])  # Works!
-
-# User's Windows
-subprocess.run(["./script.py"])  # FileNotFoundError
-```
-
-### 2. "The shebang should handle it"
-
-```python
-#!/usr/bin/env python3
-# This line is IGNORED on Windows
-```
-
-### 3. "I updated the template"
-
-```
-src/templates/script.py  ← Updated
-.trellis/scripts/script.py  ← Forgot to sync!
-```
-
-### 4. "Python 3 is always python3"
-
-```bash
-# Developer's Mac/Linux
-python3 script.py  # Works!
-
-# User's Windows (Python from python.org)
-python3 script.py  # 'python3' is not recognized
-python script.py   # Works!
-
-# Trellis docs/config should say the rule, not guess one alias everywhere
-{{PYTHON_CMD}} script.py
-```
-
-### 5. "UTF-8 is the default everywhere"
-
-```python
-# Developer's Mac (UTF-8 default)
-subprocess.run(cmd, capture_output=True, text=True)  # Works!
-
-# User's Windows (GBK/CP1252 default)
-subprocess.run(cmd, capture_output=True, text=True)  # Garbled Chinese/Unicode
-```
-
-> **Note**: stdout encoding is also affected. See `backend/script-conventions.md` for the fix.
-
----
-
-## Recovery: When You Find a Platform Bug
-
-1. **Fix the immediate issue**
-2. **Search for similar patterns** (grep the codebase)
-3. **Update this guide** with the new pattern
-4. **Add to pre-commit checklist** if recurring
-
----
-
-**Core Principle**: If it's not explicit, it's an assumption. And assumptions break.
-
----
-
-## Release Checklist: Versioned Files
-
-When releasing a new version, ensure **all versioned files** are created/updated:
-
-- [ ] `src/migrations/manifests/{version}.json` - Migration manifest exists
-- [ ] Manifest has correct version, description, changelog
-- [ ] `pnpm build` copies manifests to `dist/`
-- [ ] Test upgrade path from older versions (not just adjacent)
-
-**Why this matters**: Missing manifests cause "path undefined" errors when users upgrade from older versions.
-
-```bash
-# Verify all expected manifests exist
-ls src/migrations/manifests/
-
-# Test upgrade path
-node -e "
-const { getMigrationsForVersion } = require('./dist/migrations/index.js');
-console.log('From 0.2.12:', getMigrationsForVersion('0.2.12', 'CURRENT').length);
-"
-```
-
-## Release Checklist: Bundled Assets
-
-When release notes or docs claim an asset is bundled, installed automatically, or
-included with Trellis, verify the whole distribution path:
-
-- [ ] Source file exists in the branch being tagged, not only in another branch,
-  docs submodule, or marketplace tree.
-- [ ] `pnpm build` copies the asset into `dist/templates/**`.
-- [ ] `npm pack --dry-run --json` includes the expected `dist/**` path.
-- [ ] The built binary installs the asset in a fresh temp repository.
-- [ ] `.trellis/.template-hashes.json` tracks the generated asset path.
-- [ ] `trellis update --dry-run` reports `Already up to date!` in that temp
-  repository.
-
-**Why this matters**: docs/changelog text can move independently from the code
-branch that owns distributable templates. A feature can be documented as bundled
-while the published npm tarball still lacks the files.
-
-```bash
-pnpm --filter @mindfoldhq/trellis build
-
-cd packages/cli
-npm pack --dry-run --json | grep 'dist/templates/common/bundled-skills/<skill>/SKILL.md'
-cd ../..
-
-tmpdir=$(mktemp -d /tmp/trellis-built-bin-smoke-XXXXXX)
-printf '{"name":"trellis-smoke","version":"0.0.0"}\n' > "$tmpdir/package.json"
-git -C "$tmpdir" init -q
-(
-  cd "$tmpdir"
-  node /path/to/Trellis/packages/cli/bin/trellis.js init -u smoke --yes --claude --codex
-  test -f .claude/skills/<skill>/SKILL.md
-  test -f .agents/skills/<skill>/SKILL.md
-  grep -q '<skill>' .trellis/.template-hashes.json
-  node /path/to/Trellis/packages/cli/bin/trellis.js update --dry-run
-)
-```
+## Quick Checklist
+
+Before any cross-platform code:
+
+- [ ] Paths converted correctly for target platform?
+- [ ] File encoding explicitly set to UTF-8?
+- [ ] Line endings appropriate for target tool?
+- [ ] Environment variables set in correct environment (WSL vs Windows)?
+- [ ] SQLite NULL values handled for all three languages?
+- [ ] Chinese characters in paths/data handled correctly?
+- [ ] `wslpath` used instead of hardcoded path prefixes?
