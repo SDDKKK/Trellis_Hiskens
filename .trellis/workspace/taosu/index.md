@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-5.md`
-- **Total Sessions**: 164
-- **Last Active**: 2026-05-15
+- **Total Sessions**: 169
+- **Last Active**: 2026-06-22
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-5.md` | ~985 | Active |
+| `journal-5.md` | ~1159 | Active |
 | `journal-4.md` | ~1975 | Archived |
 | `journal-3.md` | ~1988 | Archived |
 | `journal-2.md` | ~1963 | Archived |
@@ -33,6 +33,11 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 169 | 2026-06-22 | filterCommands 根因修：agentCapable && !hasHooks 平台 start 输出 | `40791b8b` | `main` |
+| 168 | 2026-06-18 | Spec maintainer audit | `db07899e`, `3c2f947f` | `main` |
+| 167 | 2026-05-19 | Bundle spec bootstrap skill | `6a8a9049`, `99f87d1c`, `3a296287`, `247d85c1`, `8bed2de5` | `feat/v0.6.0-beta` |
+| 166 | 2026-05-17 | Core Channel Durable Idempotency | `b645447e`, `399ef98f`, `f301155f` | `feat/v0.6.0-beta` |
+| 165 | 2026-05-17 | Channel Worker OOM Guard | `e7d626b0` | `feat/v0.6.0-beta` |
 | 164 | 2026-05-15 | Fix Cursor sessionStart context injection | `98339802`, `d7491ed2` | `feat/v0.6.0-beta` |
 | 163 | 2026-05-15 | Worker inbox core API | `86f98938` | `feat/v0.6.0-beta` |
 | 162 | 2026-05-15 | Channel wait supervisor warnings | `d2e72268` | `feat/v0.6.0-beta` |

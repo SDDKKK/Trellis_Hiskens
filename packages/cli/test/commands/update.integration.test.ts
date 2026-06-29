@@ -240,6 +240,26 @@ describe("update() integration", () => {
     expect(entries.filter((e) => e.startsWith(".backup-")).length).toBe(0);
   });
 
+  it("[issue-zcode-codex-upgrade] zcode .agents skills do not trigger legacy Codex backfill", async () => {
+    await init({ yes: true, force: true, zcode: true });
+
+    expect(
+      fs.existsSync(projectFile(".zcode/commands/trellis/start.md")),
+    ).toBe(true);
+    expect(
+      fs.existsSync(projectFile(".agents/skills/trellis-start/SKILL.md")),
+    ).toBe(false);
+    expect(
+      fs.existsSync(projectFile(".agents/skills/trellis-continue/SKILL.md")),
+    ).toBe(false);
+
+    await update({});
+
+    const logOutput = vi.mocked(console.log).mock.calls.flat().join("\n");
+    expect(logOutput).not.toContain("Legacy Codex detected");
+    expect(fs.existsSync(projectFile(".codex"))).toBe(false);
+  });
+
   it("#2 dry run makes no file changes even when changes exist", async () => {
     await setupProject();
 
@@ -1252,7 +1272,12 @@ describe("update() integration", () => {
 
     const updated = fs.readFileSync(workflowPath, "utf-8");
     expect(updated).toBe(replacePythonCommandLiterals(workflowMdTemplate));
-    expect(updated).toContain("[codex-sub-agent]");
+    expect(updated).toContain(
+      "[codex-sub-agent, Gemini, Qoder, Copilot, ZCode, Reasonix, Trae]",
+    );
+    expect(updated).toContain(
+      "[/Claude Code, Cursor, OpenCode, CodeBuddy, Droid, Pi]",
+    );
     expect(updated).toContain("[codex-inline, Kilo, Antigravity, Devin]");
     expect(updated).not.toContain("[Codex]");
     expect(updated).not.toContain("[Kilo, Antigravity, Windsurf]");

@@ -12,7 +12,7 @@
  * 5. Platform Registry (beta.9, beta.13, beta.16)
  */
 
-import { execSync, spawnSync } from "node:child_process";
+import { execSync, spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -3168,6 +3168,57 @@ describe("regression: current-task path normalization", () => {
     }
   });
 
+  it("[#356] inject-workflow-state.py exits when host leaves stdin open with no payload", async () => {
+    setupTaskRepo();
+    writeWorkflowStateHook();
+
+    const hookPath = path.join(
+      tmpDir,
+      ".trellis",
+      "hooks",
+      "inject-workflow-state.py",
+    );
+    const child = spawn(pythonCmd, [hookPath], {
+      cwd: tmpDir,
+      env: sessionEnv({ KIRO_PROJECT_DIR: tmpDir }),
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf-8");
+    child.stderr.setEncoding("utf-8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+
+    const result = await new Promise<{
+      code: number | null;
+      signal: NodeJS.Signals | null;
+      timedOut: boolean;
+    }>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        child.kill("SIGKILL");
+        resolve({ code: null, signal: "SIGKILL", timedOut: true });
+      }, 1500);
+      child.once("error", (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+      child.once("exit", (code, signal) => {
+        clearTimeout(timer);
+        resolve({ code, signal, timedOut: false });
+      });
+    });
+
+    expect(result.timedOut, stderr).toBe(false);
+    expect(result.code).toBe(0);
+    expect(stdout).toContain("<workflow-state>");
+  });
+
   // ------------------------------------------------------------
   // Legacy current_phase / next_action field removal (FP round 3 cleanup)
   // ------------------------------------------------------------
@@ -3476,7 +3527,7 @@ print(len(entries))
     }
   });
 
-  it("[workflow-state-r2] template workflow.md [workflow-state:planning] mentions artifact gates + optional jsonl manifests", () => {
+  it("[workflow-state-r2] template workflow.md [workflow-state:planning] mentions artifact gates + required jsonl curation", () => {
     const wf = templateWorkflowMd();
     const match = wf.match(
       /\[workflow-state:planning\]([\s\S]*?)\[\/workflow-state:planning\]/,
@@ -3485,7 +3536,82 @@ print(len(entries))
     const body = match?.[1] ?? "";
     expect(body).toMatch(/Lightweight: `prd\.md` can be enough/);
     expect(body).toMatch(/Complex: finish `prd\.md`, `design\.md`, and `implement\.md`/);
-    expect(body).toMatch(/implement\.jsonl|check\.jsonl/);
+    expect(body).toContain(
+      "curate `implement.jsonl` and `check.jsonl` as spec/research manifests before start",
+    );
+  });
+
+  it("[#292] workflow and brainstorm templates treat seed-only jsonl as not planning-ready", () => {
+    const wf = templateWorkflowMd();
+    expect(wf).not.toContain("seed-only manifests are tolerated by consumers");
+    expect(wf).not.toContain(
+      "curated when extra spec or research context is needed",
+    );
+    expect(wf).toContain(
+      'Ready gate: both `implement.jsonl` and `check.jsonl` must contain at least one real `{"file": "...", "reason": "..."}` entry before `task.py start`.',
+    );
+    expect(wf).toContain(
+      "Runtime consumers tolerate missing or seed-only manifests for compatibility, but that tolerance is not a planning-ready state.",
+    );
+    expect(wf).toContain(
+      "`implement.jsonl` and `check.jsonl` each contain at least one real curated entry (seed row does not count)",
+    );
+
+    const templateRoot = path.join(
+      path.dirname(fileURLToPath(import.meta.url)),
+      "..",
+      "src",
+      "templates",
+    );
+    const brainstormFiles = [
+      "common/skills/brainstorm.md",
+      "codex/skills/brainstorm/SKILL.md",
+      "copilot/prompts/brainstorm.prompt.md",
+    ];
+
+    for (const relativePath of brainstormFiles) {
+      const content = fs.readFileSync(
+        path.join(templateRoot, relativePath),
+        "utf-8",
+      );
+      expect(content, relativePath).toContain(
+        "Sub-agent-dispatch tasks have real curated entries in both `implement.jsonl` and `check.jsonl`; seed-only manifests are not ready.",
+      );
+    }
+  });
+
+  it("[#320] brainstorm templates require lossless PRD convergence before start", () => {
+    const templateRoot = path.join(
+      path.dirname(fileURLToPath(import.meta.url)),
+      "..",
+      "src",
+      "templates",
+    );
+    const brainstormFiles = [
+      "common/skills/brainstorm.md",
+      "codex/skills/brainstorm/SKILL.md",
+      "copilot/prompts/brainstorm.prompt.md",
+    ];
+
+    for (const relativePath of brainstormFiles) {
+      const content = fs.readFileSync(
+        path.join(templateRoot, relativePath),
+        "utf-8",
+      );
+      expect(content, relativePath).toContain(
+        "Before final review or `task.py start`, run the PRD convergence pass below.",
+      );
+      expect(content, relativePath).toContain("## PRD Convergence Pass");
+      expect(content, relativePath).toContain(
+        "Fold temporary brainstorm sections such as `What I already know`, `Assumptions`, and resolved `Open Questions`",
+      );
+      expect(content, relativePath).toContain(
+        "Preserve every file:line anchor, decision, constraint, requirement ID, and acceptance-criteria mapping.",
+      );
+      expect(content, relativePath).toContain(
+        "no unresolved temporary brainstorm sections, no duplicate facts across sections",
+      );
+    }
   });
 
   it("[workflow-state-r3-no_task] template workflow.md [workflow-state:no_task] block is present and well-formed", () => {
@@ -3658,7 +3784,7 @@ print(len(entries))
       { cwd: tmpDir, encoding: "utf-8" },
     );
 
-    expect(output).toContain("The Codex sub-agent definition auto-handles");
+    expect(output).toContain("The pull-based sub-agent definition auto-handles");
     expect(output).toContain(
       "Resolves the active task with `task.py current --source`",
     );
@@ -5706,19 +5832,19 @@ describe("regression: Gemini CLI 0.40.x template compatibility (#224)", () => {
     }
   });
 
-  it("[#224] needsCodexUpgrade looks for Codex-only command-as-skill markers, not bare `.agents/skills/` prefix", () => {
+  it("[#224] needsCodexUpgrade looks for command-as-skill markers, not bare `.agents/skills/` prefix", () => {
     // Regression: with Gemini also writing to `.agents/skills/` (shared common
     // skills only), the legacy-Codex detector previously triggered
     // a false-positive `.codex/` install on every fresh `init --gemini` +
-    // `update` cycle. The fix narrows detection to Codex-only files
-    // (`trellis-continue/SKILL.md`, `trellis-finish-work/SKILL.md`) which
-    // Gemini does NOT write (it puts continue/finish-work under
-    // `.gemini/commands/trellis/*.toml`).
+    // `update` cycle. The fix narrows detection to command-as-skill files
+    // (`trellis-continue/SKILL.md`, `trellis-finish-work/SKILL.md`) and the
+    // update integration suite covers platforms such as ZCode that share
+    // `.agents/skills/` but must not trigger the legacy Codex backfill.
     const updateSrc = fs.readFileSync(
       path.resolve(repoRoot, "packages/cli/src/commands/update.ts"),
       "utf-8",
     );
-    // Must check for Codex-only command-as-skill markers, not the bare
+    // Must check for command-as-skill markers, not the bare
     // `.agents/skills/` prefix.
     expect(updateSrc).toMatch(
       /\.agents\/skills\/trellis-continue\/SKILL\.md/,

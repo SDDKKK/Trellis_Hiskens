@@ -983,3 +983,177 @@ Cursor's sessionStart expects top-level additional_context, not Claude's nested 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 165: Channel Worker OOM Guard
+
+**Date**: 2026-05-17
+**Task**: Channel Worker OOM Guard
+**Branch**: `feat/v0.6.0-beta`
+
+### Summary
+
+Added default idle cleanup and live-worker budget controls for channel workers, with config/env/CLI overrides, supervisor idle termination, core idle projection, tests, and channel command spec updates.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `e7d626b0` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 166: Core Channel Durable Idempotency
+
+**Date**: 2026-05-17
+**Task**: Core Channel Durable Idempotency
+**Branch**: `feat/v0.6.0-beta`
+
+### Summary
+
+Added durable idempotency keys to core channel send/thread writes, documented the event-log contract, verified with channel check workers, build, and dist-based real JSONL tests.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `b645447e` | (see git log) |
+| `399ef98f` | (see git log) |
+| `f301155f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 167: Bundle spec bootstrap skill
+
+**Date**: 2026-05-19
+**Task**: Bundle spec bootstrap skill
+**Branch**: `feat/v0.6.0-beta`
+
+### Summary
+
+Investigated why v0.6.0-beta.18/19 did not install trellis-spec-bootstarp after trellis init. Ported the bundled spec bootstrap skill into the beta CLI templates, added init/update tracking tests, verified the built CLI through npm pack dry-run and a fresh temp-directory init/update smoke test, documented release artifact smoke-test requirements, updated docs-site changelog notes for Codex timeout bounds, and committed Trellis local platform/template refreshes in separate batches.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `6a8a9049` | (see git log) |
+| `99f87d1c` | (see git log) |
+| `3a296287` | (see git log) |
+| `247d85c1` | (see git log) |
+| `8bed2de5` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 168: Spec maintainer audit
+
+**Date**: 2026-06-18
+**Task**: Spec maintainer audit
+**Package**: cli
+**Branch**: `main`
+
+### Summary
+
+Repaired Trellis package/spec routing, added repo and core spec indexes, fixed stale spec references, and validated drift scanner/package context.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `db07899e` | (see git log) |
+| `3c2f947f` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 169: filterCommands 根因修：agentCapable && !hasHooks 平台 start 输出
+
+**Date**: 2026-06-22
+**Task**: filterCommands 根因修：agentCapable && !hasHooks 平台 start 输出
+**Package**: cli
+**Branch**: `main`
+
+### Summary
+
+外部用户反馈 trellis init --zcode 后既无 /trellis:start 也无 trellis-start skill。诊断：shared.ts filterCommands 当 agentCapable=true 时无条件过滤 start，但 Codex/ZCode/OpenCode/Reasonix 这 4 个 agentCapable && !hasHooks 平台没有 hook 兜底，两头空。Codex 之前用 resolveCodexTrellisStartSkill 临时补丁绕开。\n\n方案：根因修——把判定收紧为 agentCapable && hasHooks 才过滤；删 helper + 三处调用块；让标准 resolver 路径自然产出 start。配套 workflow.md 13 处平台矩阵补全（B1/B3/B5/B7/B12 + B9 加 ZCode/Reasonix，B8 排除——它写 hook auto-handles 对 pull-based 不成立，line 186 散文也补）。新增 zcode/opencode/reasonix init.integration 回归断言。\n\n净效果：删 helper + 3 处调用 + 1 处冗余断言；workflow.md 矩阵补全；3 条新测试。Tests 1249/1249 绿，typecheck 净，byte-identity 端到端验证（同模板+同 resolver+同 wrapper）。\n\n副产物：marketplace 子模块同步镜像（test/templates/trellis.test.ts parity 强制）；记 feedback memory：群聊真名不进任何 artifact（用户指出开盒）。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `40791b8b` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

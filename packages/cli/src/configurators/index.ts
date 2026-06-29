@@ -34,6 +34,7 @@ import { configureDroid } from "./droid.js";
 import { configurePi, collectPiTemplates } from "./pi.js";
 import { configureReasonix, collectReasonixTemplates } from "./reasonix.js";
 import { configureZcode, collectZcodeTemplates } from "./zcode.js";
+import { configureTrae } from "./trae.js";
 
 // Shared utilities
 import {
@@ -42,7 +43,6 @@ import {
   resolveAllAsSkills,
   resolveAllAsSkillsNeutral,
   resolveBundledSkills,
-  resolveCodexTrellisStartSkill,
   resolveCommands,
   resolveSkills,
   resolveSkillsNeutral,
@@ -75,6 +75,10 @@ import {
   getSettingsTemplate as getQoderSettings,
 } from "../templates/qoder/index.js";
 import {
+  getAllAgents as getTraeAgents,
+  getSettingsTemplate as getTraeSettings,
+} from "../templates/trae/index.js";
+import {
   getAllAgents as getCodebuddyAgents,
   getSettingsTemplate as getCodebuddySettings,
 } from "../templates/codebuddy/index.js";
@@ -90,7 +94,10 @@ import {
   getAllAgents as getGeminiAgents,
   getSettingsTemplate as getGeminiSettings,
 } from "../templates/gemini/index.js";
-import { getAllAgents as getKiroAgents } from "../templates/kiro/index.js";
+import {
+  getAllAgents as getKiroAgents,
+  getIdeHooks as getKiroIdeHooks,
+} from "../templates/kiro/index.js";
 import {
   getSharedHookScriptsForPlatform,
   type SharedHookPlatform,
@@ -218,16 +225,6 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
       )) {
         files.set(filePath, content);
       }
-      // Mirror configureCodex's extra trellis-start write so `trellis update`
-      // picks up the file (was missing pre-0.5.7 — upgrade path silently
-      // dropped the skill).
-      const trellisStart = resolveCodexTrellisStartSkill(ctx);
-      if (trellisStart) {
-        files.set(
-          `.agents/skills/${trellisStart.name}/SKILL.md`,
-          trellisStart.content,
-        );
-      }
       for (const skill of getCodexPlatformSkills()) {
         files.set(`.codex/skills/${skill.name}/SKILL.md`, skill.content);
       }
@@ -279,6 +276,12 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
       }
       for (const [k, v] of collectSharedHooks(".kiro/hooks", "kiro")) {
         files.set(k, v);
+      }
+      for (const hook of getKiroIdeHooks()) {
+        files.set(
+          `.kiro/hooks/${hook.name}`,
+          resolvePlaceholders(hook.content),
+        );
       }
       return files;
     },
@@ -457,6 +460,32 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
   zcode: {
     configure: configureZcode,
     collectTemplates: () => collectZcodeTemplates(),
+  },
+  trae: {
+    configure: configureTrae,
+    collectTemplates: () => {
+      const files = collectBothTemplates(
+        AI_TOOLS.trae.templateContext,
+        (n) => `.trae/commands/trellis-${n}.md`,
+        ".trae/skills",
+        (filePath, content) => {
+          const name = path.basename(filePath, ".md");
+          return wrapWithCommandFrontmatter(name, content);
+        },
+      );
+      for (const agent of applyPullBasedPreludeMarkdown(getTraeAgents())) {
+        files.set(`.trae/agents/${agent.name}.md`, agent.content);
+      }
+      for (const [k, v] of collectSharedHooks(".trae/hooks", "trae")) {
+        files.set(k, v);
+      }
+      const settings = getTraeSettings();
+      files.set(
+        `.trae/${settings.targetPath}`,
+        resolvePlaceholders(settings.content),
+      );
+      return files;
+    },
   },
 };
 

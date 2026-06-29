@@ -522,7 +522,7 @@ describe("init() integration", () => {
     expect(fs.existsSync(path.join(tmpDir, ".pi", "settings.json"))).toBe(true);
     expect(
       fs.existsSync(path.join(tmpDir, ".pi", "prompts", "trellis-start.md")),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       fs.existsSync(
         path.join(tmpDir, ".pi", "prompts", "trellis-finish-work.md"),
@@ -566,6 +566,124 @@ describe("init() integration", () => {
     }
     const expectedPiPaths = [...piTemplates.keys()];
     expect(trackedPaths).toEqual(expect.arrayContaining(expectedPiPaths));
+  });
+
+  it("#3l trae platform writes hooks, commands, agents, and tracked templates", async () => {
+    await init({ yes: true, trae: true });
+
+    // Trae is agentCapable && hasHooks, so trellis-start is filtered like other
+    // SessionStart-backed platforms. The generated agents are still pull-based
+    // for sub-agent task context because Trae hooks cannot mutate sub-agent prompts.
+    expect(fs.existsSync(path.join(tmpDir, ".trae", "hooks.json"))).toBe(true);
+    expect(
+      fs.existsSync(path.join(tmpDir, ".trae", "hooks", "session-start.py")),
+    ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".trae", "hooks", "inject-workflow-state.py"),
+      ),
+    ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".trae", "commands", "trellis-finish-work.md"),
+      ),
+    ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".trae", "commands", "trellis-start.md"),
+      ),
+    ).toBe(false);
+    expect(
+      fs.existsSync(path.join(tmpDir, ".trae", "agents", "trellis-implement.md")),
+    ).toBe(true);
+    expect(
+      fs.readFileSync(
+        path.join(tmpDir, ".trae", "agents", "trellis-implement.md"),
+        "utf-8",
+      ),
+    ).toContain("Load Trellis Context First");
+
+    const hashFile = path.join(
+      tmpDir,
+      DIR_NAMES.WORKFLOW,
+      ".template-hashes.json",
+    );
+    const hashesFile = JSON.parse(fs.readFileSync(hashFile, "utf-8")) as {
+      hashes?: Record<string, string>;
+    };
+    const trackedPaths = Object.keys(hashesFile.hashes ?? {}).map((p) =>
+      p.replace(/\\/g, "/"),
+    );
+    const traeTemplates = collectPlatformTemplates("trae");
+    expect(traeTemplates).toBeInstanceOf(Map);
+    if (!traeTemplates) {
+      throw new Error("Expected Trae templates to be collectable");
+    }
+    expect(trackedPaths).toEqual(
+      expect.arrayContaining([...traeTemplates.keys()]),
+    );
+  });
+
+  it("#3m zcode platform emits start slash command without shared command-as-skill fallback", async () => {
+    await init({ yes: true, zcode: true });
+
+    // ZCode is agentCapable && !hasHooks, so start must be user-invocable.
+    // It has a private command surface, so command fallbacks stay under
+    // .zcode/commands/trellis/ instead of the shared .agents/skills/ path
+    // that Codex also owns.
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".agents", "skills", "trellis-start", "SKILL.md"),
+      ),
+    ).toBe(false);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".zcode", "commands", "trellis", "start.md"),
+      ),
+    ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".zcode", "cli", "agents", "trellis-implement.md"),
+      ),
+    ).toBe(true);
+  });
+
+  it("#3n opencode platform emits start slash command", async () => {
+    await init({ yes: true, opencode: true });
+
+    // OpenCode is agentCapable && !hasHooks per registry (plugins/session-start.js
+    // provides equivalent injection, but the user-invocable /trellis:start is
+    // still emitted as fallback for plugin failures / manual reload).
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".opencode", "commands", "trellis", "start.md"),
+      ),
+    ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".opencode", "commands", "trellis", "finish-work.md"),
+      ),
+    ).toBe(true);
+  });
+
+  it("#3o reasonix platform emits trellis-start skill without runAs:subagent", async () => {
+    await init({ yes: true, reasonix: true });
+
+    // Reasonix is agentCapable && !hasHooks → trellis-start ships as a plain
+    // user-invocable skill. It must NOT carry the `runAs: subagent` frontmatter
+    // — that field is reserved for trellis-implement / trellis-check which run
+    // as isolated subagent loops.
+    const startSkill = path.join(
+      tmpDir,
+      ".reasonix",
+      "skills",
+      "trellis-start",
+      "SKILL.md",
+    );
+    expect(fs.existsSync(startSkill)).toBe(true);
+    expect(fs.readFileSync(startSkill, "utf-8")).not.toContain(
+      "runAs: subagent",
+    );
   });
 
   it("#4 force mode overwrites previously modified files", async () => {

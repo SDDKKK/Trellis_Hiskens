@@ -1,5 +1,7 @@
 {
-  "description": "AI capabilities grow like ivy \u2014 Trellis provides the structure to guide them along a disciplined path",
+  "name": "@hiskens/trellis",
+  "version": "0.6.5-hiskens",
+  "description": "AI capabilities grow like ivy — Trellis provides the structure to guide them along a disciplined path",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -84,7 +86,5 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/mindfold-ai/trellis.git"
-  },
-  "name": "@hiskens/trellis",
-  "version": "0.6.3-hiskens"
+  }
 }

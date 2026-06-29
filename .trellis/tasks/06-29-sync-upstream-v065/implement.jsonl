@@ -1,0 +1,5 @@
+{"_example": "Fill with {\"file\": \"<path>\", \"reason\": \"<why>\"}. Put spec/research files only — no code paths. Run `python3 .trellis/scripts/get_context.py --mode packages` to list available specs. Delete this line once real entries are added."}
+{"file": "packages/cli/src/configurators/shared.ts", "reason": "CCR overlay lives here; resolveCodexTrellisStartSkill deleted upstream"}
+{"file": "packages/cli/src/configurators/index.ts", "reason": "New Trae import + structural changes"}
+{"file": "packages/cli/src/templates/shared-hooks/inject-subagent-context.py", "reason": "CCR routing overlay — must survive merge"}
+{"file": "packages/cli/src/templates/trellis/workflow.md", "reason": "Platform lists + JSONL gate changes"}

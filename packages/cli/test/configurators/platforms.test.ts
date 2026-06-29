@@ -277,9 +277,10 @@ describe("configurePlatform", () => {
     // Codex writes shared skills under `.agents/skills/` using the neutral
     // placeholder resolver so the rendered files are byte-identical to
     // Gemini's writes for the same skill names — see issue #224 fix.
-    // Plus a Codex-specific `trellis-start` skill referenced by the
-    // <trellis-bootstrap> notice in inject-workflow-state.py (the SessionStart
-    // hook was removed for de-recursion).
+    // `trellis-start` is included via `resolveAllAsSkillsNeutral` directly —
+    // it's the user-invocable fallback referenced by the <trellis-bootstrap>
+    // notice in inject-workflow-state.py (the SessionStart hook was removed
+    // for de-recursion).
     const expected = resolveAllAsSkillsNeutral(AI_TOOLS.codex.templateContext);
     const skillsRoot = path.join(tmpDir, ".agents", "skills");
     const actualNames = fs
@@ -289,11 +290,7 @@ describe("configurePlatform", () => {
       .sort();
 
     expect(actualNames).toEqual(
-      [
-        ...expected.map((s) => s.name),
-        ...BUNDLED_SKILL_NAMES,
-        "trellis-start",
-      ].sort(),
+      [...expected.map((s) => s.name), ...BUNDLED_SKILL_NAMES].sort(),
     );
 
     for (const skill of expected) {
@@ -396,6 +393,76 @@ describe("configurePlatform", () => {
       expect(fs.readFileSync(skillPath, "utf-8")).toBe(skill.content);
     }
     expect(fs.existsSync(path.join(skillsRoot, BUNDLED_REFERENCE))).toBe(true);
+  });
+
+  it("configurePlatform('kiro') writes main agent, IDE hook, and shared hooks", async () => {
+    await configurePlatform("kiro", tmpDir);
+
+    const expectedPythonCmd =
+      process.platform === "win32" ? "python" : "python3";
+
+    // Shared hooks now include per-turn + session-start, not just subagent.
+    const hooksDir = path.join(tmpDir, ".kiro", "hooks");
+    for (const script of [
+      "inject-workflow-state.py",
+      "session-start.py",
+      "inject-subagent-context.py",
+    ]) {
+      expect(fs.existsSync(path.join(hooksDir, script))).toBe(true);
+    }
+
+    // Main `trellis` agent wires per-turn + session-start hooks; PYTHON_CMD
+    // resolved.
+    const trellisPath = path.join(tmpDir, ".kiro", "agents", "trellis.json");
+    expect(fs.existsSync(trellisPath)).toBe(true);
+    const trellisRaw = fs.readFileSync(trellisPath, "utf-8");
+    expect(trellisRaw).not.toContain("{{PYTHON_CMD}}");
+    const trellis = JSON.parse(trellisRaw) as {
+      resources?: string[];
+      hooks?: Record<string, { command: string }[]>;
+    };
+    expect(trellis.hooks?.userPromptSubmit?.[0].command).toBe(
+      `${expectedPythonCmd} .kiro/hooks/inject-workflow-state.py`,
+    );
+    expect(trellis.hooks?.agentSpawn?.[0].command).toBe(
+      `${expectedPythonCmd} .kiro/hooks/session-start.py`,
+    );
+    expect(trellis.resources).toContain("file://.trellis/workflow.md");
+
+    // 3 sub-agents keep their inject-subagent-context.py spawn hook.
+    for (const name of [
+      "trellis-implement",
+      "trellis-check",
+      "trellis-research",
+    ]) {
+      const sub = JSON.parse(
+        fs.readFileSync(
+          path.join(tmpDir, ".kiro", "agents", `${name}.json`),
+          "utf-8",
+        ),
+      ) as { hooks?: Record<string, { command: string }[]> };
+      expect(sub.hooks?.agentSpawn?.[0].command).toBe(
+        `${expectedPythonCmd} .kiro/hooks/inject-subagent-context.py`,
+      );
+    }
+
+    // IDE `.kiro.hook` written with PYTHON_CMD resolved and valid schema.
+    const ideHookPath = path.join(
+      hooksDir,
+      "trellis-workflow-state.kiro.hook",
+    );
+    expect(fs.existsSync(ideHookPath)).toBe(true);
+    const ideRaw = fs.readFileSync(ideHookPath, "utf-8");
+    expect(ideRaw).not.toContain("{{PYTHON_CMD}}");
+    const ideHook = JSON.parse(ideRaw) as {
+      when: { type: string };
+      then: { type: string; command: string };
+    };
+    expect(ideHook.when.type).toBe("promptSubmit");
+    expect(ideHook.then.type).toBe("runCommand");
+    expect(ideHook.then.command).toBe(
+      `${expectedPythonCmd} .kiro/hooks/inject-workflow-state.py`,
+    );
   });
 
   it("configurePlatform('gemini') creates .gemini directory", async () => {
@@ -587,6 +654,40 @@ describe("configurePlatform", () => {
       expect(file).not.toMatch(/\.js\.map$/);
       expect(file).not.toMatch(/\.d\.ts\.map$/);
     }
+  });
+
+  it("configurePlatform('zcode') keeps command fallbacks out of shared .agents skills", async () => {
+    await configurePlatform("zcode", tmpDir);
+
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".zcode", "commands", "trellis", "start.md"),
+      ),
+    ).toBe(true);
+    expect(
+      fs.existsSync(
+        path.join(tmpDir, ".agents", "skills", "trellis-start", "SKILL.md"),
+      ),
+    ).toBe(false);
+    expect(
+      fs.existsSync(
+        path.join(
+          tmpDir,
+          ".agents",
+          "skills",
+          "trellis-continue",
+          "SKILL.md",
+        ),
+      ),
+    ).toBe(false);
+
+    const templates = collectPlatformTemplates("zcode");
+    expect(templates?.has(".zcode/commands/trellis/start.md")).toBe(true);
+    expect(templates?.has(".agents/skills/trellis-start/SKILL.md")).toBe(false);
+    expect(templates?.has(".agents/skills/trellis-continue/SKILL.md")).toBe(
+      false,
+    );
+    expect(templates?.has(".agents/skills/trellis-check/SKILL.md")).toBe(true);
   });
 
   it("configurePlatform('codebuddy') creates .codebuddy directory", async () => {
@@ -868,7 +969,7 @@ describe("configurePlatform", () => {
     ).toBe(true);
     expect(
       fs.existsSync(path.join(tmpDir, ".pi", "prompts", "trellis-start.md")),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       fs.existsSync(
         path.join(tmpDir, ".pi", "skills", "trellis-check", "SKILL.md"),
@@ -978,7 +1079,7 @@ describe("configurePlatform", () => {
   it("collectPlatformTemplates('pi') maps prompts, skills, agents, extension, and settings", () => {
     const templates = collectPlatformTemplates("pi");
     expect(templates).toBeInstanceOf(Map);
-    expect(templates?.get(".pi/prompts/trellis-start.md")).toBeUndefined();
+    expect(templates?.get(".pi/prompts/trellis-start.md")).toBeDefined();
     expect(templates?.get(".pi/prompts/trellis-finish-work.md")).toBeDefined();
     expect(templates?.get(".pi/prompts/trellis-continue.md")).toBeDefined();
     expect(templates?.get(".pi/skills/trellis-check/SKILL.md")).toBeDefined();

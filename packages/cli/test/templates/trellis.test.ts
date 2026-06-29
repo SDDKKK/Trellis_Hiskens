@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import {
+  collectPlatformTemplates,
+  PLATFORM_IDS,
+} from "../../src/configurators/index.js";
+import type { AITool } from "../../src/types/ai-tools.js";
+import {
   scriptsInit,
   commonInit,
   commonPaths,
@@ -79,6 +84,18 @@ describe("trellis template constants", () => {
     return match[1];
   }
 
+  function platformBlock(section: string, openingMarker: string): string {
+    const escaped = openingMarker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const closingMarker = openingMarker.replace("[", "[/");
+    const escapedClosing = closingMarker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(`${escaped}\\n([\\s\\S]*?)\\n${escapedClosing}`);
+    const match = pattern.exec(section);
+    if (!match) {
+      throw new Error(`workflow.md block ${openingMarker} must exist`);
+    }
+    return match[0];
+  }
+
   it("all templates are non-empty strings", () => {
     for (const [name, content] of Object.entries(allTemplates)) {
       expect(content.length, `${name} should be non-empty`).toBeGreaterThan(0);
@@ -154,6 +171,65 @@ describe("trellis template constants", () => {
     expect(block).toContain("Active task:");
     expect(block.toLowerCase()).toContain("class-2");
     expect(block).toMatch(/codex|copilot|gemini|qoder/);
+  });
+
+  it("[issue-zcode-repeat] pull-based platforms use the pull-based implement block, not hook auto-handles", () => {
+    const implement = stepSection("2.1");
+    const hookAutoBlock = platformBlock(
+      implement,
+      "[Claude Code, Cursor, OpenCode, CodeBuddy, Droid, Pi]",
+    );
+    const pullBasedMarker =
+      "[codex-sub-agent, Gemini, Qoder, Copilot, ZCode, Reasonix, Trae]";
+    const pullBasedBlock = platformBlock(implement, pullBasedMarker);
+
+    const workflowLabelByPlatform: Partial<Record<AITool, string>> = {
+      codex: "codex-sub-agent",
+      gemini: "Gemini",
+      qoder: "Qoder",
+      copilot: "Copilot",
+      zcode: "ZCode",
+      trae: "Trae",
+    };
+    // Pi templates keep a pull-based fallback, but workflow 2.1 routes Pi
+    // through the extension-backed context path.
+    const extensionBackedPreludeFallbackPlatforms = new Set<AITool>(["pi"]);
+    const generatedPullBasedLabels = PLATFORM_IDS.flatMap((id) => {
+      if (extensionBackedPreludeFallbackPlatforms.has(id)) {
+        return [];
+      }
+      const templates = collectPlatformTemplates(id);
+      const hasPullBasedPrelude =
+        templates !== undefined &&
+        [...templates.entries()].some(
+          ([filePath, content]) =>
+            /trellis-(implement|check)/.test(filePath) &&
+            content.includes("Required: Load Trellis Context First"),
+        );
+      if (!hasPullBasedPrelude) {
+        return [];
+      }
+      const label = workflowLabelByPlatform[id];
+      expect(
+        label,
+        `${id} generates pull-based agent definitions but has no workflow marker mapping`,
+      ).toBeDefined();
+      return [label as string];
+    });
+
+    const pullBasedLabels = [...generatedPullBasedLabels, "Reasonix"];
+    for (const label of pullBasedLabels) {
+      expect(pullBasedBlock, `${label} must use pull-based 2.1 guidance`).toContain(
+        label,
+      );
+      expect(
+        hookAutoBlock,
+        `${label} must not use hook/plugin auto-handles 2.1 guidance`,
+      ).not.toContain(label);
+    }
+    expect(pullBasedBlock).toContain(
+      "The pull-based sub-agent definition auto-handles the context load requirement",
+    );
   });
 
   it("[issue-237] workflow.md in_progress breadcrumb self-exempts implement/check sub-agents", () => {
