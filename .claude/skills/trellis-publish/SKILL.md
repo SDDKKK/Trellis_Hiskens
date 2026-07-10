@@ -9,17 +9,23 @@ description: Build, publish @hiskens/trellis to npm, install globally, and dogfo
 
 ## Step 1: Bump Version
 
-Determine the new version. Format: `{upstream-version}-hiskens` (e.g., `0.5.0-rc.3.2-hiskens`).
+Determine the new version. Format: `{upstream-version}-hiskens` (e.g., `0.6.7-hiskens`).
 
 ```bash
 # Check current
 grep '"version"' packages/cli/package.json
+grep '"version"' packages/core/package.json
 cat .trellis/.version
 ```
 
-Bump in both files:
-- `packages/cli/package.json` → `"version": "<new>"`
-- `.trellis/.version` → `<new>`
+Bump in these files:
+- `packages/cli/package.json` → `"version": "<new>"` (hiskens suffix)
+- `.trellis/.version` → `<new>` (hiskens suffix)
+
+**CRITICAL — `packages/core/package.json`:**
+- **DO NOT add `-hiskens` suffix to core's version**
+- Core keeps upstream's version verbatim (e.g., `0.6.6`)
+- Reason: `pnpm publish` resolves the CLI's `"@mindfoldhq/trellis-core": "workspace:*"` dependency to core's actual version. If core is `0.6.6`, the published CLI depends on `@mindfoldhq/trellis-core@0.6.6` (exists on npm). If core is `0.6.6-hiskens`, the dependency resolves to a non-existent version → `npm install -g` fails.
 
 If already bumped this session (e.g., after upstream sync set the version), skip.
 
@@ -106,8 +112,11 @@ git push origin main
 |-------|-----|
 | `npm publish` fails: "must specify --tag for prerelease" | Already using `--tag rc` — check version string has prerelease segment |
 | `npm install -g` fails: `EUNSUPPORTEDPROTOCOL workspace:*` | Published with `npm publish` instead of `pnpm publish` — pnpm is required to resolve `workspace:*` deps |
+| **`npm install -g` fails: `ETARGET` / no matching version for trellis-core** | **core's version was set to `-hiskens` suffix — it must match upstream exactly (e.g., `0.6.6`, NOT `0.6.6-hiskens`). Fix core/package.json, rebuild, then republish** |
+| **npm unpublish → same version republish blocked** | **npm has a 24h cooldown. Bump the patch version instead (e.g., `0.6.6-hiskens` → `0.6.7-hiskens`). Note: semver does NOT allow 4-segment versions like `0.6.6.1-hiskens`** |
 | `trellis update` shows no changes | Forgot `pnpm build` before publish, or npm cache stale — run `npm cache clean --force` |
 | `trellis: command not found` after install | Check `npm prefix -g` is in PATH |
+| `trellis --version` shows old version after install | Multiple global installs (e.g., brew node + nvm). Run `npm uninstall -g @hiskens/trellis && npm install -g @hiskens/trellis@<version>` |
 | Dogfood reverts a local-only customization | Those files should be in `.trellis/workspace/` (preserved) not template-managed paths |
 | `npm install -g` installs old version | `latest` tag not promoted — run `npm dist-tag add ...` |
 

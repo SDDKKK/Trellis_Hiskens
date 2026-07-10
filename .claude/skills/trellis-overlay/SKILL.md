@@ -25,9 +25,15 @@ The overlay surface is intentionally minimal. Only two categories of customizati
 | Field | Upstream | Hiskens |
 |-------|----------|---------|
 | name | `@mindfoldhq/trellis` | `@hiskens/trellis` |
-| version | `0.6.2` | `0.6.2-hiskens` |
+| version | `0.6.6` | `0.6.7-hiskens` |
 
 Version format: `{upstream-version}-hiskens` — no trailing `.1` or build number.
+
+**CRITICAL — `packages/core/package.json`:**
+- **Name stays `@mindfoldhq/trellis-core`** (upstream's scope — we do NOT rename it)
+- **Version stays aligned with upstream** (e.g., `0.6.6`, NOT `0.6.6-hiskens`)
+- Reason: `pnpm publish` resolves `workspace:*` → the core version. The CLI declares `"@mindfoldhq/trellis-core": "workspace:*"`. If core's version is `0.6.6`, the published CLI depends on `@mindfoldhq/trellis-core@0.6.6` which already exists on npm (published by upstream). If we set it to `0.6.6-hiskens`, the published CLI depends on a version that doesn't exist on npm → `npm install -g` fails.
+- **Rule:** During merge, if core has a conflict on version, always take upstream's version verbatim.
 
 ### 2. CCR Model Routing
 
@@ -100,12 +106,14 @@ Focus on overlay-relevant paths: `templates/shared-hooks/inject-subagent-context
 git merge upstream/main --no-edit
 ```
 
-**Typical conflicts:** `packages/cli/package.json` (name + version), `.trellis/.version`, `.trellis/config.yaml`, `.trellis/.template-hashes.json`. Resolution:
-- `package.json`: keep `@hiskens/trellis` name, set version to `{new-upstream-version}-hiskens`
+**Typical conflicts:** `packages/cli/package.json` (name + version), `packages/core/package.json` (version), `.trellis/.version`, `.trellis/config.yaml`, `.trellis/.template-hashes.json`, submodules (`docs-site`, `marketplace`). Resolution:
+- `packages/cli/package.json`: keep `@hiskens/trellis` name, set version to `{new-upstream-version}-hiskens`
+- `packages/core/package.json`: **take upstream's version verbatim** (e.g., `0.6.6`). Do NOT add `-hiskens` suffix — the CLI depends on this version via `workspace:*`, and only upstream's version exists on npm.
 - `.trellis/.version`: set to `{new-upstream-version}-hiskens`
 - `.trellis/config.yaml`: take upstream's new sections, preserve Feature Flags section with `ccr_routing: true`
 - `.trellis/.template-hashes.json`: take upstream's hashes
-- workspace journals: keep ours (`git checkout --ours`)
+- Submodules (`docs-site`, `marketplace`): take upstream's commit pointers — `git checkout --theirs <submodule> && cd <submodule> && git checkout <upstream-commit> && cd .. && git add <submodule>`
+- Workspace journals: keep ours (`git checkout --ours`)
 
 ### Step 3: Verify Customizations
 
@@ -150,9 +158,11 @@ Run the `trellis-publish` skill (`/trellis-publish`) which handles:
 | Issue | Why it happens | Fix |
 |-------|---------------|-----|
 | `package.json` conflict on merge | Both sides touch version/name | Keep hiskens name, set `{upstream-version}-hiskens` |
+| **core version set to `-hiskens`** | **Merge resolved core/package.json wrong** | **Always take upstream's core version verbatim — the CLI depends on it via `workspace:*` and only upstream's version exists on npm** |
 | CCR routing lost after update | Upstream overwrote inject-subagent-context.py | Verify `get_ccr_model_tag` exists; re-add `_load_features`, `_ccr_model_keys`, `get_ccr_model_tag` + 2 call sites in `main()` |
 | Feature Flags missing from config template | Upstream overwrote `templates/trellis/config.yaml` | Re-add `Feature Flags` `#---` block with `features.ccr_routing: true` before the Codex section |
 | CCR routing works but no model switch | Claude Code updated subagent message format | Verify `custom-router.js` uses `includes()` not `startsWith()` |
+| npm unpublish then republish same version | npm has a 24h cooldown after unpublish | Bump patch version (e.g., `0.6.6-hiskens` → `0.6.7-hiskens`). Note: semver does NOT allow 4-segment versions (`0.6.6.1-hiskens` is invalid) |
 
 ---
 
