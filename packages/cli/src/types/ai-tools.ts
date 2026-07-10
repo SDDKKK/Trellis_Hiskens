@@ -24,7 +24,8 @@ export type AITool =
   | "pi"
   | "reasonix"
   | "zcode"
-  | "trae";
+  | "trae"
+  | "omp";
 
 /**
  * Template directory categories
@@ -47,7 +48,8 @@ export type TemplateDir =
   | "pi"
   | "reasonix"
   | "zcode"
-  | "trae";
+  | "trae"
+  | "omp";
 
 /**
  * CLI flag names for platform selection (e.g., --claude, --cursor, --kilo, --kiro, --gemini, --antigravity)
@@ -70,7 +72,8 @@ export type CliFlag =
   | "pi"
   | "reasonix"
   | "zcode"
-  | "trae";
+  | "trae"
+  | "omp";
 
 /**
  * Template context for placeholder resolution.
@@ -334,6 +337,7 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     configDir: ".github/copilot",
     extraManagedPaths: [
       ".github/agents",
+      ".github/copilot-instructions.md",
       ".github/hooks",
       ".github/prompts",
       ".github/skills",
@@ -402,8 +406,18 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     name: "ZCode",
     templateDirs: ["common", "zcode"],
     configDir: ".zcode",
-    supportsAgentSkills: true,
-    extraManagedPaths: [".zcode/cli/agents", ".zcode/commands"],
+    // `.zcode/cli/agents` is the pre-ZCode-update discovery path. Kept managed
+    // during the transition so `trellis update --migrate` (rename-dir →
+    // `.zcode/agents/`) and `trellis uninstall` can clean up the now-empty
+    // `.zcode/cli/` parent. Drop this entry once the migration has shipped and
+    // no project still holds the legacy dir. Only empty dirs are ever removed,
+    // so user files are never touched (see cleanupEmptyDirs in update.ts).
+    extraManagedPaths: [
+      ".zcode/cli/agents",
+      ".zcode/agents",
+      ".zcode/commands",
+      ".zcode/skills",
+    ],
     cliFlag: "zcode",
     defaultChecked: false,
     hasPythonHooks: false,
@@ -430,6 +444,22 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
       agentCapable: true,
       hasHooks: true,
       cliFlag: "trae",
+    },
+  },
+  omp: {
+    name: "Oh My Pi",
+    templateDirs: ["common", "omp"],
+    configDir: ".omp",
+    cliFlag: "omp",
+    defaultChecked: false,
+    hasPythonHooks: false,
+    templateContext: {
+      cmdRefPrefix: "/trellis:",
+      executorAI: "Bash scripts or Task calls",
+      userActionLabel: "Slash commands",
+      agentCapable: true,
+      hasHooks: true,
+      cliFlag: "omp",
     },
   },
 };

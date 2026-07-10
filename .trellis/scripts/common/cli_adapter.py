@@ -19,7 +19,6 @@ Supported platforms:
 - copilot: GitHub Copilot (VS Code)
 - droid: Factory Droid (commands-based)
 - pi: Pi Agent (extension-backed)
-- trae: Trae IDE (IDE-only, hooks-based)
 
 Usage:
     from common.cli_adapter import CLIAdapter
@@ -54,6 +53,7 @@ Platform = Literal[
     "copilot",
     "droid",
     "pi",
+    "omp",
     "trae",
 ]
 
@@ -99,7 +99,7 @@ class CLIAdapter:
         """Get platform-specific config directory name.
 
         Returns:
-            Directory name ('.claude', '.opencode', '.cursor', '.iflow', '.codex', '.kilocode', '.kiro', '.gemini', '.agent', '.devin', '.qoder', '.codebuddy', '.github/copilot', '.factory', '.pi', or '.trae')
+            Directory name ('.claude', '.opencode', '.cursor', '.iflow', '.codex', '.kilocode', '.kiro', '.gemini', '.agent', '.devin', '.qoder', '.codebuddy', '.github/copilot', '.factory', or '.pi')
         """
         if self.platform == "opencode":
             return ".opencode"
@@ -129,6 +129,8 @@ class CLIAdapter:
             return ".factory"
         elif self.platform == "pi":
             return ".pi"
+        elif self.platform == "omp":
+            return ".omp"
         elif self.platform == "trae":
             return ".trae"
         else:
@@ -141,7 +143,7 @@ class CLIAdapter:
             project_root: Project root directory
 
         Returns:
-            Path to config directory (.claude, .opencode, .cursor, .iflow, .codex, .kilocode, .kiro, .gemini, .agent, .devin, .qoder, .codebuddy, .github/copilot, .factory, .pi, or .trae)
+            Path to config directory (.claude, .opencode, .cursor, .iflow, .codex, .kilocode, .kiro, .gemini, .agent, .devin, .qoder, .codebuddy, .github/copilot, .factory, or .pi)
         """
         return project_root / self.config_dir_name
 
@@ -188,6 +190,17 @@ class CLIAdapter:
                     filename = filename[:-3]
                 return prompts_dir / f"trellis-{filename}.md"
             return prompts_dir / Path(*parts)
+        if self.platform == "omp":
+            commands_dir = self.get_config_dir(project_root) / "commands"
+            if not parts:
+                return commands_dir
+            if len(parts) >= 2 and parts[0] == "trellis":
+                filename = parts[-1]
+                if filename.endswith(".md"):
+                    filename = filename[:-3]
+                return commands_dir / f"trellis-{filename}.md"
+            return commands_dir / Path(*parts)
+
 
         if self.platform == "devin":
             workflow_dir = self.get_config_dir(project_root) / "workflows"
@@ -272,6 +285,8 @@ class CLIAdapter:
             return f".factory/commands/trellis/{name}.md"
         elif self.platform == "pi":
             return f".pi/prompts/trellis-{name}.md"
+        elif self.platform == "omp":
+            return f".omp/commands/trellis-{name}.md"
         else:
             return f"{self.config_dir_name}/commands/trellis/{name}.md"
 
@@ -308,6 +323,8 @@ class CLIAdapter:
         elif self.platform == "droid":
             return {}
         elif self.platform == "pi":
+            return {}
+        elif self.platform == "omp":
             return {}
         elif self.platform == "trae":
             return {}
@@ -396,6 +413,10 @@ class CLIAdapter:
             )
         elif self.platform == "pi":
             cmd = ["pi", "-p", prompt]
+        elif self.platform == "omp":
+            raise ValueError(
+                "OMP uses native task tool for agent runs; CLI agent run is not supported."
+            )
         elif self.platform == "trae":
             raise ValueError(
                 "Trae is IDE-only; CLI agent run is not supported."
@@ -466,6 +487,10 @@ class CLIAdapter:
             )
         elif self.platform == "pi":
             return ["pi", "-c", session_id]
+        elif self.platform == "omp":
+            raise ValueError(
+                "OMP uses native task tool for agent runs; CLI resume is not supported."
+            )
         elif self.platform == "trae":
             raise ValueError(
                 "Trae is IDE-only; CLI resume is not supported."
@@ -544,6 +569,8 @@ class CLIAdapter:
             return "droid"
         elif self.platform == "pi":
             return "pi"
+        elif self.platform == "omp":
+            return "omp"
         elif self.platform == "trae":
             return "trae"
         else:
@@ -610,7 +637,7 @@ def get_cli_adapter(platform: str = "claude") -> CLIAdapter:
     """Get CLI adapter for the specified platform.
 
     Args:
-        platform: Platform name ('claude', 'opencode', 'cursor', 'iflow', 'codex', 'kilo', 'kiro', 'gemini', 'antigravity', 'devin', 'qoder', 'codebuddy', 'copilot', 'droid', 'pi', or 'trae')
+        platform: Platform name ('claude', 'opencode', 'cursor', 'iflow', 'codex', 'kilo', 'kiro', 'gemini', 'antigravity', 'devin', 'qoder', 'codebuddy', 'copilot', 'droid', or 'pi')
 
     Returns:
         CLIAdapter instance
@@ -641,10 +668,10 @@ def get_cli_adapter(platform: str = "claude") -> CLIAdapter:
         "copilot",
         "droid",
         "pi",
-        "trae",
+        "omp",
     ):
         raise ValueError(
-            f"Unsupported platform: {platform} (must be 'claude', 'opencode', 'cursor', 'iflow', 'codex', 'kilo', 'kiro', 'gemini', 'antigravity', 'devin', 'qoder', 'codebuddy', 'copilot', 'droid', 'pi', or 'trae')"
+            f"Unsupported platform: {platform} (must be 'claude', 'opencode', 'cursor', 'iflow', 'codex', 'kilo', 'kiro', 'gemini', 'antigravity', 'devin', 'qoder', 'codebuddy', 'copilot', 'droid', 'pi', or 'omp' or 'trae')"
         )
 
     return CLIAdapter(platform=platform)  # type: ignore
@@ -667,6 +694,7 @@ _ALL_PLATFORM_CONFIG_DIRS = (
     ".github/copilot",
     ".factory",
     ".pi",
+    ".omp",
     ".trae",
 )
 """Platform-specific config directory names used by detect_platform exclusion
@@ -693,25 +721,22 @@ def detect_platform(project_root: Path) -> Platform:
     2. .opencode directory exists → opencode
     3. .iflow directory exists → iflow
     4. .cursor directory exists (without .claude) → cursor
-    5. .gemini directory exists → gemini
-    6. .codex exists and no other platform dirs → codex
-    7. .kilocode directory exists → kilo
-    8. .kiro/skills exists and no other platform dirs → kiro
+    5. .codex exists and no other platform dirs → codex
+    6. .kilocode directory exists → kilo
+    7. .kiro/skills exists and no other platform dirs → kiro
+    8. .gemini directory exists → gemini
     9. .agent/workflows exists and no other platform dirs → antigravity
     10. .devin/workflows (or legacy .windsurf/workflows) exists and no other platform dirs → devin
     11. .codebuddy directory exists → codebuddy
     12. .qoder directory exists → qoder
-    13. .github/copilot directory exists → copilot
-    14. .factory directory exists → droid
-    15. .pi directory exists → pi
-    16. .trae directory exists → trae
-    17. Default → claude
+    13. .pi directory exists → pi
+    14. Default → claude
 
     Args:
         project_root: Project root directory
 
     Returns:
-        Detected platform ('claude', 'opencode', 'cursor', 'iflow', 'codex', 'kilo', 'kiro', 'gemini', 'antigravity', 'devin', 'qoder', 'codebuddy', 'copilot', 'droid', 'pi', 'trae', or default 'claude')
+        Detected platform ('claude', 'opencode', 'cursor', 'iflow', 'codex', 'kilo', 'kiro', 'gemini', 'antigravity', 'devin', 'qoder', 'codebuddy', 'copilot', 'droid', 'pi', or default 'claude')
     """
     import os
 
@@ -736,6 +761,7 @@ def detect_platform(project_root: Path) -> Platform:
         "copilot",
         "droid",
         "pi",
+        "omp",
         "trae",
     ):
         return env_platform  # type: ignore
@@ -812,6 +838,10 @@ def detect_platform(project_root: Path) -> Platform:
     # Check for .pi directory (Pi Agent-specific)
     if (project_root / ".pi").is_dir():
         return "pi"
+
+    # Check for .omp directory (OMP-specific)
+    if (project_root / ".omp").is_dir():
+        return "omp"
 
     # Check for .trae directory (Trae IDE-specific)
     if (project_root / ".trae").is_dir():
