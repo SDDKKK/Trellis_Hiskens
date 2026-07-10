@@ -1,5 +1,5 @@
 ---
-description: Archive the active task and record the session journal
+description: Wrap up the current session: quality gate, commit reminder, archive, journal.
 argument-hint: [task-name]
 ---
 
