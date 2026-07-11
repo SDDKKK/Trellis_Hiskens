@@ -16,7 +16,7 @@ This skill covers keeping `Trellis_Hiskens` aligned with upstream `mindfold-ai/T
 
 ## Hiskens Customization Points
 
-The overlay surface is intentionally minimal. Only two categories of customization remain after the v0.6.2 cleanup.
+The overlay surface is intentionally minimal. Three categories of customization remain after the v0.6.8 cleanup.
 
 ### 1. Package Identity
 
@@ -25,7 +25,7 @@ The overlay surface is intentionally minimal. Only two categories of customizati
 | Field | Upstream | Hiskens |
 |-------|----------|---------|
 | name | `@mindfoldhq/trellis` | `@hiskens/trellis` |
-| version | `0.6.6` | `0.6.7-hiskens` |
+| version | `0.6.6` | `0.6.8-hiskens` |
 
 Version format: `{upstream-version}-hiskens` — no trailing `.1` or build number.
 
@@ -64,7 +64,31 @@ grep "get_ccr_model_tag" packages/cli/src/templates/shared-hooks/inject-subagent
 grep "ccr_routing" packages/cli/src/templates/trellis/config.yaml
 ```
 
-### 3. Upstream Version Tracker
+### 3. MCP Tool Provider (augment → ace-tool)
+
+**Scope:** All agent templates + hooks across all platforms.
+
+Upstream uses `mcp__augment-context-engine__*` (Augment's codebase-retrieval MCP). The hiskens fork replaces this with `mcp__ace-tool__*` (Ace-Tool MCP with `search_context` + `enhance_prompt`).
+
+**Affected files (all under `packages/cli/src/templates/`):**
+- `{claude,cursor,qoder,codebuddy}/agents/trellis-{check,implement}.md` — frontmatter `tools:` field
+- `droid/droids/trellis-{check,implement}.md` — frontmatter `tools:` field
+- `opencode/agents/trellis-{check,implement,research}.md` — `permission:` block
+- `codex/agents/trellis-{check,implement,research}.toml` — instruction text
+- `shared-hooks/inject-subagent-context.py` — search tool table + tips
+- `opencode/plugins/inject-subagent-context.js` — search tool tips
+- `packages/cli/src/configurators/shared.ts` — capability mapping `case`
+
+**Post-sync verification:**
+
+```bash
+# Must return zero matches in src/ (not dist/)
+grep -rn "augment-context-engine" packages/cli/src/ --include="*.md" --include="*.ts" --include="*.js" --include="*.py" --include="*.toml" | grep -v node_modules
+```
+
+**If upstream reintroduces `augment-context-engine`:** Replace all occurrences back to `ace-tool` after merge. The substitution is mechanical — `mcp__augment-context-engine__*` → `mcp__ace-tool__*` and `augment codebase-retrieval` → `ace-tool search_context` in instruction text.
+
+### 4. Upstream Version Tracker
 
 **File:** `.upstream-version` (repo root)
 
@@ -126,11 +150,15 @@ grep "get_ccr_model_tag" packages/cli/src/templates/shared-hooks/inject-subagent
 # Check Feature Flags section in config template (ccr_routing default)
 grep "ccr_routing" packages/cli/src/templates/trellis/config.yaml || echo "FAIL: ccr_routing missing from config template"
 
+# Check MCP tool provider (must be ace-tool, not augment)
+grep -rn "augment-context-engine" packages/cli/src/ --include="*.md" --include="*.ts" --include="*.js" --include="*.py" --include="*.toml" | grep -v node_modules && echo "FAIL: augment refs found" || echo "OK: ace-tool"
+
 # Check version
 grep '"version"' packages/cli/package.json
 ```
 
 If upstream modified `inject-subagent-context.py`, re-apply the CCR functions manually.
+If upstream reintroduced `augment-context-engine`, replace all back to `ace-tool` (see customization point 3).
 
 ### Step 4: Update Metadata
 
@@ -161,6 +189,7 @@ Run the `trellis-publish` skill (`/trellis-publish`) which handles:
 | **core version set to `-hiskens`** | **Merge resolved core/package.json wrong** | **Always take upstream's core version verbatim — the CLI depends on it via `workspace:*` and only upstream's version exists on npm** |
 | CCR routing lost after update | Upstream overwrote inject-subagent-context.py | Verify `get_ccr_model_tag` exists; re-add `_load_features`, `_ccr_model_keys`, `get_ccr_model_tag` + 2 call sites in `main()` |
 | Feature Flags missing from config template | Upstream overwrote `templates/trellis/config.yaml` | Re-add `Feature Flags` `#---` block with `features.ccr_routing: true` before the Codex section |
+| `augment-context-engine` reappears after merge | Upstream updated agent templates or hooks | Replace all `mcp__augment-context-engine__*` → `mcp__ace-tool__*` and `augment codebase-retrieval` → `ace-tool search_context` in `packages/cli/src/` |
 | CCR routing works but no model switch | Claude Code updated subagent message format | Verify `custom-router.js` uses `includes()` not `startsWith()` |
 | npm unpublish then republish same version | npm has a 24h cooldown after unpublish | Bump patch version (e.g., `0.6.6-hiskens` → `0.6.7-hiskens`). Note: semver does NOT allow 4-segment versions (`0.6.6.1-hiskens` is invalid) |
 
@@ -171,5 +200,5 @@ Run the `trellis-publish` skill (`/trellis-publish`) which handles:
 - **Upstream remote:** `https://github.com/mindfold-ai/Trellis.git`
 - **Upstream branch:** `main`
 - **npm package:** `@hiskens/trellis`
-- **Overlay surface:** 2 customization points (package identity + CCR routing)
+- **Overlay surface:** 3 customization points (package identity + CCR routing + MCP tool provider)
 - **Only `packages/cli/src/templates/` matters** — root-level `.claude/`, `.opencode/` etc. are this repo's own dogfood config, not the distributed templates
