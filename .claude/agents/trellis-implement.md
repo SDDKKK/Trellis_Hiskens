@@ -2,7 +2,7 @@
 name: trellis-implement
 description: |
   Code implementation expert. Understands specs and requirements, then implements features. No git commit allowed.
-tools: Read, Write, Edit, Bash, Glob, Grep, mcp__augment-context-engine__*, mcp__codegraph__*
+tools: Read, Write, Edit, Bash, Glob, Grep, mcp__ace-tool__*, mcp__codegraph__*
 ---
 # Implement Agent
 

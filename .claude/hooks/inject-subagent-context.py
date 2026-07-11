@@ -577,7 +577,7 @@ To get structured package info, run: `python3 ./{DIR_WORKFLOW}/scripts/get_conte
 
 - Spec files: `{spec_path}/**/*.md`
 - Code search: Use Glob and Grep tools
-- Tech solutions: Use mcp__augment-context-engine__codebase-retrieval, mcp__context7__query-docs, or smart-search CLI via Bash (smart-search search/exa-search/fetch)"""
+- Tech solutions: Use mcp__ace-tool__search_context, mcp__context7__query-docs, or smart-search CLI via Bash (smart-search search/exa-search/fetch)"""
 
     context_parts.append(project_structure)
 
@@ -622,7 +622,7 @@ You are a documenter, not a reviewer.
 | Glob | Search by filename pattern |
 | Grep | Search by content |
 | Read | Read file content |
-| mcp__augment-context-engine__codebase-retrieval | Semantic codebase search |
+| mcp__ace-tool__search_context | Semantic codebase search |
 | mcp__context7__query-docs | Library/framework docs |
 | Bash(smart-search search "query" --format json) | External web search (via smart-search-cli skill) |
 

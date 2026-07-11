@@ -47,7 +47,7 @@ If the user asks you to edit code, decline and tell them to spawn the
 
 Choose tools by query type — do not default to bash grep/ls for code understanding.
 
-- Code structure / "how does X work" → `augment codebase-retrieval` or `codegraph_context`, NOT `bash grep`.
+- Code structure / "how does X work" → `ace-tool search_context` or `codegraph_context`, NOT `bash grep`.
 - Symbol definition / callers / callees → `codegraph_search`, `codegraph_callers`, NOT `grep -rn "funcName"`.
 - Directory listing / find files → `codegraph_files`, NOT `ls` / `find`.
 - Read file contents → `Read` tool, NOT `cat` / `head` / `tail`.

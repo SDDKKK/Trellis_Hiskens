@@ -706,7 +706,7 @@ function mapLegacyToolToCopilot(tool: string): string[] {
       return ["search"];
     case "Bash":
       return ["execute"];
-    case "mcp__augment-context-engine__*":
+    case "mcp__ace-tool__*":
       return ["search"];
     case "mcp__context7__*":
       return ["web"];

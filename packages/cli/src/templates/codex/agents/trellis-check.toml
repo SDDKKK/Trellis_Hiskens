@@ -50,8 +50,8 @@ If no issues are found, say so explicitly after verifying lint/type-check pass.
 Choose tools by query type — do not default to bash grep/ls for verification.
 
 - Verify change doesn't break dependents → `codegraph_impact` + `codegraph_callers`, NOT `grep -rn` for all references.
-- Understand changed code → `augment codebase-retrieval`, NOT reading every file with `cat`.
-- Check consistency across codebase → `augment codebase-retrieval` (semantic search), NOT `bash grep`.
+- Understand changed code → `ace-tool search_context`, NOT reading every file with `cat`.
+- Check consistency across codebase → `ace-tool search_context` (semantic search), NOT `bash grep`.
 - Symbol definition / signature → `codegraph_search`, NOT `grep` + `Read` loop.
 - Directory listing → `codegraph_files`, NOT `ls` / `find`.
 - Read file contents → `Read` tool, NOT `cat` / `head` / `tail`.

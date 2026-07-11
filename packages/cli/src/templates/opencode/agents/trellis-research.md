@@ -9,7 +9,7 @@ permission:
   bash: allow
   glob: allow
   grep: allow
-  mcp__augment-context-engine__*: allow
+  mcp__ace-tool__*: allow
   mcp__context7__*: allow
   mcp__chrome-devtools__*: allow
 ---

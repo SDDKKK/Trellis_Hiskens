@@ -56,7 +56,7 @@ Before finishing, summarize:
 Choose tools by query type — do not default to bash grep/ls for code understanding.
 
 - Blast radius before editing → `codegraph_impact`, NOT guessing from local context.
-- Understand module / architecture → `augment codebase-retrieval`, NOT `bash grep` across many files.
+- Understand module / architecture → `ace-tool search_context`, NOT `bash grep` across many files.
 - Find callers / dependents → `codegraph_callers`, NOT `grep -rn "funcName"`.
 - Symbol definition / signature → `codegraph_search` or `codegraph_node`, NOT `grep` + `Read` loop.
 - Directory listing → `codegraph_files`, NOT `ls` / `find`.
