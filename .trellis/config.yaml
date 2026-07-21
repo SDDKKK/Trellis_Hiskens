@@ -115,5 +115,5 @@ features:
 # main session. "sub-agent" remains a backwards-compatible alias for "auto".
 # Invalid explicit values safely use inline mode.
 #
-codex:
-  dispatch_mode: inline  # or "sub-agent" / "auto" to dispatch trellis-* sub-agents
+# codex:
+#   dispatch_mode: auto  # or "inline"; legacy alias: "sub-agent"
