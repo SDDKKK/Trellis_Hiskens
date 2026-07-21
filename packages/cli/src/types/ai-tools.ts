@@ -25,7 +25,8 @@ export type AITool =
   | "reasonix"
   | "zcode"
   | "trae"
-  | "omp";
+  | "omp"
+  | "grok";
 
 /**
  * Template directory categories
@@ -49,7 +50,8 @@ export type TemplateDir =
   | "reasonix"
   | "zcode"
   | "trae"
-  | "omp";
+  | "omp"
+  | "grok";
 
 /**
  * CLI flag names for platform selection (e.g., --claude, --cursor, --kilo, --kiro, --gemini, --antigravity)
@@ -73,7 +75,8 @@ export type CliFlag =
   | "reasonix"
   | "zcode"
   | "trae"
-  | "omp";
+  | "omp"
+  | "grok";
 
 /**
  * Template context for placeholder resolution.
@@ -188,6 +191,12 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     configDir: ".opencode",
     cliFlag: "opencode",
     defaultChecked: false,
+    // hasHooks: false — OpenCode has no session-start hook. The pre-v0.5.0
+    // `.opencode/commands/trellis/start.md` deprecation in
+    // migrations/manifests/0.5.0-beta.0.json assumed a hook would replace it;
+    // that never happened for OpenCode, so `resolveCommands`/`filterCommands`
+    // (see configurators/shared.ts) still generate `/start` as the live
+    // fallback command for this `agentCapable && !hasHooks` platform.
     hasPythonHooks: false,
     templateContext: {
       cmdRefPrefix: "/trellis:",
@@ -371,9 +380,14 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     },
   },
   pi: {
+    // Pi also writes .agents/skills/, which is read by Cursor, Gemini CLI,
+    // GitHub Copilot, Amp, and Kimi Code. Keep that detail here rather than
+    // in `name` — `name` leaks verbatim into `trellis platforms` output and
+    // init checkboxes, where a long parenthetical reads badly.
     name: "Pi Agent",
     templateDirs: ["common", "pi"],
     configDir: ".pi",
+    supportsAgentSkills: true,
     cliFlag: "pi",
     defaultChecked: false,
     hasPythonHooks: false,
@@ -417,16 +431,21 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
       ".zcode/agents",
       ".zcode/commands",
       ".zcode/skills",
+      // Hooks assets written by configureZcode.
+      ".zcode/hooks",
     ],
     cliFlag: "zcode",
     defaultChecked: false,
-    hasPythonHooks: false,
+    hasPythonHooks: true,
     templateContext: {
       cmdRefPrefix: "/trellis:",
       executorAI: "Bash scripts or Agent calls",
       userActionLabel: "Skills",
       agentCapable: true,
-      hasHooks: false,
+      // ZCode (3.x) supports a workspace hook config at .zcode/config.json
+      // with SessionStart / UserPromptSubmit / PreToolUse events. PreToolUse
+      // can mutate sub-agent prompts, so ZCode is class-1 hook-inject.
+      hasHooks: true,
       cliFlag: "zcode",
     },
   },
@@ -460,6 +479,31 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
       agentCapable: true,
       hasHooks: true,
       cliFlag: "omp",
+    },
+  },
+  /**
+   * Grok Build (xAI) — class-2 pull-based platform.
+   *
+   * Phase 0 verified (Grok 0.2.101): skills/agents/AGENTS.md load correctly;
+   * Claude-style hook `additionalContext` is NOT injected into the model.
+   * Do not set hasHooks/hasPythonHooks true until Grok consumes hook stdout.
+   * Commands are flat under `.grok/commands/trellis-*.md` (Grok slash-command layout).
+   */
+  grok: {
+    name: "Grok Build",
+    templateDirs: ["common", "grok"],
+    configDir: ".grok",
+    extraManagedPaths: [".grok/skills", ".grok/commands", ".grok/agents"],
+    cliFlag: "grok",
+    defaultChecked: false,
+    hasPythonHooks: false,
+    templateContext: {
+      cmdRefPrefix: "/trellis-",
+      executorAI: "Bash scripts or Agent calls",
+      userActionLabel: "Skills",
+      agentCapable: true,
+      hasHooks: false,
+      cliFlag: "grok",
     },
   },
 };

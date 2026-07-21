@@ -25,7 +25,7 @@ All workflow scripts target **Python 3.9+** for cross-platform compatibility (ma
 │   ├── types.py          # TaskData (TypedDict), TaskInfo (dataclass), AgentRecord
 │   ├── tasks.py          # load_task(), iter_active_tasks() — typed task access
 │   ├── active_task.py    # Session-scoped active task resolver
-│   ├── task_utils.py     # resolve_task_dir(), run_task_hooks()
+│   ├── task_utils.py     # resolve_task_dir(), is_within_tasks_dir(), run_task_hooks()
 │   ├── task_store.py     # Task CRUD (create, archive, set-branch, etc.)
 │   ├── task_context.py   # JSONL context management (add-context, validate, list-context)
 │   ├── task_queue.py     # Task queue CRUD
@@ -272,6 +272,15 @@ The single source of truth for all JSON file operations. Replaces 8 duplicated `
 - Always uses `encoding="utf-8"` and `ensure_ascii=False`
 - `write_json` outputs with `indent=2` (pretty-printed)
 - Callers must check return value — no exceptions are raised
+- `write_json` is atomic: it writes to a temp file in `path.parent`
+  (`tempfile.mkstemp`) then `os.replace(tmp, path)`. It never
+  `path.write_text()`s over the target in place. A crash or Ctrl-C mid-write
+  leaves the existing file intact instead of truncated. On failure the tmp
+  file is unlinked; a `BaseException` (e.g. `KeyboardInterrupt`) is re-raised,
+  while `OSError`/`IOError` from the write itself are caught and return
+  `False` as before. This matters for `task.json`: a truncated file reads
+  back as `None` from `read_json`, which makes the task silently vanish from
+  `task.py list`. See [Filesystem Safety](./filesystem-safety.md#1-atomic-writes--never-truncate-a-state-file-in-place).
 
 ### `common/log.py` — Terminal Output
 
@@ -296,6 +305,28 @@ def run_git(args: list[str], cwd: Path | None = None) -> tuple[int, str, str]
 - Uses `encoding="utf-8", errors="replace"` for subprocess output
 - Returns `(1, "", error_message)` on exception (never raises)
 - Backward-compatible alias in `git_context.py`: `_run_git_command = run_git`
+
+```python
+def resolve_default_branch(repo_root: Path) -> str | None
+def branch_exists_locally(branch: str, repo_root: Path) -> bool
+```
+
+- `resolve_default_branch()` tries the local `refs/remotes/origin/HEAD`
+  symbolic ref first (no network access), then falls back to
+  `git remote show origin` (`HEAD branch: <name>`, which may hit the network
+  but also repairs a missing/stale symbolic-ref). Returns `None` when neither
+  resolves — callers fall back to their own pre-existing behavior.
+- `task_store.py:cmd_create` stamps `task.json.base_branch` from
+  `resolve_default_branch()`, falling back to the checked-out branch
+  (`git branch --show-current`, or `"main"`) only when the default can't be
+  resolved. This fixes creating a task from a feature branch mis-recording
+  that feature branch as the PR target (#399).
+- `branch_exists_locally()` checks `git rev-parse --verify --quiet
+  refs/heads/<branch>`. `task_context.py:cmd_validate` and
+  `task_store.py:cmd_archive` call it against `task.json.branch` and print a
+  yellow warning (not a failure/block) when the recorded branch no longer
+  exists locally — the common case is the branch was already merged and
+  deleted upstream.
 
 ### `common/active_task.py` — Active Task Resolver
 
@@ -369,7 +400,8 @@ a `.current-task` fallback or a Python hook directory.
 
 - `python3 .trellis/scripts/task.py create "<title>" [--slug <slug>] [--description <text>] [--no-start]`
 - `python3 .trellis/scripts/task.py start <task-dir>`
-- `python3 .trellis/scripts/task.py current [--source]`
+- `python3 .trellis/scripts/task.py current [--source] [--json]`
+- `python3 .trellis/scripts/task.py list [--mine] [--status <status>] [--json]`
 - `python3 .trellis/scripts/task.py finish`
 - `resolve_active_task(repo_root, platform_input=None, platform=None) -> ActiveTask`
 - `set_active_task(task_path, repo_root, platform_input=None, platform=None) -> ActiveTask | None`
@@ -392,10 +424,13 @@ a `.current-task` fallback or a Python hook directory.
 - `task.py create` without a context key creates the task and does not create
   `.trellis/.runtime/`.
 - `task.py create` creates `implement.jsonl` / `check.jsonl` only when the
-  repo has a platform configured that consumes those files. `.codex/` is not
-  enough by itself: Codex defaults to `codex.dispatch_mode: inline`, which
-  loads context through skills. Codex seeds JSONL only when
-  `codex.dispatch_mode: sub-agent` is explicitly configured.
+  repo has a platform configured that consumes those files. For `.codex/`,
+  this is gated by `get_codex_dispatch_mode()`: the default is
+  `codex.dispatch_mode: auto` (native `SubagentStart` context injection with
+  a child-side pull fallback), which seeds JSONL like every other sub-agent
+  platform. `sub-agent` is a backwards-compatible alias for `auto`. Setting
+  `codex.dispatch_mode: inline` opts out and loads context through skills
+  instead, so JSONL is not seeded.
 - `task.py start` writes session-local state only when a context key is
   available. Otherwise it enters degraded mode: no session pointer is persisted,
   `.trellis/.current-task` is not written, and `task.json.status` may still move
@@ -418,6 +453,32 @@ a `.current-task` fallback or a Python hook directory.
   `.trellis/.current-task`.
 - `task.py archive <task>` deletes every runtime session file whose
   `current_task` points at the archived task before moving the task directory.
+- Before moving anything, `cmd_archive` (`task_store.py`) calls
+  `is_within_tasks_dir(task_dir_abs, repo_root)` (`task_utils.py`) and refuses
+  with "refusing to archive ..." (exit 1) unless the resolved dir is a direct
+  child of `.trellis/tasks/`. `resolve_task_dir` falls back to
+  `repo_root / <name>` for a name it can't find, so a mistyped
+  `task.py archive src` would otherwise resolve to and `shutil.move` the
+  repo's real `src/` directory. See
+  [Filesystem Safety](./filesystem-safety.md#2-path--name-safety--validate-at-the-chokepoint-before-pathjoin).
+- `task.py current --json` prints `{current_task, source, stale}` on one
+  line (`ensure_ascii=False`); `current_task` is `null` when there is no
+  active task, otherwise `{dir, id, title, status, parent, children, branch,
+  base_branch}` read from that task's `task.json`. Exit 0 when a task is
+  active, exit 1 when `current_task` is `null`. Human output (no `--json`)
+  is unchanged.
+- `task.py list --json` prints `{tasks: [...]}` on one line, one object per
+  task after `--mine`/`--status` filtering: `{dir, id, title, status,
+  display_status, priority, assignee, parent, children, package}`. With
+  `--mine --json` and no developer configured, prints `{"error": "No
+  developer set"}` to stderr and exits 1 (mirrors the human-mode error).
+  `--json` and human `list` share one iteration pass over
+  `iter_active_tasks()` — do not add a second pass for either mode.
+- `display_status` (`_display_status()` in `task.py`) shows `"active"`
+  instead of the stored `"planning"` for a parent task when at least one
+  child's status is not `None`/`"planning"`. This is a display-only label —
+  it never writes back to `task.json.status` — surfaced in both the human
+  `list` line and the JSON `display_status` field (#399 item 3).
 
 ##### 4. Validation & Error Matrix
 
@@ -427,16 +488,22 @@ a `.current-task` fallback or a Python hook directory.
 | `create` with context key, default mode | Task files exist; session runtime points at the new task; activation and source are printed; no `.current-task` |
 | `create --no-start` with context key | Task files exist; existing session runtime is unchanged; skip notice is printed; no `.current-task` |
 | `create` without context key | Task files exist; no `.runtime`; no `.current-task` |
-| `create` with `.codex/` and no `codex.dispatch_mode` override | Task files exist; no `implement.jsonl`; no `check.jsonl` |
-| `create` with `.codex/` and `codex.dispatch_mode: sub-agent` | Task files exist; `implement.jsonl` and `check.jsonl` contain seed `_example` rows |
+| `create` with `.codex/` and no `codex.dispatch_mode` override (default `auto`) | Task files exist; `implement.jsonl` and `check.jsonl` contain seed `_example` rows |
+| `create` with `.codex/` and `codex.dispatch_mode: inline` | Task files exist; no `implement.jsonl`; no `check.jsonl` |
 | `start` without context key | Returns success in degraded mode; no `.runtime`; no `.current-task`; hints IDE/session identity or `TRELLIS_CONTEXT_ID` |
 | `start` with `TRELLIS_CONTEXT_ID` | Writes `.runtime/sessions/<key>.json`; does not require `.current-task` |
 | `current --source` with same context key | Prints `Source: session:<key>` |
 | `current --source` without context | Prints `(none)` and `Source: none` |
+| `current --json` with active task | `{current_task: {...}, source, stale}`; exit 0 |
+| `current --json` with no active task | `{current_task: null, source, stale}`; exit 1 |
+| `list --json --mine` with no developer configured | `{"error": "No developer set"}` on stderr; exit 1 |
+| `list --json` / `list` with a parent whose stored status is `planning` and a child past `planning` | `display_status` (and human list label) shows `"active"`; `task.json.status` on disk stays `planning` |
+| `archive` / `validate` when `task.json.branch` no longer exists locally | Prints a yellow warning; does not block archive or fail validation |
 | stale session task + stale `.current-task` exists | Returns stale session state; no `.current-task` fallback |
 | `finish` with context key and active task | Deletes `.runtime/sessions/<key>.json` |
 | `finish` without context key | Returns no current task; does not delete `.current-task` |
 | `archive` for a task referenced by runtime sessions | Deletes those session files even when `finish` was skipped |
+| `archive` on a name that resolves outside `.trellis/tasks/` (e.g. `archive src` falling back to `repo_root/src`) | Refuses with "refusing to archive ..." and exit 1; source directory is left untouched |
 
 ##### 5. Good/Base/Bad Cases
 
@@ -1322,8 +1389,9 @@ Two near-misses worth remembering:
   `# default` comment on the user's config silently broke dispatch routing.
 - `task.py create` must read `codex.dispatch_mode` through
   `get_codex_dispatch_mode()` before deciding whether `.codex/` should seed
-  `implement.jsonl` / `check.jsonl`. Missing or invalid values default to
-  `inline`, not `sub-agent`.
+  `implement.jsonl` / `check.jsonl`. A missing key defaults to `auto`;
+  an invalid explicit value falls back to `inline` (with a stderr warning),
+  not `auto`.
 - `session_auto_commit` (0.5.11) almost shipped with a one-line
   `config.get(...).strip()` reader before being routed through
   `get_session_auto_commit`.

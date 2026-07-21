@@ -63,10 +63,10 @@ describe("shared-hooks capability table", () => {
     }
   });
 
-  it("inject-subagent-context.py is restricted to class-1 push-based platforms", () => {
-    // Class-2 (pull-based) platforms load context via agent-definition prelude,
-    // not a hook-mutated prompt.
-    const class2 = new Set(["codex", "copilot", "gemini", "qoder", "trae"]);
+  it("inject-subagent-context.py is restricted to platforms with native sub-agent context delivery", () => {
+    // Codex uses SubagentStart.additionalContext; these remaining platforms
+    // are class-2 and load their context from an agent-definition prelude.
+    const class2 = new Set(["copilot", "gemini", "qoder", "trae"]);
     for (const [platform, hooks] of Object.entries(
       SHARED_HOOKS_BY_PLATFORM,
     )) {
@@ -77,6 +77,10 @@ describe("shared-hooks capability table", () => {
           `${platform} is class-2 pull-based and must not ship inject-subagent-context.py`,
         ).toBe(false);
     }
+
+    expect(SHARED_HOOKS_BY_PLATFORM.codex).toContain(
+      "inject-subagent-context.py",
+    );
   });
 
   it("codex + copilot do not take the shared session-start.py (they bundle their own)", () => {
@@ -103,6 +107,18 @@ describe("shared-hooks capability table", () => {
     // userPromptSubmit/agentSpawn + IDE .kiro.hook promptSubmit), so it ships
     // the same trio as other agent-capable push-based platforms.
     expect([...SHARED_HOOKS_BY_PLATFORM.kiro].sort()).toEqual(
+      [
+        "inject-subagent-context.py",
+        "inject-workflow-state.py",
+        "session-start.py",
+      ].sort(),
+    );
+  });
+
+  it("zcode registers session-start, workflow-state, and subagent-context hooks", () => {
+    // ZCode 3.x ships a workspace hook config (.zcode/config.json) covering
+    // SessionStart + UserPromptSubmit + PreToolUse Agent/Task.
+    expect([...SHARED_HOOKS_BY_PLATFORM.zcode].sort()).toEqual(
       [
         "inject-subagent-context.py",
         "inject-workflow-state.py",

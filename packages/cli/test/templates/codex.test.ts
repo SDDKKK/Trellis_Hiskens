@@ -6,6 +6,7 @@ import {
   getAllAgents,
   getAllCodexSkills,
   getConfigTemplate,
+  getHooksConfig,
 } from "../../src/templates/codex/index.js";
 import { resolveAllAsSkills } from "../../src/configurators/shared.js";
 import { AI_TOOLS } from "../../src/types/ai-tools.js";
@@ -60,6 +61,36 @@ describe("codex getAllAgents", () => {
   });
 });
 
+describe("codex native sub-agent hooks", () => {
+  it("preserves main-session workflow injection and scopes SubagentStart to Trellis roles", () => {
+    const config = JSON.parse(getHooksConfig()) as {
+      hooks: Record<
+        string,
+        { matcher?: string; hooks: { command: string }[] }[]
+      >;
+    };
+
+    expect(config.hooks.UserPromptSubmit).toHaveLength(1);
+    expect(config.hooks.UserPromptSubmit[0]?.hooks[0]?.command).toContain(
+      ".codex/hooks/inject-workflow-state.py",
+    );
+
+    expect(config.hooks.SubagentStart).toHaveLength(1);
+    const subagentStart = config.hooks.SubagentStart[0];
+    expect(subagentStart?.matcher).toBe(
+      "^(?:trellis-implement|trellis-check|trellis-research)$",
+    );
+    const matcher = new RegExp(subagentStart?.matcher ?? "");
+    expect(matcher.test("trellis-implement")).toBe(true);
+    expect(matcher.test("trellis-check")).toBe(true);
+    expect(matcher.test("trellis-research")).toBe(true);
+    expect(matcher.test("trellis-implement-extra")).toBe(false);
+    expect(subagentStart?.hooks[0]?.command).toContain(
+      ".codex/hooks/inject-subagent-context.py",
+    );
+  });
+});
+
 describe("codex getAllCodexSkills (platform-specific)", () => {
   it("returns empty after parallel removal", () => {
     const skills = getAllCodexSkills();
@@ -83,6 +114,16 @@ describe("codex getConfigTemplate", () => {
   it("does not write a [features.multi_agent_v2] block (Codex 0.130 compat)", () => {
     const config = getConfigTemplate();
     expect(config.content).not.toMatch(/^\[features\.multi_agent_v2\]/m);
+  });
+
+  // #445 removed the per-agent `[features] multi_agent = false` guard (the
+  // #240/#241 wait_agent-deadlock structural fix), relying on Codex's default
+  // `agents.max_depth = 1`. That key is global/user-level, not settable inside
+  // an individual agent's .toml, so pin it here in the project config Trellis
+  // owns — this is the config surface that outranks a user's global override.
+  it("pins agents.max_depth = 1 to guard against recursion reopening (#240, #241, #445)", () => {
+    const config = getConfigTemplate();
+    expect(config.content).toMatch(/^\[agents\]\s*\nmax_depth = 1/m);
   });
 });
 
@@ -113,6 +154,42 @@ describe("codex sub-agent recursion guard (issue #234)", () => {
       expect(content).toMatch(/SessionStart|dispatch.*main session|breadcrumb/i);
     });
   }
+});
+
+describe("codex two-channel sub-agent context (native SubagentStart)", () => {
+  for (const name of [
+    "trellis-implement",
+    "trellis-check",
+    "trellis-research",
+  ] as const) {
+    it(`${name}.toml uses a marker-gated active-task fallback without legacy collaboration disables`, () => {
+      const tomlPath = path.join(
+        repoRoot,
+        "packages/cli/src/templates/codex/agents",
+        `${name}.toml`,
+      );
+      const content = fs.readFileSync(tomlPath, "utf-8");
+
+      expect(content).toContain("<!-- trellis-hook-injected -->");
+      expect(content).toContain("Active task: <path>");
+      expect(content).not.toContain("[features]");
+      expect(content).not.toContain("multi_agent = false");
+      expect(content).not.toContain("[features.multi_agent_v2]");
+    });
+  }
+
+  it("keeps research task resolution role-isolated from implement/check manifests", () => {
+    const researchPath = path.join(
+      repoRoot,
+      "packages/cli/src/templates/codex/agents/trellis-research.toml",
+    );
+    const content = fs.readFileSync(researchPath, "utf-8");
+
+    expect(content).toContain("Do not load `implement.jsonl` or `check.jsonl`");
+    expect(content).not.toContain(
+      "Run `python3 ./.trellis/scripts/task.py current --source`",
+    );
+  });
 });
 
 describe("codex session-start.py compact SessionStart context", () => {
