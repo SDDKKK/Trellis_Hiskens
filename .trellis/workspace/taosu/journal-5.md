@@ -1157,3 +1157,111 @@ Repaired Trellis package/spec routing, added repo and core spec indexes, fixed s
 ### Next Steps
 
 - None - task complete
+
+
+## Session 170: 0.6.8 release + PR reviews + context injection caps (#441)
+
+**Date**: 2026-07-22
+**Task**: 0.6.8 release + PR reviews + context injection caps (#441)
+**Package**: cli
+**Branch**: `main`
+
+### Summary
+
+Reviewed PRs #452 (Kimi Code, merged after marketplace#10) and #443 (Snow CLI, four review blockers posted). Diagnosed and fixed test-before-build ordering in both ci.yml (#453) and publish.yml that broke main CI since #448. Released 0.6.8 (Grok/Kimi/Codex native dispatch/Pi skills migration), closed #451. Implemented #441 via task 07-22-subagent-context-limits: tiered context injection caps (32/64/128KiB, config.yaml context_injection, 0=unlimited) with UTF-8-safe truncation and degrade-to-index, mirrored in Python hook + Pi extension per frozen contract; jsonl hygiene warnings in task.py validate; spec updated in platform-integration.md; #349 tracking updated to 20 platforms.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `ea399def` | (see git log) |
+| `26ca25f8` | (see git log) |
+| `dc68f5a9` | (see git log) |
+| `65a83d7d` | (see git log) |
+| `bfa7f99d` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 171: no-trellis skip keyword (#427) + stale task cleanup
+
+**Date**: 2026-07-22
+**Task**: no-trellis skip keyword (#427) + stale task cleanup
+**Package**: cli
+**Branch**: `main`
+
+### Summary
+
+Implemented prompt_injection.skip_keyword (default no-trellis): word-boundary case-insensitive keyword in user prompt mutes per-turn workflow-state injection for that turn; Python shared hook + OpenCode plugin + dogfood .claude/.codex copies; Pi documented coverage gap (no input handler / systemPrompt cache stability); quoted-empty-string YAML parser fix; 20 new tests, 1491 green. Spec contract added to platform-integration.md. Closed #427. Earlier: archived 4 stale tasks (kiro-injection done fbb38c93, #292 closed, #320 closed, #344 discussion closed/superseded by #445).
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `64df8759` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
+
+
+## Session 172: Script QoL batch: journal flags, task tree, meta flag (#394, #402)
+
+**Date**: 2026-07-22
+**Task**: Script QoL batch: journal flags, task tree, meta flag (#394, #402)
+**Package**: cli
+**Branch**: `main`
+
+### Summary
+
+Batch of three script improvements, all probe-tested.
+
+### Main Changes
+
+- add_session.py: repeatable --change/--test/--next-step; empty sections omitted, placeholder text eliminated (#394)
+- task.py list: dangling parent refs render flat instead of vanishing (#402; tree view itself predated from #395)
+- task.py create --meta key=value (validated pre-mkdir) + set-meta subcommand for task.json meta field
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `53a29d41` | (see git log) |
+
+### Testing
+
+- [OK] pnpm test 1500/1500 green, lint/typecheck clean, CI green
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete

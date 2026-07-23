@@ -136,6 +136,8 @@ When adding a new platform `{platform}`, update the following:
 > - Codex hooks require `features.hooks = true` in user config (Codex 0.129+; older versions accept legacy `codex_hooks = true`); 0.129+ also gates per-hook activation behind a one-time `/hooks` TUI review
 > - Platform detection uses `.codex/` only — `.agents/skills/` alone does NOT trigger codex detection
 > - `configDir` is `".codex"`, with `supportsAgentSkills: true` to auto-include `.agents/skills` in managed paths
+>
+> **Kimi Code is a hybrid skills platform** — workflow/bundled skills go to the shared `.agents/skills/` root via `resolveSkillsNeutral()` (byte-identical to Codex/Gemini/Pi; Kimi discovers that root natively), while the session-boundary commands (`start` / `continue` / `finish-work`, invoked as `/skill:trellis-<name>`) and the Trellis agent prompts are written as Kimi-private skills under `.kimi-code/skills/<name>/SKILL.md`. Kimi has no project-level hooks/settings file (hooks are user-level `~/.kimi-code/config.toml` only) and no custom sub-agent definitions (built-in coder/explore/plan only), so no hooks, settings, extension, or `agents/` directory is written, and the agent prompts ship as skills with the pull-based prelude on implement/check (class-2).
 
 #### Rule: `.agents/skills/` writes use `resolvePlaceholdersNeutral()`
 
@@ -905,6 +907,7 @@ These are now **automatically derived** from the registry:
 | Pi Agent    | `/trellis-xxx` prompt templates + `/skill:<name>` skills               | Markdown (`.md`) + `SKILL.md` + TypeScript extension          | `/trellis-finish-work` |
 | Trae IDE    | `/trellis-xxx` commands + skills                                       | Markdown (`.md` with frontmatter) + `SKILL.md` + `hooks.json` | `/trellis-finish-work` |
 | Oh My Pi    | `/trellis-xxx`                                                         | Markdown (`.md` with YAML frontmatter) + TypeScript extension | `/trellis-finish-work` |
+| Kimi Code   | `/skill:trellis-<name>` skills                                         | Markdown (`SKILL.md`)                                         | `/skill:trellis-finish-work` |
 
 When creating platform templates, ensure references match the platform's interaction format and file format.
 
@@ -921,7 +924,7 @@ Commands emitted by `resolveCommands(ctx)` / `resolveAllAsSkills(ctx)` / `resolv
 **Rule**: filter is by `ctx.agentCapable && ctx.hasHooks` — **both flags required** (changed in 0.6.4; the prior single-flag rule silently dropped `start` from Codex / ZCode / OpenCode / Reasonix). `agentCapable` alone is not a proxy for "has a session-start mechanism" because some agent-capable platforms ship without a SessionStart-equivalent hook and rely on user-invocable `start` instead.
 
 - `agentCapable && hasHooks`: `claude-code, cursor, kiro, gemini, qoder, codebuddy, copilot, droid, pi, trae, zcode, omp`
-- `agentCapable && !hasHooks`: `codex, opencode, reasonix` — Codex has a UserPromptSubmit hook but no SessionStart; OpenCode has a `plugins/session-start.js` plugin but registry-`hasHooks` is reserved for the SessionStart-style hook protocol; Reasonix has neither.
+- `agentCapable && !hasHooks`: `codex, opencode, reasonix, grok, kimi` — Codex has a UserPromptSubmit hook but no SessionStart; OpenCode has a `plugins/session-start.js` plugin but registry-`hasHooks` is reserved for the SessionStart-style hook protocol; Reasonix and Grok have neither; Kimi has hooks only in the user-level `~/.kimi-code/config.toml` (no project-level hook file Trellis may write).
 - `!agentCapable`: `kilo, antigravity, devin`
 
 > ZCode joined `agentCapable && hasHooks` in the zcode-hook-support task: it ships a workspace hook config at `.zcode/config.json` covering SessionStart + UserPromptSubmit (reusing the shared `session-start.py` / `inject-workflow-state.py`). Live probing confirmed ZCode PreToolUse with matcher `Agent|Task` can mutate the sub-agent prompt through `hookSpecificOutput.updatedInput`, so ZCode is **class-1** for sub-agent context and ships `inject-subagent-context.py`.
@@ -935,7 +938,7 @@ Trellis sub-agents (implement / check / research) need task context (`prd.md` + 
 | Class                          | Mechanism                                                                                                                                                                                                      | Platforms                                                     |
 | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | **Class-1** — Hook-inject      | Native hook or plugin fires at sub-agent start and injects context before the child runs, either by rewriting the spawn prompt or adding developer context                                                        | Claude Code, Cursor, OpenCode, Kiro, CodeBuddy, Codex, Factory Droid, ZCode |
-| **Class-2** — Pull-based       | Platform lacks a Trellis-supported native sub-agent context injection hook; Trellis injects a "Required: Load Trellis Context First" prelude into each definition so the sub-agent reads context at startup     | Gemini CLI, Qoder, Copilot, Reasonix, Trae IDE  |
+| **Class-2** — Pull-based       | Platform lacks a Trellis-supported native sub-agent context injection hook; Trellis injects a "Required: Load Trellis Context First" prelude into each definition so the sub-agent reads context at startup     | Gemini CLI, Qoder, Copilot, Reasonix, Trae IDE, Grok Build, Kimi Code  |
 | **Class-3** — Extension-backed | Platform exposes hook-equivalent events and custom tools through a project-local TypeScript extension; Trellis owns the sub-agent tool and the context injection path                                          | Pi Agent, Oh My Pi                                           |
 
 ### Class-1 — Hook-inject (8 platforms)
@@ -985,7 +988,7 @@ import { isTrellisSubagent } from "../lib/trellis-context.js"
 
 `getActiveTask()` in `lib/trellis-context.js` itself includes the single-session fallback so any caller (`workflow-state` breadcrumb, `session-start` task status) sees the same resolved task as the prompt injector. The fallback only activates when the explicit context-key lookup misses, so multi-window setups remain isolated.
 
-### Class-2 — Pull-based (5 platforms)
+### Class-2 — Pull-based (7 platforms)
 
 Platform's hook either does not expose a sub-agent-start event or cannot inject Trellis context. Sub-agents must read context themselves at startup. Trellis injects a "Required: Load Trellis Context First" prelude into each sub-agent definition file.
 
@@ -996,6 +999,8 @@ Platform's hook either does not expose a sub-agent-start event or cannot inject 
 | Copilot | `preToolUse` doesn't enforce on subagents ([#2392](https://github.com/github/copilot-cli/issues/2392), [#2540](https://github.com/github/copilot-cli/issues/2540)) |
 | Reasonix | Sub-agent skills run with `runAs: subagent`; no prompt-mutation hook exists, so workflow dispatch must carry the active task and the sub-agent skill reads task artifacts itself. |
 | Trae IDE | `SessionStart` / `UserPromptSubmit` hooks cover main-session context, but no Trellis-supported sub-agent prompt mutation surface exists; generated `.trae/agents/*.md` files receive the pull-based prelude. |
+| Grok Build | Hook stdout `additionalContext` is not consumed (verified on 0.2.x), so no Trellis hook is installed; dispatch goes through `spawn_subagent` and generated `.grok/agents/*.md` files receive the pull-based prelude. |
+| Kimi Code | Hooks exist only in the user-level `~/.kimi-code/config.toml` (no project-level hook/settings file Trellis may write) and there are no custom sub-agent definitions (built-in coder/explore/plan only), so the Trellis agent prompts ship as `.kimi-code/skills/trellis-*/SKILL.md` with the pull-based prelude. |
 
 #### Active task discovery on class-2 platforms (issue #225)
 
@@ -1236,6 +1241,89 @@ The route depends on task intent, artifact presence, and execution mode. Missing
 - **Validate seed**: `task.py validate` treats seed-only jsonl as 0 errors.
 - **List-context seed**: `task.py list-context` prints "no curated entries yet" for seed-only jsonl.
 - **Artifact gates**: workflow-state, SessionStart, and continue distinguish PRD-only lightweight tasks from complex tasks that still need `design.md` / `implement.md`.
+
+## Context Injection Limits Contract (`context_injection`)
+
+### 1. Scope / Trigger
+
+Sub-agent context injection (hook Python + Pi extension TS) caps how much task
+context is inlined into a sub-agent's first prompt. Added for #441 (task
+`07-22-subagent-context-limits`). Any change to injection formatting, caps, or
+config keys MUST be applied to **both** implementations:
+
+- `packages/cli/src/templates/shared-hooks/inject-subagent-context.py`
+- `packages/cli/src/templates/pi/extensions/trellis/index.ts.txt`
+
+### 2. Signatures
+
+- Python: `common.config.get_context_injection_limits() -> dict[str, int]`,
+  `truncate_utf8(data: bytes, cap: int) -> bytes`
+- TS: `readContextInjectionLimits(repoRoot: string)`, `truncateUtf8(buf: Buffer, cap: number)`
+  (exported for tests via `loadExtensionInternals()` in `pi.test.ts`)
+
+### 3. Contracts
+
+`.trellis/config.yaml` section (ships commented in the template; defaults live in code):
+
+```yaml
+context_injection:
+  max_file_bytes: 32768        # per implement.jsonl / check.jsonl referenced file
+  max_artifact_bytes: 65536    # per task artifact (prd.md / design.md / implement.md)
+  max_total_bytes: 131072      # whole payload; overflow degrades to index lines
+```
+
+- `0` disables that limit; negative / non-int → default + stderr warning.
+- Notice strings (byte-frozen, identical in both implementations):
+  - truncation: `\n[Trellis: truncated at {cap} bytes — read {path} for the full content]`
+  - degradation: `[Trellis: not inlined (total context limit reached) — {path} ({size} bytes): {reason}]`
+- Artifact reasons: `Requirements document` / `Technical design document` / `Execution plan document`.
+- Accounting: `=== path ===` headers and notices count toward `max_total_bytes`.
+  Processing order unchanged: jsonl entries first, then prd → design → implement.md.
+- Truncation is UTF-8-safe: back off over continuation bytes; drop an incomplete lead byte.
+- `task.py validate` emits non-blocking hygiene warnings (yellow, exit code unchanged):
+  code-file extension outside `.trellis/spec/`, `docs/`, `docs-site/`, or the task's
+  own dir; and entries larger than `max_file_bytes`.
+
+### 4. Validation & Error Matrix
+
+- unreadable referenced file → skipped (pre-existing behavior, unchanged)
+- file > `max_file_bytes` → truncated + truncation notice
+- artifact > `max_artifact_bytes` → truncated + truncation notice
+- next block would exceed `max_total_bytes` → index line instead of content
+- invalid config value → default for that key + stderr warning, never a crash
+
+### 5. Good/Base/Bad Cases
+
+- Good: curated spec files of a few KB — output byte-identical to pre-cap behavior.
+- Base: one 2 MiB file → ≤32 KiB inlined + notice; total payload ≤128 KiB.
+- Bad (guarded): setting values via env vars or CLI flags — not supported; config.yaml only.
+
+### 6. Tests Required
+
+- Python: `packages/cli/test/scripts/context-injection-limits.integration.test.ts`
+  (probe-spawned; fixture matrix: at-cap / 1-over / UTF-8 straddle 2-byte & 3-byte /
+  3-file total overflow / `0` disable / config override / golden under-cap / validate warnings).
+- TS: `packages/cli/test/templates/pi.test.ts` `describe("pi extension: context injection limits (issue #441)")`
+  — same matrix, asserts the exact frozen notice strings.
+- Template: `trellis.test.ts` asserts config.yaml's `context_injection` section exists and is fully commented.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+Change a notice string or cap semantics in one implementation only, or account
+only file bodies (not headers/notices) toward the total budget.
+
+#### Correct
+
+Treat the notice strings, key names, ordering, and accounting rules above as a
+frozen cross-implementation contract; change both sides plus both test suites in
+the same commit.
+
+> **Warning**: Pi's jsonl block format converged to the Python format
+> (`=== path ===` headers) in this change — an approved deviation from Pi's old
+> `## file` + `---` format. Directory-type jsonl entries remain Python-only; the
+> Pi extension skips them (pre-existing platform difference).
 
 ## Parent / Child Task Tree Contract
 
@@ -1546,6 +1634,26 @@ below host truncation limits.
 ### Solution: `UserPromptSubmit` hook injecting per-turn breadcrumb
 
 A lightweight hook (`shared-hooks/inject-workflow-state.py`) fires on **every user prompt**, emitting a short `<workflow-state>` block reminding the AI of the active task + expected flow. Keep the payload compact and directive; it is injected every turn.
+
+### Skip keyword (`prompt_injection.skip_keyword`, #427)
+
+A user prompt containing the skip keyword (default `no-trellis`) mutes the per-turn
+breadcrumb for that turn only — the hook exits 0 with empty stdout before any task
+resolution or file reads. Contract:
+
+- Match rule (frozen, identical in Python hook and OpenCode plugin):
+  case-insensitive `(?<![\w-])<keyword>(?![\w-])` — `no-trellisfoo`/`foo-no-trellis`
+  do not match; `path/no-trellis.md` does (accepted false-positive).
+- Config: `.trellis/config.yaml` → `prompt_injection.skip_keyword`
+  (ships commented; default in code via `common.config.get_prompt_injection_config()`;
+  quoted `""` explicitly disables the hatch).
+- Scope: per-turn breadcrumb ONLY. `session-start.py`, `inject-subagent-context.py`,
+  and `inject-shell-session-context.py` must never gain keyword handling.
+- Coverage gap: the Pi extension cannot implement this — it has no `input` handler
+  (must not rewrite user text) and its `systemPrompt` must stay byte-identical per
+  turn for provider prefix caching.
+- Dogfood copies to keep patched region-identically: `.claude/hooks/` and
+  `.codex/hooks/` `inject-workflow-state.py`.
 
 ### Single Source of Truth: `workflow.md` Tag Blocks
 

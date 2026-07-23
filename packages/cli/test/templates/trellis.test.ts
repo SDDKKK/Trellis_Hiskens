@@ -27,6 +27,7 @@ import {
   getAllAgents,
   implementAgentTemplate,
   checkAgentTemplate,
+  configYamlTemplate,
 } from "../../src/templates/trellis/index.js";
 
 // =============================================================================
@@ -181,7 +182,7 @@ describe("trellis template constants", () => {
       "[Claude Code, Cursor, OpenCode, codex-sub-agent, CodeBuddy, Droid, Pi, ZCode, Oh My Pi]",
     );
     const pullBasedMarker =
-      "[Gemini, Qoder, Copilot, Reasonix, Trae, Grok]";
+      "[Gemini, Qoder, Copilot, Reasonix, Trae, Grok, Kimi Code]";
     const pullBasedBlock = platformBlock(implement, pullBasedMarker);
 
     const workflowLabelByPlatform: Partial<Record<AITool, string>> = {
@@ -190,6 +191,7 @@ describe("trellis template constants", () => {
       copilot: "Copilot",
       trae: "Trae",
       grok: "Grok",
+      kimi: "Kimi Code",
     };
     // Pi templates keep a pull-based fallback, but workflow 2.1 routes Pi
     // through the extension-backed context path.
@@ -413,6 +415,27 @@ describe("getAllAgents", () => {
         nameLine?.split(":")[1]?.trim(),
         `${file} name field should equal "${expectedName}"`,
       ).toBe(expectedName);
+    }
+  });
+});
+
+// =============================================================================
+// config.yaml — context_injection section (issue #441)
+// =============================================================================
+
+describe("configYamlTemplate: context_injection section", () => {
+  it("documents the context_injection block, fully commented out", () => {
+    expect(configYamlTemplate).toContain("context_injection:");
+    expect(configYamlTemplate).toContain("#   max_file_bytes: 32768");
+    expect(configYamlTemplate).toContain("#   max_artifact_bytes: 65536");
+    expect(configYamlTemplate).toContain("#   max_total_bytes: 131072");
+    // Every context_injection line must be commented — the section ships
+    // inert by default (matches the codex.dispatch_mode precedent).
+    const lines = configYamlTemplate.split("\n");
+    const start = lines.findIndex((l) => l.includes("context_injection:"));
+    expect(start).toBeGreaterThan(-1);
+    for (const line of lines.slice(start, start + 4)) {
+      expect(line.trimStart().startsWith("#")).toBe(true);
     }
   });
 });
