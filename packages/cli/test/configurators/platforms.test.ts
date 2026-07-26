@@ -1254,7 +1254,11 @@ describe("configurePlatform", () => {
     expect(extension).toContain('name: "trellis_subagent"');
     expect(extension).toContain('pi.on?.("session_start"');
     expect(extension).toContain('pi.on?.("tool_call"');
-    expect(extension).toContain("ctx?.sessionManager?.getSessionId");
+    // Bound call — detached callStr(ctx?.sessionManager?.getSessionId) loses `this`
+    // on pi's SessionManager and silently falls back to pi_process_* keys.
+    expect(extension).toContain(
+      "callStr(() => ctx?.sessionManager?.getSessionId?.())",
+    );
     expect(extension).toContain("TRELLIS_PI_CLI_JS");
     expect(extension).toContain("function formatPiOutput");
     expect(extension).toContain('"## Trellis Agent Definition"');

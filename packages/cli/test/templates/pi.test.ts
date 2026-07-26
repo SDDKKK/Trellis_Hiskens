@@ -409,6 +409,47 @@ describe("pi templates", () => {
     expect(extension).toContain("cmdHasTrellisCtx");
   });
 
+  it("resolves pi session id from class-method SessionManager (bound this)", () => {
+    // Regression: pi's real SessionManager.getSessionId() is a prototype method
+    // that reads this.sessionId. callStr(ctx.sessionManager.getSessionId) detaches
+    // it, throws, and falls back to a random pi_process_* key every process.
+    const root = createMinimalTrellisRoot();
+    const { trellisExtension } = loadExtensionInternals(root);
+    const handlers = new Map<
+      string,
+      (event: unknown, ctx?: unknown) => unknown
+    >();
+
+    trellisExtension({
+      registerTool: vi.fn(),
+      registerShortcut: vi.fn(),
+      on(event, handler) {
+        handlers.set(event, handler);
+      },
+    });
+
+    class FakeSessionManager {
+      sessionId = "019f9e7c-bound-this";
+      getSessionId() {
+        return this.sessionId;
+      }
+    }
+
+    const event = {
+      toolName: "bash",
+      input: { command: "echo hi" },
+    };
+    handlers.get("tool_call")?.(event, {
+      sessionManager: new FakeSessionManager(),
+    });
+
+    // shellQuote wraps the value in single quotes
+    expect(event.input.command).toMatch(
+      /export TRELLIS_CONTEXT_ID='pi_019f9e7c-bound-this'/, 
+    );
+    expect(event.input.command).not.toContain("pi_process_");
+  });
+
   it("extension tool_result handler marks failed/cancelled subagent runs as errors", () => {
     const extension = getExtensionTemplate();
 

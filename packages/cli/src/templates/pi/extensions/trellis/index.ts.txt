@@ -1007,14 +1007,17 @@ function contextKey(input?: unknown, ctx?: PiExtensionContext): string | null {
   const ov = str(process.env.TRELLIS_CONTEXT_ID);
   if (ov) return ov.replace(/[^A-Za-z0-9._-]+/g, "_").slice(0, 160) || hash(ov);
   const sessionId =
-    callStr(ctx?.sessionManager?.getSessionId) ??
+    // Must wrap: SessionManager methods read `this.sessionId` / `this.sessionFile`.
+    // callStr(obj.method) detaches the method → TypeError → silent null → random
+    // pi_process_* keys every restart (footer / task.py lose the pointer).
+    callStr(() => ctx?.sessionManager?.getSessionId?.()) ??
     str(process.env.PI_SESSION_ID) ??
     str(process.env.PI_SESSIONID) ??
     lookupStr(input, ["session_id", "sessionId", "sessionID"]);
   if (sessionId)
     return `pi_${sessionId.replace(/[^A-Za-z0-9._-]+/g, "_") || hash(sessionId)}`;
   const transcriptPath =
-    callStr(ctx?.sessionManager?.getSessionFile) ??
+    callStr(() => ctx?.sessionManager?.getSessionFile?.()) ??
     lookupStr(input, ["transcript_path", "transcriptPath", "transcript"]);
   if (transcriptPath) return `pi_transcript_${hash(transcriptPath)}`;
   return null;
