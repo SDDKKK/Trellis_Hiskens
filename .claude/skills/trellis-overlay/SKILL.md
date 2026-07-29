@@ -101,7 +101,7 @@ callStr(() => ctx?.sessionManager?.getSessionId?.())   // hiskens — correct
 
 `getSessionId` / `getSessionFile` read `this.sessionId` / `this.sessionFile`. Passing the bare reference detaches the method from its receiver, so `this` is undefined at call time → TypeError → `callStr` swallows it and returns null. The extension then falls through to a random `pi_process_*` key on every restart, and `task.py` plus the footer lose the active-task pointer. Silent failure — the user just sees the task vanish after a resume.
 
-**Upstream still ships the buggy form as of v0.6.10.** This patch is local-only and must be re-verified after every merge. Not yet reported upstream.
+**Deliberately local — do NOT report or upstream this.** Upstream keeps the bare-reference form and always will as far as this fork is concerned. Treat it as a permanent re-apply: after every merge, check both call sites and re-wrap them if upstream's version won. Never "fix" it by taking upstream's line.
 
 ### 5. context7 MCP Capability
 
