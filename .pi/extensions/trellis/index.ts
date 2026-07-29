@@ -9,6 +9,7 @@ import {
   resolve,
 } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
+import { isUtf8 } from "node:buffer";
 
 // ── Types ──────────────────────────────────────────────────────────────
 type JsonObject = Record<string, unknown>;
@@ -838,6 +839,12 @@ class ContextBudget {
 function truncateNotice(path: string, cap: number): string {
   return `\n[Trellis: truncated at ${cap} bytes — read ${path} for the full content]`;
 }
+function isBinaryContent(data: Buffer): boolean {
+  return data.includes(0) || !isUtf8(data);
+}
+function binaryNotice(path: string, size: number, reason: string): string {
+  return `[Trellis: not inlined (binary file) — ${path} (${size} bytes): ${reason}]`;
+}
 function indexNotice(path: string, size: number, reason: string): string {
   return `[Trellis: not inlined (total context limit reached) — ${path} (${size} bytes): ${reason}]`;
 }
@@ -882,6 +889,11 @@ function materializeFile(
   const data = readFileBytes(basePath, filePath);
   if (data === null) return null;
   const size = data.length;
+  if (isBinaryContent(data)) {
+    const notice = binaryNotice(filePath, size, reason);
+    budget.add(Buffer.byteLength(notice, "utf-8"));
+    return notice;
+  }
   const cap = limits.max_file_bytes;
   const truncated = truncateUtf8(data, cap);
   let content = truncated.toString("utf-8");
@@ -1007,14 +1019,17 @@ function contextKey(input?: unknown, ctx?: PiExtensionContext): string | null {
   const ov = str(process.env.TRELLIS_CONTEXT_ID);
   if (ov) return ov.replace(/[^A-Za-z0-9._-]+/g, "_").slice(0, 160) || hash(ov);
   const sessionId =
-    callStr(ctx?.sessionManager?.getSessionId) ??
+    // Must wrap: SessionManager methods read `this.sessionId` / `this.sessionFile`.
+    // callStr(obj.method) detaches the method → TypeError → silent null → random
+    // pi_process_* keys every restart (footer / task.py lose the pointer).
+    callStr(() => ctx?.sessionManager?.getSessionId?.()) ??
     str(process.env.PI_SESSION_ID) ??
     str(process.env.PI_SESSIONID) ??
     lookupStr(input, ["session_id", "sessionId", "sessionID"]);
   if (sessionId)
     return `pi_${sessionId.replace(/[^A-Za-z0-9._-]+/g, "_") || hash(sessionId)}`;
   const transcriptPath =
-    callStr(ctx?.sessionManager?.getSessionFile) ??
+    callStr(() => ctx?.sessionManager?.getSessionFile?.()) ??
     lookupStr(input, ["transcript_path", "transcriptPath", "transcript"]);
   if (transcriptPath) return `pi_transcript_${hash(transcriptPath)}`;
   return null;
