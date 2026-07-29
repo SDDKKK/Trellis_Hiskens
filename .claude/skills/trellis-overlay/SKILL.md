@@ -102,7 +102,7 @@ The following were removed and should NOT be re-added:
 
 | Item | Reason |
 |------|--------|
-| statusline.py hook | Replaced by ccline fork |
+| statusline.py hook | Replaced by ccline fork (its `shared-hooks.test.ts` assertions were finally deleted during the v0.6.10 sync — they had been failing since v0.6.2) |
 | Channel agents (architect/plan/research) | Upstream doesn't distribute; never adopted downstream |
 | Codegraph ToolSearch preload in agent templates | No longer needed; tools load on demand |
 | sync-trellis-to-nocturne.py | Nocturne no longer used |
@@ -123,6 +123,34 @@ git diff --stat $CURRENT..upstream/main -- packages/cli/src/
 ```
 
 Focus on overlay-relevant paths: `templates/shared-hooks/inject-subagent-context.py`, `templates/trellis/config.yaml`.
+
+**Predict conflicts before merging** — don't guess from commit subjects. Two commits can both "touch context key resolution" and still never collide, because upstream edits workspace scripts (`.trellis/scripts/common/*.py`) while the fork edits distributed templates (`packages/cli/src/templates/`). These are parallel copies with separate paths.
+
+```bash
+# Which files do both sides actually touch?
+MB=$(git merge-base HEAD upstream/main)
+comm -12 <(git diff --name-only $MB HEAD | sort) <(git diff --name-only $MB upstream/main | sort)
+
+# Dry-run the merge without touching the worktree; prints real conflicts
+git merge-tree --write-tree --name-only HEAD upstream/main
+```
+
+`merge-tree` emits the merged tree hash on line 1 — inspect overlay survival in it *before* committing to the merge:
+
+```bash
+T=<tree-hash-from-line-1>
+git show $T:packages/cli/src/templates/shared-hooks/inject-subagent-context.py | grep -c get_ccr_model_tag
+git grep -l "augment-context-engine" $T -- packages/cli/src   # want no output
+```
+
+**Capture the pre-merge test baseline.** The fork carries long-standing failures; without a baseline you cannot tell a regression from inherited breakage.
+
+```bash
+git worktree add /tmp/pre-merge HEAD
+cd /tmp/pre-merge && pnpm install --frozen-lockfile && cd packages/cli && pnpm test 2>&1 | grep -E "Tests |×"
+# ...after merging, diff the failure lists. Then:
+git worktree remove /tmp/pre-merge --force
+```
 
 ### Step 2: Merge Upstream
 
@@ -191,6 +219,8 @@ Run the `trellis-publish` skill (`/trellis-publish`) which handles:
 | Feature Flags missing from config template | Upstream overwrote `templates/trellis/config.yaml` | Re-add `Feature Flags` `#---` block with `features.ccr_routing: true` before the Codex section |
 | `augment-context-engine` reappears after merge | Upstream updated agent templates or hooks | Replace all `mcp__augment-context-engine__*` → `mcp__ace-tool__*` and `augment codebase-retrieval` → `ace-tool search_context` in `packages/cli/src/` |
 | CCR routing works but no model switch | Claude Code updated subagent message format | Verify `custom-router.js` uses `includes()` not `startsWith()` |
+| Version already published before the sync landed | A dogfood release used `{upstream}-hiskens` while the fork's baseline was still an older upstream tag, burning the name | Check `npm view @hiskens/trellis version` during Step 4. If it already equals the target, publish the next patch (e.g. `0.6.11-hiskens`) — never republish |
+| Predicted a conflict from commit subjects, found none (or vice versa) | Upstream `.trellis/scripts/common/*.py` and fork `packages/cli/src/templates/**` are parallel copies with distinct paths | Use `merge-tree` + `comm` (Step 1) instead of reasoning from commit messages |
 | npm unpublish then republish same version | npm has a 24h cooldown after unpublish | Bump patch version (e.g., `0.6.6-hiskens` → `0.6.7-hiskens`). Note: semver does NOT allow 4-segment versions (`0.6.6.1-hiskens` is invalid) |
 
 ---
