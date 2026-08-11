@@ -136,5 +136,18 @@ Each `{TASK_DIR}/research/<topic>.md` should follow:
 - Don't paste full research text into the reply (files are the deliverable)
 - Don't propose improvements or critique implementation (that's not your role)
 
----
+<!-- hiskens:tools-routing:start -->
+## Tool Routing
 
+Choose tools by query type — do not default to bash grep/ls for code understanding.
+
+| Need | Tool | NOT |
+|---|---|---|
+| Code structure, "how does X work", callers, definitions | `mcp__codegraph__codegraph_explore` — one capped call answers most questions | `Grep` + `Read` loop |
+| Semantic search when you cannot name the symbols | `mcp__ace-tool__search_context` | `bash grep` |
+| Read a file codegraph did not return | `Read` | `cat`, `head`, `tail` |
+| Exact string literal match | `Grep` | — |
+| External research (standards, library docs) | `smart-search` CLI via Bash | — |
+
+Source that `codegraph_explore` returns counts as already Read — do not re-open those files.
+<!-- hiskens:tools-routing:end -->

@@ -157,6 +157,87 @@ def get_current_task(
 
 
 # =============================================================================
+# CCR (Claude Code Router) Model Routing — hiskens overlay
+# =============================================================================
+
+def _load_features(repo_root: str) -> dict[str, bool]:
+    """Load Trellis feature flags with a tiny YAML parser."""
+    config_path = Path(repo_root) / DIR_WORKFLOW / "config.yaml"
+    if not config_path.is_file():
+        return {}
+    try:
+        content = config_path.read_text(encoding="utf-8")
+    except OSError:
+        return {}
+
+    features: dict[str, bool] = {}
+    in_features = False
+    for line in content.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.startswith("features"):
+            in_features = True
+            continue
+        if not in_features:
+            continue
+        if line[0] not in (" ", "\t"):
+            break
+        if ":" not in stripped:
+            continue
+        key, _, value = stripped.partition(":")
+        normalized = value.strip().lower()
+        if normalized in ("true", "yes", "1"):
+            features[key.strip()] = True
+        elif normalized in ("false", "no", "0", "", "[]"):
+            features[key.strip()] = False
+        else:
+            features[key.strip()] = bool(normalized)
+    return features
+
+
+def _ccr_model_keys(subagent_type: str) -> tuple[str, ...]:
+    aliases = {
+        AGENT_IMPLEMENT: (AGENT_IMPLEMENT, "implement"),
+        AGENT_CHECK: (AGENT_CHECK, "check"),
+        AGENT_RESEARCH: (AGENT_RESEARCH, "research"),
+        "implement": (AGENT_IMPLEMENT, "implement"),
+        "check": (AGENT_CHECK, "check"),
+        "research": (AGENT_RESEARCH, "research"),
+    }
+    return aliases.get(subagent_type, (subagent_type,))
+
+
+def get_ccr_model_tag(repo_root: str, subagent_type: str) -> str:
+    """Return a Claude Code Router model tag for Trellis agents.
+
+    Injection is active only when all guardrails are true:
+    - .trellis/config.yaml has features.ccr_routing: true
+    - ANTHROPIC_BASE_URL points at localhost / 127.0.0.1
+    - .trellis/config/agent-models.json exists and contains a model mapping
+    """
+    if not _load_features(repo_root).get("ccr_routing", False):
+        return ""
+    base_url = os.environ.get("ANTHROPIC_BASE_URL", "")
+    if "127.0.0.1" not in base_url and "localhost" not in base_url:
+        return ""
+    config_path = Path(repo_root) / DIR_WORKFLOW / "config" / "agent-models.json"
+    if not config_path.is_file():
+        return ""
+    try:
+        mapping = json.loads(config_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return ""
+    if not isinstance(mapping, dict):
+        return ""
+    for key in _ccr_model_keys(subagent_type):
+        model = mapping.get(key)
+        if isinstance(model, str) and model.strip():
+            return f"<CCR-SUBAGENT-MODEL>{model.strip()}</CCR-SUBAGENT-MODEL>\n"
+    return ""
+
+
+# =============================================================================
 # Context Injection Limits (issue #441)
 #
 # Notice text and behavior mirrored byte-for-byte in the Pi TS extension
@@ -877,8 +958,15 @@ def _handle_codex_subagent_start(input_data: dict) -> None:
     if not subagent_type or not parent_session_id:
         return
 
-    cwd = _string_value(input_data.get("cwd")) or os.getcwd()
-    repo_root = find_repo_root(cwd)
+    # Payload cwd first, then our own — some hosts (CodeBuddy IDE 4.10.4)
+    # report "/" for every hook event. See inject-workflow-state.py.
+    repo_root = None
+    for candidate in (_string_value(input_data.get("cwd")), os.getcwd()):
+        if not candidate:
+            continue
+        repo_root = find_repo_root(candidate)
+        if repo_root:
+            break
     if not repo_root:
         return
 
@@ -1066,6 +1154,8 @@ def main():
     if not repo_root:
         sys.exit(0)
 
+    ccr_tag = get_ccr_model_tag(repo_root, subagent_type)
+
     # Get current task directory (research doesn't require it)
     task_dir = get_current_task(repo_root, input_data)
 
@@ -1105,6 +1195,9 @@ def main():
 
     if not context:
         sys.exit(0)
+
+    if ccr_tag:
+        new_prompt = ccr_tag + new_prompt
 
     # Return updated input. Most platforms ignore unrecognized fields, so we
     # include multiple formats. ZCode is stricter; live probing confirmed the

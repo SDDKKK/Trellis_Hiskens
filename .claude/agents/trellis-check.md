@@ -114,5 +114,18 @@ If failed, fix issues and re-run.
 Checked X files, found Y issues, all fixed.
 ```
 
----
+<!-- hiskens:tools-routing:start -->
+## Tool Routing
 
+Choose tools by query type — do not default to bash grep/ls for verification.
+
+| Need | Tool | NOT |
+|---|---|---|
+| Verify a change does not break dependents | `mcp__codegraph__codegraph_explore` on the changed symbols — its call path and blast-radius summary IS the check | `Grep -rn` for every reference |
+| Understand the changed code | `mcp__codegraph__codegraph_explore` | Reading every file with `cat` |
+| Consistency sweep across the codebase | `mcp__ace-tool__search_context` (semantic) | `bash grep` |
+| Read a file codegraph did not return | `Read` | `cat`, `head`, `tail` |
+| Exact string literal match | `Grep` | — |
+
+Source that `codegraph_explore` returns counts as already Read — do not re-open those files.
+<!-- hiskens:tools-routing:end -->
