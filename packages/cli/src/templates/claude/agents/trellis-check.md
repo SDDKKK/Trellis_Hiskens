@@ -113,6 +113,3 @@ If failed, fix issues and re-run.
 
 Checked X files, found Y issues, all fixed.
 ```
-
----
-

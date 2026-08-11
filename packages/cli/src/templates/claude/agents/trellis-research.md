@@ -135,6 +135,3 @@ Each `{TASK_DIR}/research/<topic>.md` should follow:
 - Don't guess uncertain info
 - Don't paste full research text into the reply (files are the deliverable)
 - Don't propose improvements or critique implementation (that's not your role)
-
----
-

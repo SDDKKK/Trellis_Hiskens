@@ -16,7 +16,7 @@ This skill covers keeping `Trellis_Hiskens` aligned with upstream `mindfold-ai/T
 
 ## Hiskens Customization Points
 
-Seven categories. The authoritative check is not this list but the diff itself — see **Overlay Audit** below, which regenerates the list from the repo and will catch anything this prose has drifted away from.
+Eight numbered points, six still active (#4 retired at v0.6.14, numbering kept stable so older notes still resolve). The authoritative check is not this list but the diff itself — see **Overlay Audit** below, which regenerates the list from the repo and will catch anything this prose has drifted away from.
 
 ### 1. Package Identity
 
@@ -88,20 +88,18 @@ grep -rn "augment-context-engine" packages/cli/src/ --include="*.md" --include="
 
 **If upstream reintroduces `augment-context-engine`:** Replace all occurrences back to `ace-tool` after merge. The substitution is mechanical — `mcp__augment-context-engine__*` → `mcp__ace-tool__*` and `augment codebase-retrieval` → `ace-tool search_context` in instruction text.
 
-### 4. Pi Extension — SessionManager Method Binding
+### 4. ~~Pi Extension — SessionManager Method Binding~~ (RETIRED at v0.6.14)
 
-**File:** `packages/cli/src/templates/pi/extensions/trellis/index.ts.txt` (`contextKey()`, ~line 1025)
-
-Upstream passes the method as a bare reference:
+Upstream fixed the same `this`-detachment bug in v0.6.14, using an explicit receiver instead of the fork's arrow-function wrapper:
 
 ```js
-callStr(ctx?.sessionManager?.getSessionId)     // upstream — broken
-callStr(() => ctx?.sessionManager?.getSessionId?.())   // hiskens — correct
+function callStr(cb, receiver?) { return str(cb.call(receiver)); }   // upstream v0.6.14+
+callStr(ctx?.sessionManager?.getSessionId, ctx?.sessionManager)
 ```
 
-`getSessionId` / `getSessionFile` read `this.sessionId` / `this.sessionFile`. Passing the bare reference detaches the method from its receiver, so `this` is undefined at call time → TypeError → `callStr` swallows it and returns null. The extension then falls through to a random `pi_process_*` key on every restart, and `task.py` plus the footer lose the active-task pointer. Silent failure — the user just sees the task vanish after a resume.
+Functionally equivalent to the fork's `callStr(() => ctx?.sessionManager?.getSessionId?.())`, and more explicit. The overlay was dropped during the v0.6.14 sync — `packages/cli/src/templates/pi/extensions/trellis/index.ts.txt` now tracks upstream verbatim.
 
-**Deliberately local — do NOT report or upstream this.** Upstream keeps the bare-reference form and always will as far as this fork is concerned. Treat it as a permanent re-apply: after every merge, check both call sites and re-wrap them if upstream's version won. Never "fix" it by taking upstream's line.
+**Do not re-add it.** If a future sync shows the fork diverging here again, that is a regression to revert, not an overlay to restore.
 
 ### 5. context7 MCP Capability
 
@@ -136,12 +134,15 @@ Contains the upstream commit hash that the fork is currently synced to. Updated 
 
 Prose drifts; the diff does not. Run this after every merge — it reconstructs the *entire* overlay surface from the repo, so a customization nobody documented still shows up.
 
+**Scan `test/` too, not just `src/`.** Fork test assertions are overlay: during the v0.6.14 sync a `platforms.test.ts` assertion still pinned the retired #4 arrow-function form and only surfaced as a test failure, because the audit was `src/`-only at the time. A fork overlay in `src/` almost always has a matching assertion in `test/`; retire them together.
+
 ```bash
 cd /home/hcx/github/Trellis_Hiskens
 python3 - "$(cat .upstream-version)" <<'PY'
 import subprocess, sys, difflib
 base = sys.argv[1]
-files = subprocess.run(["git","diff","--name-only",base,"HEAD","--","packages/cli/src/"],
+files = subprocess.run(["git","diff","--name-only",base,"HEAD","--",
+                        "packages/cli/src/","packages/cli/test/"],
                        capture_output=True,text=True).stdout.split()
 for f in files:
     a = subprocess.run(["git","show",f"{base}:{f}"],capture_output=True,text=True).stdout.splitlines()
@@ -162,7 +163,8 @@ Every hunk it prints is either a deliberate overlay edit or an accident. There i
 ```bash
 grep -c "get_ccr_model_tag" packages/cli/src/templates/shared-hooks/inject-subagent-context.py   # want 2
 grep -c "ccr_routing" packages/cli/src/templates/trellis/config.yaml                             # want 1
-grep -c 'callStr(() => ctx?.sessionManager' packages/cli/src/templates/pi/extensions/trellis/index.ts.txt  # want 2
+diff <(git show <upstream-tag>:packages/cli/src/templates/pi/extensions/trellis/index.ts.txt) \
+     packages/cli/src/templates/pi/extensions/trellis/index.ts.txt   # want empty (#4 retired)
 grep -c "context7" packages/cli/src/configurators/shared.ts                                      # want 1
 grep -lc "Tool routing" packages/cli/src/templates/codex/agents/*.toml | wc -l                   # want 3
 grep -c "^session_auto_commit: true" packages/cli/src/templates/trellis/config.yaml              # want 1
@@ -247,7 +249,7 @@ git merge upstream/main --no-edit
 
 ### Step 3: Verify Customizations
 
-Run the **Overlay Audit** script (see above) with `.upstream-version` still holding the *previous* baseline — that diff is the fork's entire delta against upstream. Reconcile every hunk against customization points 1–7. Anything unlisted is either an undocumented overlay (document it) or an accident (revert it).
+Run the **Overlay Audit** script (see above) with `.upstream-version` still holding the *previous* baseline — that diff is the fork's entire delta against upstream. Reconcile every hunk against customization points 1–8 (#4 is retired — a hunk there is a regression, not an overlay). Anything unlisted is either an undocumented overlay (document it) or an accident (revert it).
 
 Then the fast greps from the Overlay Audit section, plus:
 
@@ -295,7 +297,7 @@ Run the `trellis-publish` skill (`/trellis-publish`) which handles:
 | CCR routing works but no model switch | Claude Code updated subagent message format | Verify `custom-router.js` uses `includes()` not `startsWith()` |
 | Version already published before the sync landed | A dogfood release used `{upstream}-hiskens` while the fork's baseline was still an older upstream tag, burning the name | Check `npm view @hiskens/trellis version` during Step 4. If it already equals the target, publish the next patch (e.g. `0.6.11-hiskens`) — never republish |
 | An overlay edit silently reverts to upstream's version | Merge resolved a template file toward upstream, and no grep covered that customization | Run the **Overlay Audit** (diff-based, catches undocumented points) — not just the per-point greps, which only find what someone remembered to write down |
-| Pi extension loses the active task after resume | `callStr(ctx?.sessionManager?.getSessionId)` came back from upstream — bare method reference detaches `this` | Re-wrap: `callStr(() => ctx?.sessionManager?.getSessionId?.())`, both call sites (point 4) |
+| Pi extension diverges from upstream again | Someone re-applied the retired #4 arrow-function overlay | Revert to upstream verbatim — upstream's `cb.call(receiver)` already fixes the `this` detachment |
 | New projects stop auto-committing sessions | `templates/trellis/config.yaml` took upstream's commented-out `# session_auto_commit: true` | Uncomment it (point 7) |
 | Predicted a conflict from commit subjects, found none (or vice versa) | Upstream `.trellis/scripts/common/*.py` and fork `packages/cli/src/templates/**` are parallel copies with distinct paths | Use `merge-tree` + `comm` (Step 1) instead of reasoning from commit messages |
 | npm unpublish then republish same version | npm has a 24h cooldown after unpublish | Bump patch version (e.g., `0.6.6-hiskens` → `0.6.7-hiskens`). Note: semver does NOT allow 4-segment versions (`0.6.6.1-hiskens` is invalid) |
@@ -307,5 +309,5 @@ Run the `trellis-publish` skill (`/trellis-publish`) which handles:
 - **Upstream remote:** `https://github.com/mindfold-ai/Trellis.git`
 - **Upstream branch:** `main`
 - **npm package:** `@hiskens/trellis`
-- **Overlay surface:** 7 customization points — package identity, CCR routing, ace-tool (replacing augment + exa), pi SessionManager binding, context7, Codex tool-routing blocks, session_auto_commit. Verify with the Overlay Audit, not from memory.
+- **Overlay surface:** 6 active customization points — package identity, CCR routing, ace-tool (replacing augment + exa), context7, Codex tool-routing blocks, session_auto_commit. (#4 pi SessionManager binding retired at v0.6.14.) Verify with the Overlay Audit, not from memory.
 - **Only `packages/cli/src/templates/` matters** — root-level `.claude/`, `.opencode/` etc. are this repo's own dogfood config, not the distributed templates

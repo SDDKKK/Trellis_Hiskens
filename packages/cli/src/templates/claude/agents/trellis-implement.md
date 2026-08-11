@@ -108,6 +108,3 @@ Run project's lint and typecheck commands to verify changes.
 - Don't add unnecessary abstractions
 - Only do what's required, no over-engineering
 - Keep code readable
-
----
-
