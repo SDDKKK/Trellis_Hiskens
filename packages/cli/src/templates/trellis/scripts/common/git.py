@@ -6,6 +6,7 @@ Single source of truth for running git commands across all Trellis scripts.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -21,6 +22,13 @@ def run_git(
     consistent output across all platforms (Windows, macOS, Linux). Callers
     may provide a timeout for best-effort probes; normal Git operations remain
     unbounded by default.
+
+    Forces English messages via LANGUAGE=en. Callers such as
+    ``safe_commit._stderr_indicates_ignored`` match git's stderr against
+    English substrings; on a translated locale (zh_CN, de_DE, ...) git emits
+    localized text, those checks silently miss, and the user loses the
+    guard the check exists to provide. LANGUAGE only selects the gettext
+    message catalog — charset and collation stay on the user's locale.
     """
     try:
         git_args = ["git", "-c", "i18n.logOutputEncoding=UTF-8"] + args
@@ -32,6 +40,7 @@ def run_git(
             encoding="utf-8",
             errors="replace",
             timeout=timeout,
+            env={**os.environ, "LANGUAGE": "en"},
         )
         return result.returncode, result.stdout, result.stderr
     except Exception as e:

@@ -16,7 +16,7 @@ This skill covers keeping `Trellis_Hiskens` aligned with upstream `mindfold-ai/T
 
 ## Hiskens Customization Points
 
-Eight numbered points, six still active (#4 retired at v0.6.14, numbering kept stable so older notes still resolve). The authoritative check is not this list but the diff itself — see **Overlay Audit** below, which regenerates the list from the repo and will catch anything this prose has drifted away from.
+Nine numbered points, seven still active (#4 retired at v0.6.14; numbering kept stable so older notes still resolve). The authoritative check is not this list but the diff itself — see **Overlay Audit** below, which regenerates the list from the repo and will catch anything this prose has drifted away from.
 
 ### 1. Package Identity
 
@@ -108,19 +108,48 @@ Functionally equivalent to the fork's `callStr(() => ctx?.sessionManager?.getSes
 
 Upstream has zero `context7` references. Paired with the removal of `mcp__exa__*` (upstream's choice) from the opencode agents and `opencode/plugins/inject-subagent-context.js`.
 
-### 6. Codex Tool-Routing Blocks
+### 6. Tool-Routing Blocks (codex + claude)
 
-**Files:** `packages/cli/src/templates/codex/agents/trellis-{check,implement,research}.toml`
+**Files:**
+- `packages/cli/src/templates/codex/agents/trellis-{check,implement,research}.toml` — `## Tool routing` prose section
+- `packages/cli/src/templates/claude/agents/trellis-{check,implement,research}.md` — `<!-- hiskens:tools-routing:start -->` … `:end -->` table, appended at end of file
 
-Each carries a `## Tool routing` section (~10 lines) steering the agent to `codegraph_impact` / `codegraph_callers` / `codegraph_search` / `codegraph_files` instead of defaulting to `grep -rn` and `ls`. `trellis-research.toml` additionally routes external research to the `smart-search` CLI. Upstream has no such section.
+Both steer the agent to `codegraph_explore` and `ace-tool search_context` instead of defaulting to `grep -rn`, `ls`, and `cat`. `trellis-research` additionally routes external research to the `smart-search` CLI. Upstream has neither.
 
-Related: every platform's agent `tools:` frontmatter gains `mcp__codegraph__*` alongside `mcp__ace-tool__*` (claude, cursor, qoder, codebuddy, droid).
+**Keep the tool names honest.** Until v0.6.14 these blocks named `codegraph_impact` / `codegraph_callers` / `codegraph_search` / `codegraph_node` / `codegraph_files` / `codegraph_context` — six tools the codegraph MCP server no longer exposes; it has collapsed to a single `codegraph_explore`. Agents were being told to call tools that do not exist, which is worse than no guidance. Re-check the live tool surface whenever codegraph updates.
+
+The claude blocks were restored at v0.6.14: `c6fa6eed` had announced it was removing only the dead "codegraph ToolSearch preload" but deleted the whole `hiskens:tools-routing` block along with it, losing the routing tables from claude/cursor/opencode. Only claude was restored — cursor and opencode remain without routing by decision, not by accident.
+
+Related, and **narrower than it looks**: only the *claude* agent templates gain `mcp__codegraph__*` in their `tools:` frontmatter (`trellis-research` uses the broader `mcp__*`). cursor / qoder / codebuddy / droid / opencode carry `mcp__ace-tool__*` but have **never** carried `mcp__codegraph__*` — deliberately, per the original task (`44116b20`, 2026-06-01), which scoped codegraph to the two platforms with subagent transcript data: claude (`tools:` wildcard) and codex (prose routing). A sync that finds codegraph missing from the other five is finding the intended state, not a regression.
 
 ### 7. session_auto_commit Enabled
 
 **File:** `packages/cli/src/templates/trellis/config.yaml`
 
 Upstream ships `# session_auto_commit: true` (commented, off by default). The fork uncomments it. A merge that takes upstream's line verbatim silently disables the feature for every newly-initialized project.
+
+### 9. Fork Section in `.trellis/spec/guides/cross-platform-thinking-guide.md`
+
+**Section:** `### Claude Code Subprocess Environment Visibility` (sits at the end of "4. Environment Variables", just before "### 5. Command Availability")
+
+Fork-authored (`b9d39986`). Documents that `CLAUDE_ENV_FILE` vars reach **only** Bash tool calls — `statusLine.command` and hook subprocesses are spawned directly and never source it, so external binaries like ccline must read `CLAUDE_CODE_SESSION_ID` and derive `claude_{uuid}` themselves.
+
+**This file is co-owned: upstream ships its own copy and edits it.** Every upstream change to it conflicts, and resolving with `--theirs` silently deletes the fork section. That has already happened twice — `2a72a73c` (v0.6.5 self-update) wiped it, and nobody noticed until the v0.6.14 sync went looking. Restored at v0.6.14.
+
+**On every merge:** if this file conflicts, resolve as a **union** — take upstream's body and re-append the fork section. Never blanket `--theirs`.
+
+```bash
+grep -c "Claude Code Subprocess Environment Visibility" .trellis/spec/guides/cross-platform-thinking-guide.md   # want 1
+```
+
+### 10. Test-Tree Overlays (`packages/cli/test/`)
+
+Two deliberate fork deltas live in the test tree. Both were invisible until the audit was widened past `src/` at v0.6.14.
+
+- **`test/commands/upgrade.test.ts`** — imports `PACKAGE_NAME` from `src/constants/version.js` instead of hardcoding `@mindfoldhq/trellis`. Required by customization point 1; upstream can hardcode its own name, the fork cannot.
+- **`test/templates/pi.test.ts`** — adds `"resolves pi session id from class-method SessionManager (bound this)"`, a behavioral regression test using a real prototype-method `FakeSessionManager`. Written when overlay #4 existed; kept after #4 retired because it now guards *upstream's* `cb.call(receiver)` fix. Passes against both implementations.
+
+Everything else under `test/` must match upstream byte-for-byte. Two upstream assertions were wrongly deleted or inverted by past forks of this rule (`36aef99e`, `6126f7b0`); both were restored at v0.6.14. If an upstream test fails, first ask whether the fork broke the *behavior*, not whether the assertion is inconvenient.
 
 ### 8. Upstream Version Tracker
 
@@ -142,7 +171,8 @@ python3 - "$(cat .upstream-version)" <<'PY'
 import subprocess, sys, difflib
 base = sys.argv[1]
 files = subprocess.run(["git","diff","--name-only",base,"HEAD","--",
-                        "packages/cli/src/","packages/cli/test/"],
+                        "packages/cli/src/","packages/cli/test/",
+                        ".trellis/spec/guides/"],
                        capture_output=True,text=True).stdout.split()
 for f in files:
     a = subprocess.run(["git","show",f"{base}:{f}"],capture_output=True,text=True).stdout.splitlines()
@@ -309,5 +339,5 @@ Run the `trellis-publish` skill (`/trellis-publish`) which handles:
 - **Upstream remote:** `https://github.com/mindfold-ai/Trellis.git`
 - **Upstream branch:** `main`
 - **npm package:** `@hiskens/trellis`
-- **Overlay surface:** 6 active customization points — package identity, CCR routing, ace-tool (replacing augment + exa), context7, Codex tool-routing blocks, session_auto_commit. (#4 pi SessionManager binding retired at v0.6.14.) Verify with the Overlay Audit, not from memory.
+- **Overlay surface:** 7 active customization points — package identity, CCR routing, ace-tool (replacing augment + exa), context7, Codex tool-routing blocks, session_auto_commit, and the fork section in `.trellis/spec/guides/cross-platform-thinking-guide.md`. (#4 pi SessionManager binding retired at v0.6.14.) Verify with the Overlay Audit, not from memory.
 - **Only `packages/cli/src/templates/` matters** — root-level `.claude/`, `.opencode/` etc. are this repo's own dogfood config, not the distributed templates

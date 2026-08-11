@@ -1,15 +1,22 @@
 name: Publish to npm
 
-# Both event sources stay wired so a published GitHub Release and a raw
-# `v*` tag push both fire a publish. The shared release-preflight script
-# makes reruns idempotent: if a package version is already on npm it is
-# skipped, so duplicate triggers do not produce duplicate publishes.
+# HISKENS OVERLAY — automatic triggers are DISABLED.
+#
+# Upstream fires this on a published GitHub Release or a raw `v*` tag push.
+# That model assumes core and cli share one version. This fork pins
+# `@mindfoldhq/trellis-core` to upstream's exact version while the CLI
+# carries `{upstream}-hiskens`, so every version-parity gate in
+# release-preflight.js fails here (check-versions, verify-packed-cli,
+# publish-plan, verify-npm), and bump-versions.js would rewrite core off
+# its pinned version. A stray `v*` tag push would therefore either dead-end
+# or corrupt the core version.
+#
+# Publishing goes through the `trellis-publish` skill (manual
+# `pnpm publish` from packages/cli). This workflow is kept only so the
+# steps stay visible/diffable against upstream; run it by hand if you have
+# first fixed the preflight scripts for the fork's version model.
 on:
-  release:
-    types: [published]
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
 
 concurrency:
   group: publish-${{ github.ref_name || github.ref }}

@@ -1291,10 +1291,9 @@ describe("configurePlatform", () => {
     const content = fs.readFileSync(settingsPath, "utf-8");
     const settings = JSON.parse(content);
     expect(settings).not.toHaveProperty("statusLine");
-    // Hiskens overlay distributes statusline.py to claude platform.
     expect(
       fs.existsSync(path.join(tmpDir, ".claude", "hooks", "statusline.py")),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("claude-code default settings.json is byte-identical to the resolved template (statusline off)", async () => {

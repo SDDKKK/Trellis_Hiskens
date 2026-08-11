@@ -108,3 +108,20 @@ Run project's lint and typecheck commands to verify changes.
 - Don't add unnecessary abstractions
 - Only do what's required, no over-engineering
 - Keep code readable
+
+<!-- hiskens:tools-routing:start -->
+## Tool Routing
+
+Choose tools by query type — do not default to bash grep/ls for code understanding.
+
+| Need | Tool | NOT |
+|---|---|---|
+| Before editing a symbol | `mcp__codegraph__codegraph_explore` — returns its verbatim source, callers, and blast radius in one call | Guessing from local context |
+| Understand a module / "how does X work" | `mcp__codegraph__codegraph_explore` (question or symbol names) | `Grep` across many files |
+| Callers, dependents, definitions, signatures | same `codegraph_explore` call — there is no separate callers/impact/search tool | `Grep` + `Read` loop |
+| Semantic search when you cannot name the symbols | `mcp__ace-tool__search_context` | `bash grep` |
+| Read a file codegraph did not return | `Read` | `cat`, `head`, `tail` |
+| Exact string literal match | `Grep` | — |
+
+Source that `codegraph_explore` returns counts as already Read — do not re-open those files.
+<!-- hiskens:tools-routing:end -->

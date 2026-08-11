@@ -615,6 +615,11 @@ async function runGit(args: string[]): Promise<GitCommandOutput> {
         encoding: "utf-8",
         maxBuffer: 10 * 1024 * 1024,
         timeout: TIMEOUTS.DOWNLOAD_MS,
+        // classifyGitError matches stderr against English substrings
+        // ("couldn't find remote ref", ...). On a translated locale git
+        // emits localized text and every error degrades to "unknown".
+        // LANGUAGE picks the message catalog only; charset is untouched.
+        env: { ...process.env, LANGUAGE: "en" },
       },
       (error, stdout, stderr) => {
         if (error) {

@@ -39,7 +39,10 @@ Verify output includes `Template copy complete.`
 
 ## Step 3: Publish to npm
 
+`packages/cli/package.json` lists `README.md` and `LICENSE` in `files`, but neither exists on disk — upstream's `prepublishOnly` copies them from the repo root, and `--ignore-scripts` (below) skips that. Copy them by hand first, or the tarball ships with no readme and the npm page is blank:
+
 ```bash
+cp README.md LICENSE packages/cli/     # gitignored publish artifacts
 cd packages/cli && pnpm publish --access public --no-git-checks --ignore-scripts --tag rc
 ```
 
@@ -47,6 +50,8 @@ cd packages/cli && pnpm publish --access public --no-git-checks --ignore-scripts
 - `--no-git-checks` skips pnpm's git dirty/tag checks (version was already committed)
 - `--ignore-scripts` skips `prepublishOnly` (tests already validated)
 - `--tag rc` avoids accidentally overwriting `latest` on a bad publish
+
+**Never use the automated release path.** Root `release:*` scripts are stubbed out to fail, and `.github/workflows/publish.yml` is `workflow_dispatch`-only. Upstream's release machinery assumes core and cli share one version; this fork pins `@mindfoldhq/trellis-core` to upstream's version while the CLI carries `-hiskens`, so every parity gate in `release-preflight.js` fails and `bump-versions.js` would rewrite core off its pin. Do not push a `v*` tag expecting it to publish.
 
 Then promote to `latest`:
 

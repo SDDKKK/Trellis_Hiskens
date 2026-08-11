@@ -64,26 +64,9 @@ If the user asks you to edit code, decline and tell them to spawn the
 
 Choose tools by query type — do not default to bash grep/ls for code understanding.
 
-- Code structure / "how does X work" → `ace-tool search_context` or `codegraph_context`, NOT `bash grep`.
-- Symbol definition / callers / callees → `codegraph_search`, `codegraph_callers`, NOT `grep -rn "funcName"`.
-- Directory listing / find files → `codegraph_files`, NOT `ls` / `find`.
-- Read file contents → `Read` tool, NOT `cat` / `head` / `tail`.
+- Code structure, "how does X work", callers, definitions → `codegraph_explore`. One capped call answers most questions; it returns verbatim source grouped by file plus the call path among the symbols.
+- Semantic search when you cannot name the symbols → `ace-tool search_context`, NOT `bash grep`.
+- Read a file codegraph did not return → `Read` tool, NOT `cat` / `head` / `tail`.
 - Exact string literal match → `grep` (acceptable).
 - External research (standards, best practices, library docs) → `smart-search` CLI via shell; include community forums, X discussions, and consensus opinions.
-
-## Output format for each research file
-
-```
-# Research: <topic>
-
-- Query: ...
-- Scope: internal / external / mixed
-- Date: YYYY-MM-DD
-
-## Findings
-...
-
-## Caveats / Not Found
-...
-```
 """
