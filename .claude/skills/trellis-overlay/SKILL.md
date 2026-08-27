@@ -16,7 +16,7 @@ This skill covers keeping `Trellis_Hiskens` aligned with upstream `mindfold-ai/T
 
 ## Hiskens Customization Points
 
-Nine numbered points, seven still active (#4 retired at v0.6.14; numbering kept stable so older notes still resolve). The authoritative check is not this list but the diff itself — see **Overlay Audit** below, which regenerates the list from the repo and will catch anything this prose has drifted away from.
+Twelve numbered points, eleven still active (#4 retired at v0.6.14; numbering kept stable so older notes still resolve). The authoritative check is not this list but the diff itself — see **Overlay Audit** below, which regenerates the list from the repo and will catch anything this prose has drifted away from. Points 11 and 12 were added at v0.6.16, when the audit surfaced them as deltas nobody had written down.
 
 ### 1. Package Identity
 
@@ -151,6 +151,26 @@ Two deliberate fork deltas live in the test tree. Both were invisible until the 
 
 Everything else under `test/` must match upstream byte-for-byte. Two upstream assertions were wrongly deleted or inverted by past forks of this rule (`36aef99e`, `6126f7b0`); both were restored at v0.6.14. If an upstream test fails, first ask whether the fork broke the *behavior*, not whether the assertion is inconvenient.
 
+### 11. Locale-Blind Git Parsing (`LANGUAGE=en`)
+
+Both files parse git's **stderr against English substrings**. On a translated locale (zh_CN, de_DE, …) git emits localized text, the match silently misses, and the check degrades — so each git invocation pins the gettext catalog to English. `LANGUAGE` selects the message catalog only; charset and collation stay on the user's locale.
+
+- `packages/cli/src/templates/trellis/scripts/common/git.py` — `env={**os.environ, "LANGUAGE": "en"}` in the subprocess call (plus the `import os`). Guards `safe_commit._stderr_indicates_ignored`.
+- `packages/cli/src/utils/template-fetcher.ts` — `env: { ...process.env, LANGUAGE: "en" }` on the download spawn. Guards `classifyGitError`, which otherwise degrades every error to `"unknown"`.
+
+Landed at v0.6.14 (`a5f5fcf7`) but never written down; the v0.6.16 audit found it as an unlisted delta. Upstream has neither.
+
+```bash
+grep -c 'LANGUAGE' packages/cli/src/templates/trellis/scripts/common/git.py   # want 1
+grep -c 'LANGUAGE' packages/cli/src/utils/template-fetcher.ts                 # want 1
+```
+
+### 12. Fork-Authored `.trellis/spec/guides/index.md`
+
+Fork-rewritten index (v0.6.14): every entry resolves to a file that exists here. Upstream's version is a "Why Thinking Guides?" essay listing guides this repo does not carry. **Not co-owned like #9** — the fork replaced the whole body, so an upstream edit conflicts loudly rather than silently deleting a section.
+
+Also fork-owned for the same reason as #1: `packages/cli/src/templates/markdown/spec/guides/cross-platform-thinking-guide.md.txt` carries `pnpm --filter @hiskens/trellis build` where upstream says `@mindfoldhq/trellis`.
+
 ### 8. Upstream Version Tracker
 
 **File:** `.upstream-version` (repo root)
@@ -165,9 +185,18 @@ Prose drifts; the diff does not. Run this after every merge — it reconstructs 
 
 **Scan `test/` too, not just `src/`.** Fork test assertions are overlay: during the v0.6.14 sync a `platforms.test.ts` assertion still pinned the retired #4 arrow-function form and only surfaced as a test failure, because the audit was `src/`-only at the time. A fork overlay in `src/` almost always has a matching assertion in `test/`; retire them together.
 
+**Pass the right base, or you get 45KB of noise.** The base must be the upstream commit the working tree should be compared *against*:
+
+- **Before merging** — `"$(cat .upstream-version)"`. The tree has no upstream changes yet, so `base..worktree` is exactly the fork delta.
+- **After merging** — `upstream/main` (or the new tag). `.upstream-version` still names the *old* baseline, and the tree now contains upstream's release, so passing it prints every upstream change alongside the overlay and buries the signal.
+
+Also note the script diffs `base` against the **working tree**, not `HEAD`. That is deliberate — it works mid-merge, before anything is committed. `git diff <base> HEAD` during an uncommitted merge compares against the pre-merge commit and reports nothing useful.
+
 ```bash
 cd /home/hcx/github/Trellis_Hiskens
-python3 - "$(cat .upstream-version)" <<'PY'
+# pre-merge:  python3 - "$(cat .upstream-version)" <<'PY'
+# post-merge: python3 - upstream/main <<'PY'
+python3 - upstream/main <<'PY'
 import subprocess, sys, difflib
 base = sys.argv[1]
 files = subprocess.run(["git","diff","--name-only",base,"HEAD","--",
@@ -275,6 +304,12 @@ git merge upstream/main --no-edit
 - `.trellis/config.yaml`: take upstream's new sections, preserve Feature Flags section with `ccr_routing: true`
 - `.trellis/.template-hashes.json`: take upstream's hashes
 - Submodules (`docs-site`, `marketplace`): take upstream's commit pointers — `git checkout --theirs <submodule> && cd <submodule> && git checkout <upstream-commit> && cd .. && git add <submodule>`
+
+**Even when submodules do NOT conflict, run `git submodule update --init --recursive` before testing.** A clean merge stages upstream's new pointers in the index but leaves the working tree on the old checkout. Tests read files from disk, so `docs-site/` and `marketplace/` still hold the previous release and any test that cross-checks them fails for a reason that has nothing to do with your merge. At v0.6.16 this produced three phantom failures — upstream's new `registry-invariants.test.ts` (init flags, platform count) plus `trellis.test.ts > marketplace native workflow mirror` — all green the moment the submodules were checked out. Two of them had even been miscounted as "pre-existing baseline failures", because the baseline worktree had the same stale checkout.
+
+```bash
+git submodule status   # a leading '+' means worktree != index — update before trusting any test run
+```
 - Workspace journals: keep ours (`git checkout --ours`)
 
 ### Step 3: Verify Customizations
@@ -339,5 +374,5 @@ Run the `trellis-publish` skill (`/trellis-publish`) which handles:
 - **Upstream remote:** `https://github.com/mindfold-ai/Trellis.git`
 - **Upstream branch:** `main`
 - **npm package:** `@hiskens/trellis`
-- **Overlay surface:** 7 active customization points — package identity, CCR routing, ace-tool (replacing augment + exa), context7, Codex tool-routing blocks, session_auto_commit, and the fork section in `.trellis/spec/guides/cross-platform-thinking-guide.md`. (#4 pi SessionManager binding retired at v0.6.14.) Verify with the Overlay Audit, not from memory.
+- **Overlay surface:** 11 active customization points — package identity, CCR routing, ace-tool (replacing augment + exa), context7, Codex tool-routing blocks, session_auto_commit, the fork section in `.trellis/spec/guides/cross-platform-thinking-guide.md`, the test-tree overlays, `LANGUAGE=en` git parsing, and the fork-authored guide index. (#4 pi SessionManager binding retired at v0.6.14.) Verify with the Overlay Audit, not from memory.
 - **Only `packages/cli/src/templates/` matters** — root-level `.claude/`, `.opencode/` etc. are this repo's own dogfood config, not the distributed templates
