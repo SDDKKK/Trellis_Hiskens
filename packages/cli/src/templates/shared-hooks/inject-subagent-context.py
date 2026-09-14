@@ -878,8 +878,10 @@ To get structured package info, run: `python3 ./{DIR_WORKFLOW}/scripts/get_conte
 ## Search Tips
 
 - Spec files: `{spec_path}/**/*.md`
-- Code search: Use Glob and Grep tools
-- Tech solutions: Use mcp__exa__web_search_exa or mcp__exa__get_code_context_exa"""
+- Code understanding: Use mcp__codegraph__codegraph_explore — one call returns verbatim source, callers, and blast radius
+- Semantic code search: Use mcp__ace-tool__search_context when you cannot name the symbol
+- Exact filename / string match: Use Glob and Grep
+- External research: Use smart-search CLI via Bash (smart-search search/exa-search/fetch)"""
 
     context_parts.append(project_structure)
 
@@ -921,11 +923,12 @@ You are a documenter, not a reviewer.
 
 | Tool | Purpose |
 |------|---------|
+| mcp__codegraph__codegraph_explore | Code structure, callers, verbatim source (prefer over Grep+Read) |
+| mcp__ace-tool__search_context | Semantic search when you cannot name the symbol |
 | Glob | Search by filename pattern |
 | Grep | Search by content |
 | Read | Read file content |
-| mcp__exa__web_search_exa | External web search |
-| mcp__exa__get_code_context_exa | External code/doc search |
+| smart-search (CLI via Bash) | External web / docs research |
 
 ## Strict Boundaries
 

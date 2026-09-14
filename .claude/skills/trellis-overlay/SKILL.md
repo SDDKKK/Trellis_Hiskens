@@ -81,11 +81,19 @@ Upstream uses `mcp__augment-context-engine__*` (Augment's codebase-retrieval MCP
 - `opencode/plugins/inject-subagent-context.js` — search tool tips
 - `packages/cli/src/configurators/shared.ts` — capability mapping `case`
 
+**The two injector hooks are the half that keeps getting missed.** They carry the *research* agent's search guidance, and until 2026-09-14 only the opencode JS one had been converted — the python hook, which serves claude, codex and 13 other platforms, still told every `trellis-research` dispatch to call `mcp__exa__web_search_exa` / `mcp__exa__get_code_context_exa`, tools the fork deliberately dropped and that no configured MCP server provides. It survived three syncs because the `augment-context-engine` grep below does not cover exa, and because this list already *claimed* the file was done. Both hooks now name the same four routes: `codegraph_explore` → `ace-tool search_context` → `Glob`/`Grep` → `smart-search` CLI. The python hook says it twice (a `## Search Tips` block plus a `## Search Tools` table in `build_research_prompt`); the JS has only the tips block — upstream's JS research prompt is the abridged variant throughout, so do not add a table there.
+
 **Post-sync verification:**
 
 ```bash
 # Must return zero matches in src/ (not dist/)
 grep -rn "augment-context-engine" packages/cli/src/ --include="*.md" --include="*.ts" --include="*.js" --include="*.py" --include="*.toml" | grep -v node_modules
+
+# The injector hooks must recommend codegraph + ace-tool, never exa.
+# shared.ts capability cases and migrations/manifests/*.json are the only legitimate exa hits in src/.
+grep -rn "mcp__exa__" packages/cli/src/templates/                                                 # want empty
+grep -c "codegraph_explore" packages/cli/src/templates/shared-hooks/inject-subagent-context.py    # want 2
+grep -c "codegraph_explore" packages/cli/src/templates/opencode/plugins/inject-subagent-context.js # want 1
 ```
 
 **If upstream reintroduces `augment-context-engine`:** Replace all occurrences back to `ace-tool` after merge. The substitution is mechanical — `mcp__augment-context-engine__*` → `mcp__ace-tool__*` and `augment codebase-retrieval` → `ace-tool search_context` in instruction text.

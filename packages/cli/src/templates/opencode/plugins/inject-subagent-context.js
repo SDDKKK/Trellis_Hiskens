@@ -203,8 +203,10 @@ function getResearchContext(ctx) {
 
 - Spec files: \`.trellis/spec/**/*.md\`
 - Known issues: \`.trellis/big-question/\`
-- Code search: Use Glob and Grep tools
-- Tech solutions: Use mcp__ace-tool__search_context, mcp__context7__query-docs, or smart-search CLI via Bash (smart-search search/exa-search/fetch)`)
+- Code understanding: Use mcp__codegraph__codegraph_explore — one call returns verbatim source, callers, and blast radius
+- Semantic code search: Use mcp__ace-tool__search_context when you cannot name the symbol
+- Exact filename / string match: Use Glob and Grep
+- External research: Use smart-search CLI via Bash (smart-search search/exa-search/fetch)`)
 
   return parts.join("\n\n")
 }
