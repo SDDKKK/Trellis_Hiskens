@@ -29,6 +29,8 @@ Twelve numbered points, eleven still active (#4 retired at v0.6.14; numbering ke
 
 Version format: `{upstream-version}-hiskens` — no trailing `.1` or build number.
 
+**The rename spills into distributed prose.** Five template docs name the package in an install/build command or a `node_modules/` path and are rewritten to `@hiskens/trellis`: `templates/common/bundled-skills/trellis-channel/references/progress-debugging.md`, `trellis-meta/references/customize-local/overview.md`, `trellis-meta/references/local-architecture/{bundled-skills,generated-files}.md`, and `templates/markdown/spec/guides/cross-platform-thinking-guide.md.txt` (also listed under #12). One line each; they surface in the audit and are overlay, not accidents.
+
 **CRITICAL — `packages/core/package.json`:**
 - **Name stays `@mindfoldhq/trellis-core`** (upstream's scope — we do NOT rename it)
 - **Version stays aligned with upstream** (e.g., `0.6.6`, NOT `0.6.6-hiskens`)
